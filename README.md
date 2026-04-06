@@ -30,7 +30,7 @@ visualizations/ - EDA plots
 ## Team
 
 - Martin Vanco
-- Adriana (TODO: surname)
+- Adriana Gemeľová
 
 ## Course
 
