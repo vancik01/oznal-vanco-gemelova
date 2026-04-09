@@ -7,6 +7,9 @@ data/*.csv
 .RData
 .Ruserdata
 *.Rproj
+renv/
+renv.lock
+.Rprofile
 
 # Shiny
 rsconnect/

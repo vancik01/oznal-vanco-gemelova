@@ -19,9 +19,22 @@ Predicting professional League of Legends match outcomes from early-game perform
 - **S1**: Model Comparison (LR, RF, XGBoost, KNN, CART) + feature-space partitioning
 - **S3**: Feature Selection (RFE, Forward Stepwise, LASSO, Elastic Net, RF importance)
 
+## Setup
+
+Install R packages:
+
+```r
+install.packages(c(
+  "tidyverse", "corrplot", "caret", "glmnet",
+  "randomForest", "xgboost", "rpart", "rpart.plot",
+  "class", "pROC", "shiny", "shinydashboard"
+))
+```
+
 ## Project Structure
 
 ```
+analysis.qmd    - main Quarto notebook
 data/           - dataset + data README
 docs/           - assignment spec, analysis documents
 visualizations/ - EDA plots
