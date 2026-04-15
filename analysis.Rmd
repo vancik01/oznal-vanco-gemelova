@@ -158,8 +158,11 @@ ggplot(result_cors, aes(x = reorder(feature, abs(correlation)),
 
 ```{r}
 cat(sprintf("Strongest positive: %s (%.3f)\nStrongest negative: %s (%.3f)",
-    result_cors$feature[1], result_cors$correlation[1],
-    result_cors$feature[nrow(result_cors)], result_cors$correlation[nrow(result_cors)]))
+    result_cors$feature[which.max(result_cors$correlation)],
+    max(result_cors$correlation),
+    result_cors$feature[which.min(result_cors$correlation)],
+    min(result_cors$correlation)))
+
 ```
 
 The differential features (`golddiffat15` r=0.52, `xpdiffat15` r=0.49, `csdiffat15` r=0.45) are the strongest predictors - substantially above the raw absolute values. This makes sense: it's the *gap* between teams that matters, not the raw numbers. Among objectives, `firsttower` (r=0.40) and `firstherald` (r=0.33) stand out, while `firstblood` (r=0.16) and `firstdragon` (r=0.15) are weaker. The correlation matrix also reveals high multicollinearity between raw stats and their diff counterparts (e.g. `goldat15` and `golddiffat15`), which will cause issues for Logistic Regression and motivates regularization methods like LASSO and Elastic Net in Scenario 3.
