@@ -1036,9 +1036,74 @@ The EDA revealed high multicollinearity between raw stats and their differential
 
 ## LASSO (L1)
 
+LASSO (Least Absolute Shrinkage and Selection Operator) is logistic regression with an added penalty for large coefficients. Unlike standard logistic regression, which keeps all features, LASSO can shrink individual coefficients all the way to exactly zero - effectively removing those features from the model. This makes it both a classifier and a feature selector in one step. It is particularly useful here because our features have high multicollinearity: when two features carry the same signal (e.g. `golddiffat15` and `gold_momentum`), LASSO tends to keep the stronger one and zero out the weaker. We tune `lambda` - the penalty strength - via cross-validation: too low and nothing gets eliminated, too high and useful features get removed.
+
 ```{r s3-lasso}
-# TODO
+cat("Running LASSO with 5-fold CV to find optimal lambda...\n")
+t0 <- Sys.time()
+
+lasso_cv <- cv.glmnet(
+    x = as.matrix(X_train_scaled),
+    y = y_train,
+    alpha = 1,          # alpha=1 is pure LASSO (L1 penalty)
+    family = "binomial",
+    nfolds = 5
+)
+
+# lambda.1se: the largest lambda within 1 SE of the minimum - gives a sparser model
+# that is nearly as accurate as lambda.min but keeps fewer features
+lasso_coefs <- coef(lasso_cv, s = "lambda.1se")
+
+lasso_coef_df <- data.frame(
+    feature = rownames(lasso_coefs),
+    coefficient = as.numeric(lasso_coefs)
+) %>%
+    filter(feature != "(Intercept)") %>%
+    arrange(desc(abs(coefficient)))
+
+lasso_selected  <- lasso_coef_df %>% filter(coefficient != 0)
+lasso_eliminated <- lasso_coef_df %>% filter(coefficient == 0)
+
+# test set evaluation
+lasso_pred_prob  <- predict(lasso_cv, newx = as.matrix(X_test_scaled),
+                            s = "lambda.1se", type = "response")
+lasso_pred_class <- factor(ifelse(lasso_pred_prob > 0.5, "Win", "Loss"),
+                           levels = c("Loss", "Win"))
+lasso_cm  <- confusionMatrix(lasso_pred_class, y_test_fct)
+lasso_roc <- roc(y_test_fct, as.numeric(lasso_pred_prob),
+                 levels = c("Loss", "Win"), quiet = TRUE)
+
+cat(sprintf("\nLASSO Results (%.1fs):\nLambda (1se): %.6f\nFeatures kept: %d / %d (eliminated %d)\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
+    as.numeric(Sys.time() - t0, units = "secs"),
+    lasso_cv$lambda.1se,
+    nrow(lasso_selected), nrow(lasso_coef_df), nrow(lasso_eliminated),
+    lasso_cm$overall["Accuracy"] * 100,
+    lasso_cm$byClass["Sensitivity"] * 100,
+    lasso_cm$byClass["Specificity"] * 100,
+    auc(lasso_roc)))
+
+cat("\nEliminated features:\n")
+cat(paste(lasso_eliminated$feature, collapse = ", "), "\n")
 ```
+
+```{r s3-lasso-plot}
+plot(lasso_cv, main = "LASSO: CV Error vs Lambda")
+
+lasso_selected %>%
+    mutate(feature = reorder(feature, abs(coefficient))) %>%
+    ggplot(aes(x = feature, y = coefficient, fill = coefficient > 0)) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
+                      labels = c("Negative", "Positive")) +
+    labs(title = "LASSO - Surviving Features and Coefficients",
+         subtitle = sprintf("lambda.1se: %d features kept out of %d",
+                            nrow(lasso_selected), nrow(lasso_coef_df)),
+         x = NULL, y = "Coefficient", fill = "Direction") +
+    theme_minimal()
+```
+
+The CV plot shows how model error changes as lambda increases (fewer features). The left dashed line marks `lambda.min` (lowest error), the right marks `lambda.1se` (our chosen lambda - slightly sparser, nearly as accurate). The coefficient plot shows which features survived and in which direction: green bars increase win probability, red bars decrease it.
 
 ## Elastic Net (L1 + L2)
 
