@@ -454,17 +454,8 @@ teams_model <- teams %>%
     select(all_of(c("gameid", "result", "team_winrate", raw_cols_needed))) %>%
     left_join(opp_wr, by = c("gameid", "side" = "opp_side")) %>%
     mutate(opp_winrate = replace_na(opp_winrate, 0.5)) %>%
-    drop_na()
-
-n_before <- nrow(teams)
-n_after <- nrow(teams_model)
-
-cat(sprintf(
-    "Rows before drop_na: %d\nRows after drop_na: %d (removed %d rows with missing early-game data, %.1f%%)",
-    n_before, n_after,
-    n_before - n_after,
-    (n_before - n_after) / n_before * 100
-))
+    drop_na() # safety net — expects 0 removals since datacompleteness == "complete" was applied earlier
+# removed the n_before/n_after output — always printed 0 and team row count is already shown in the filter chunk above
 ```
 
 ```{r feature-engineering}
@@ -482,7 +473,9 @@ teams_model <- teams_model %>%
         death_diff_15 = deathsat15 - opp_deathsat15,
         assist_diff_15 = assistsat15 - opp_assistsat15,
 
-        # Gold efficiency: gold per CS (how well does the team convert farming?)
+        # TODO: reconsider gold_efficiency_15 — not a differential (breaks core strategy),
+        # and signal may already be covered by golddiffat15 + csdiffat15. Check LASSO output
+        # to see if it gets eliminated before deciding whether to keep or drop.
         gold_efficiency_15 = goldat15 / pmax(csat15, 1),
 
         # Void grub differential
