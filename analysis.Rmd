@@ -320,6 +320,7 @@ ggplot(role_cors, aes(x = reorder(position, correlation),
     geom_text(aes(label = sprintf("r = %.3f", correlation)),
               hjust = -0.1, size = 3.5) +
     coord_flip() +
+    scale_y_continuous(limits = c(0, 0.42)) +
     scale_fill_gradient(low = "#f39c12", high = "#2ecc71") +
     labs(title = "Correlation: Role Gold Diff @15 vs Match Result",
          subtitle = "Which role's early-game gold advantage best predicts winning?",
