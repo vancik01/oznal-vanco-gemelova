@@ -813,6 +813,31 @@ ggplot(xgb_imp %>% head(20),
 # TODO - Adriana
 # Use X_train_scaled / X_test_scaled (standardized)
 # Tune k with ctrl cross-validation
+
+cat("Training KNN...\n")
+t0 <- Sys.time()
+
+# KNN requires standardized features, also tuning k via 5-fold CV over odd values to avoid ties in matches
+knn_model <- train(
+    x = X_train_scaled,
+    y = y_train_fct,
+    method = "knn",
+    trControl = ctrl,
+    metric = "ROC",
+    tuneGrid = expand.grid(k = c(25, 31, 41, 51, 71, 101, 151, 201, 231, 251))
+)
+
+knn_pred <- predict(knn_model, X_test_scaled)
+knn_prob <- predict(knn_model, X_test_scaled, type = "prob")
+knn_cm <- confusionMatrix(knn_pred, y_test_fct)
+
+cat(sprintf("\nKNN Results (%.1fs):\nAccuracy: %.1f%%\nBest k: %d\nCV AUC-ROC: %.3f",
+    as.numeric(Sys.time() - t0, units = "secs"),
+    knn_cm$overall["Accuracy"] * 100,
+    knn_model$bestTune$k,
+    max(knn_model$results$ROC)))
+
+
 ```
 
 ## Decision Tree CART (Adriana)
@@ -844,7 +869,8 @@ calc_metrics <- function(cm, prob, y_true, name) {
 metrics <- bind_rows(
     calc_metrics(lr_cm, lr_prob, y_test_fct, "Logistic Regression"),
     calc_metrics(rf_cm, rf_prob, y_test_fct, "Random Forest"),
-    calc_metrics(xgb_cm, xgb_prob, y_test_fct, "XGBoost")
+    calc_metrics(xgb_cm, xgb_prob, y_test_fct, "XGBoost"),
+    calc_metrics(knn_cm, knn_prob, y_test_fct, "KNN")
 )
 
 knitr::kable(metrics, digits = 1, caption = "Model Performance Comparison (H1)")
