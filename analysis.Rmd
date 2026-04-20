@@ -842,10 +842,40 @@ cat(sprintf("\nKNN Results (%.1fs):\nAccuracy: %.1f%%\nBest k: %d\nCV AUC-ROC: %
 
 ## Decision Tree CART (Adriana)
 
+CART (Classification and Regression Trees) recursively splits the feature space into rectangular regions by asking binary questions about individual features (e.g. "is `golddiffat15` > 500?"). At each node, it selects the split that maximally reduces Gini impurity — a measure of class mixing. Unlike KNN, CART is scale-invariant and fully interpretable: the final model is a set of human-readable rules that directly show which features drive the prediction and at what thresholds. We tune the complexity parameter `cp`, which penalizes tree growth — small `cp` allows deep trees (risk of overfitting), large `cp` forces early stopping (risk of underfitting).
+
 ```{r s1-cart}
-# TODO - Adriana
-# Use X_train / X_test (raw, tree is scale-invariant)
-# Visualize tree with rpart.plot
+cat("Training Decision Tree CART...\n")
+t0 <- Sys.time()
+
+# cp (complexity parameter) controls tree depth — tuned via 5-fold CV
+cart_model <- train(
+    x = X_train,
+    y = y_train_fct,
+    method = "rpart",
+    trControl = ctrl,
+    metric = "ROC",
+    tuneGrid = expand.grid(cp = c(0.00001, 0.00005, 0.0001, 0.0005, 0.001))
+)
+
+cart_pred <- predict(cart_model, X_test)
+cart_prob <- predict(cart_model, X_test, type = "prob")
+cart_cm <- confusionMatrix(cart_pred, y_test_fct)
+
+cat(sprintf("\nCART Results (%.1fs):\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nBest cp: %.4f\nCV AUC-ROC: %.3f",
+    as.numeric(Sys.time() - t0, units = "secs"),
+    cart_cm$overall["Accuracy"] * 100,
+    cart_cm$byClass["Sensitivity"] * 100,
+    cart_cm$byClass["Specificity"] * 100,
+    cart_model$bestTune$cp,
+    max(cart_model$results$ROC)))
+```
+
+```{r s1-cart-plot}
+rpart.plot(cart_model$finalModel,
+           main = "Decision Tree - Match Outcome Prediction",
+           type = 4,
+           extra = 104)
 ```
 
 ## Model comparison
