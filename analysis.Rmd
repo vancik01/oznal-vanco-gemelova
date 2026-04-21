@@ -583,7 +583,7 @@ cat(sprintf("Games: %d train, %d test\nH1 - Train: %d rows, Test: %d rows\nH2 - 
 In this scenario we compare five classification methods on the same data to evaluate how well early-game features predict match outcome, and which model family offers the best trade-off between performance and interpretability.
 
 | Category       | Model                | Why we chose it                                                                   |
-|----------------|----------------|----------------------------------------|
+|----------------|----------------------|-----------------------------------------------------------------------------------|
 | Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                              |
 | Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance |
 | Statistical/ML | XGBoost              | Gradient-boosted trees, typically strongest performance                           |
@@ -611,6 +611,8 @@ X_test_scaled <- predict(preproc, X_test)
 cat(sprintf("Training features: %d\nTraining rows: %d\nTest rows: %d",
     ncol(X_train), nrow(X_train), nrow(X_test)))
 ```
+
+TODO: Print distribution
 
 We also set up a shared cross-validation strategy so all models are evaluated on the same folds, making their results directly comparable.
 
@@ -810,14 +812,24 @@ ggplot(xgb_imp %>% head(20),
 cat("Training KNN...\n")
 t0 <- Sys.time()
 
-# KNN requires standardized features, also tuning k via 5-fold CV over odd values to avoid ties in matches
+# Principled K grid: sqrt(n) is the textbook starting point for KNN (Hassanat et al. 2014).
+# We log-space the grid from k=5 up to ~4*sqrt(n) so 5-fold CV can find the true optimum
+# without us hand-picking values. Forcing odd k avoids 50/50 voting ties in binary classification.
+n_train <- nrow(X_train_scaled)
+k_theo  <- round(sqrt(n_train))
+k_grid  <- unique(round(exp(seq(log(5), log(k_theo * 4), length.out = 12))))
+k_grid  <- ifelse(k_grid %% 2 == 0, k_grid + 1, k_grid)
+
+cat(sprintf("sqrt(n) = %d, candidate K grid: %s\n",
+            k_theo, paste(k_grid, collapse = ", ")))
+
 knn_model <- train(
     x = X_train_scaled,
     y = y_train_fct,
     method = "knn",
     trControl = ctrl,
     metric = "ROC",
-    tuneGrid = expand.grid(k = c(25, 31, 41, 51, 71, 101, 151, 201, 231, 251))
+    tuneGrid = expand.grid(k = k_grid)
 )
 
 knn_pred <- predict(knn_model, X_test_scaled)
@@ -835,9 +847,13 @@ cat(sprintf("\nKNN Results (%.1fs):\nAccuracy: %.1f%%\nSensitivity (Win recall):
 
 ```
 
+TODO: Optional comparison for performance - what if we want to run the model every 0.5s to create diagram of prediction - curve. Which model would be the fastest to get result
+
+TODO: Optional test vs 2026 season????
+
 ## Decision Tree CART (Adriana)
 
-CART (Classification and Regression Trees) recursively splits the feature space into rectangular regions by asking binary questions about individual features (e.g. "is `golddiffat15` > 500?"). At each node, it selects the split that maximally reduces Gini impurity — a measure of class mixing. Unlike KNN, CART is scale-invariant and fully interpretable: the final model is a set of human-readable rules that directly show which features drive the prediction and at what thresholds. We tune the complexity parameter `cp`, which penalizes tree growth — small `cp` allows deep trees (risk of overfitting), large `cp` forces early stopping (risk of underfitting).
+CART (Classification and Regression Trees) recursively splits the feature space into rectangular regions by asking binary questions about individual features (e.g. "is `golddiffat15` \> 500?"). At each node, it selects the split that maximally reduces Gini impurity — a measure of class mixing. Unlike KNN, CART is scale-invariant and fully interpretable: the final model is a set of human-readable rules that directly show which features drive the prediction and at what thresholds. We tune the complexity parameter `cp`, which penalizes tree growth — small `cp` allows deep trees (risk of overfitting), large `cp` forces early stopping (risk of underfitting).
 
 ```{r s1-cart}
 cat("Training Decision Tree CART...\n")
@@ -989,6 +1005,8 @@ ggplot(top_features, aes(x = reorder(feature, -rank), y = rank, color = model)) 
 ```
 
 ```{r s1-consensus}
+# TODO: Consensus weird - why dragons when not important for models?
+
 consensus <- top_features %>%
     group_by(feature) %>%
     summarise(
