@@ -99,3 +99,10 @@ Martin: Setup -> Data Prep -> Feature Eng -> EDA -----> Martin: LR + RF + XGB + 
                                                   \
                                                    \--> Adriana: KNN + CART + Feature Selection + Shiny + One-pager
 ```
+
+S1 -> pick mode
+S3 -> feature engineering
+Analysis -> 
+TODO martin: Introduction to LoL - basic mechanics -> basic gold collection, ....
+Is it ok to go S1 -> S3?  (feature engineering should be done before adding the models?)
+

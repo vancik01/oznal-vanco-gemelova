@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OZNAL - Models & Concepts Guide</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --bg-card: #141820;
+    --bg-elev: #1a1f2a;
+    --border: #242a36;
+    --text: #e4e7ec;
+    --text-dim: #8891a3;
+    --text-mute: #5a6274;
+    --accent: #4ade80;
+    --accent-dim: #2dd4bf;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --good: #4ade80;
+    --mono: "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app { display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  aside {
+    width: 280px;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border);
+    padding: 28px 20px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 4px;
+    letter-spacing: -0.02em;
+  }
+
+  .logo-sub {
+    font-size: 12px;
+    color: var(--text-mute);
+    margin-bottom: 28px;
+  }
+
+  .nav-group {
+    margin-bottom: 22px;
+  }
+
+  .nav-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-mute);
+    font-weight: 600;
+    margin-bottom: 10px;
+    padding: 0 8px;
+  }
+
+  .nav-item {
+    display: block;
+    padding: 7px 10px;
+    border-radius: 6px;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 120ms ease;
+    border-left: 2px solid transparent;
+  }
+
+  .nav-item:hover {
+    color: var(--text);
+    background: var(--bg-elev);
+  }
+
+  .nav-item.active {
+    color: var(--accent);
+    background: rgba(74, 222, 128, 0.08);
+    border-left-color: var(--accent);
+  }
+
+  /* Main */
+  main {
+    flex: 1;
+    padding: 48px 60px 80px;
+    max-width: 920px;
+  }
+
+  header {
+    margin-bottom: 48px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h1 {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 10px;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 15px;
+  }
+
+  section.topic {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 36px;
+    margin-bottom: 28px;
+    scroll-margin-top: 20px;
+  }
+
+  section.topic > h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .badge.ml { background: rgba(74, 222, 128, 0.12); color: var(--accent); }
+  .badge.part { background: rgba(45, 212, 191, 0.12); color: var(--accent-dim); }
+  .badge.fs { background: rgba(251, 191, 36, 0.12); color: var(--warn); }
+  .badge.ev { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+  .badge.cnc { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+  .badge.todo { background: rgba(248, 113, 113, 0.12); color: var(--bad); }
+  .badge.done { background: rgba(74, 222, 128, 0.12); color: var(--good); }
+
+  .one-liner {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 22px;
+    font-style: italic;
+  }
+
+  h3 {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin: 24px 0 10px;
+  }
+
+  p { margin-bottom: 12px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--bg-elev);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--accent);
+  }
+
+  pre {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  pre code { background: none; padding: 0; color: var(--text); font-size: 12.5px; }
+
+  .callout {
+    background: var(--bg-elev);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout.insight { border-left-color: var(--warn); }
+  .callout.insight::before { content: "💡 "; margin-right: 4px; }
+  .callout.project { border-left-color: var(--accent-dim); }
+  .callout.project::before { content: "🎯 In our project — "; font-weight: 600; color: var(--accent-dim); }
+  .callout.warn { border-left-color: var(--bad); }
+  .callout.warn::before { content: "⚠️ "; margin-right: 4px; }
+
+  .grid-pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 10px;
+  }
+  .card-pro, .card-con {
+    background: var(--bg-elev);
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-size: 13.5px;
+  }
+  .card-pro { border-top: 2px solid var(--good); }
+  .card-con { border-top: 2px solid var(--bad); }
+  .card-pro h4, .card-con h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+  }
+  .card-pro h4 { color: var(--good); }
+  .card-con h4 { color: var(--bad); }
+  .card-pro ul, .card-con ul { list-style: none; }
+  .card-pro li, .card-con li {
+    padding: 4px 0;
+    padding-left: 16px;
+    position: relative;
+  }
+  .card-pro li::before {
+    content: "+"; position: absolute; left: 0; color: var(--good); font-weight: 700;
+  }
+  .card-con li::before {
+    content: "−"; position: absolute; left: 0; color: var(--bad); font-weight: 700;
+  }
+
+  ul, ol { padding-left: 20px; margin-bottom: 12px; }
+  li { margin-bottom: 4px; }
+
+  .hp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin-top: 8px;
+  }
+  .hp-table th, .hp-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .hp-table th {
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .hp-table td:first-child {
+    font-family: var(--mono);
+    color: var(--accent);
+    font-size: 12.5px;
+  }
+
+  /* Intuition SVG containers */
+  .diagram {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+    text-align: center;
+  }
+  .diagram svg { max-width: 100%; height: auto; }
+  .diagram-caption {
+    color: var(--text-mute);
+    font-size: 12px;
+    margin-top: 10px;
+    font-style: italic;
+  }
+
+  strong { color: var(--text); font-weight: 600; }
+  em { color: var(--text); }
+
+  .toc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+
+  .project-tag {
+    font-size: 11px;
+    color: var(--text-mute);
+    font-family: var(--mono);
+  }
+
+  @media (max-width: 900px) {
+    .app { flex-direction: column; }
+    aside { width: 100%; height: auto; position: static; }
+    main { padding: 32px 24px; }
+    .grid-pros-cons { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<aside>
+  <div class="logo">OZNAL Guide</div>
+  <div class="logo-sub">LoL Early-Game Prediction · Models & Concepts</div>
+
+  <div class="nav-group">
+    <div class="nav-title">S1 · Classifiers</div>
+    <a class="nav-item" href="#lr">Logistic Regression</a>
+    <a class="nav-item" href="#rf">Random Forest</a>
+    <a class="nav-item" href="#xgb">XGBoost</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-title">S1 · Partitioning</div>
+    <a class="nav-item" href="#knn">K-Nearest Neighbors</a>
+    <a class="nav-item" href="#cart">Decision Tree (CART)</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-title">S3 · Feature Selection</div>
+    <a class="nav-item" href="#rfe">RFE</a>
+    <a class="nav-item" href="#fwd">Forward Stepwise</a>
+    <a class="nav-item" href="#lasso">LASSO (L1)</a>
+    <a class="nav-item" href="#enet">Elastic Net</a>
+    <a class="nav-item" href="#rfimp">RF Importance</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-title">Evaluation</div>
+    <a class="nav-item" href="#cm">Confusion Matrix</a>
+    <a class="nav-item" href="#acc">Accuracy</a>
+    <a class="nav-item" href="#prf1">Precision/Recall/F1</a>
+    <a class="nav-item" href="#auc">AUC-ROC</a>
+    <a class="nav-item" href="#cv">Cross-Validation</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-title">Key Concepts</div>
+    <a class="nav-item" href="#split">Train/Test Split</a>
+    <a class="nav-item" href="#scale">Standardization</a>
+    <a class="nav-item" href="#collin">Multicollinearity</a>
+    <a class="nav-item" href="#leak">Data Leakage</a>
+    <a class="nav-item" href="#fe">Feature Engineering</a>
+  </div>
+</aside>
+
+<main>
+<header>
+  <h1>Models & Concepts Guide</h1>
+  <p class="subtitle">Plain-English explanations of every algorithm, metric, and concept used in the OZNAL capstone. Each section tells you <em>what it is</em>, <em>how it works</em>, and <em>exactly how we use it</em> in the LoL early-game prediction project.</p>
+</header>
+
+<!-- =================== LOGISTIC REGRESSION =================== -->
+<section class="topic" id="lr">
+  <div class="toc-header">
+    <h2>Logistic Regression <span class="badge ml">Classifier</span> <span class="badge done">Done</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S1</span>
+  </div>
+  <p class="one-liner">A linear model that outputs a probability between 0 and 1. Our interpretable baseline.</p>
+
+  <h3>What it is</h3>
+  <p>Logistic Regression (LR) models the <strong>log-odds</strong> of the positive class as a linear combination of features. If <code>golddiffat15</code> goes up by 1 standard deviation, the log-odds of winning change by a fixed amount — the coefficient.</p>
+
+  <pre><code>P(win) = sigmoid(β₀ + β₁·golddiffat15 + β₂·firsttower + ... + βₙ·xₙ)</code></pre>
+
+  <h3>How it works</h3>
+  <ol>
+    <li>Start with random coefficients β</li>
+    <li>Plug features in, compute predicted win probability via sigmoid</li>
+    <li>Measure loss (log-loss) against actual result</li>
+    <li>Adjust coefficients using gradient descent to reduce loss</li>
+    <li>Repeat until convergence</li>
+  </ol>
+
+  <div class="callout project">We use it as the <strong>interpretable baseline</strong>. Since features are standardized, bigger absolute coefficients = stronger influence on the win probability. A positive <code>golddiffat15</code> coefficient means gold leads increase win probability (obvious, but the magnitude tells us <em>how much</em>).</div>
+
+  <h3>Hyperparameters we tune</h3>
+  <table class="hp-table">
+    <tr><th>Param</th><th>What it controls</th><th>Our value</th></tr>
+    <tr><td>method</td><td>Which optimization backend caret uses</td><td><code>"glm"</code> (binomial)</td></tr>
+    <tr><td>CV folds</td><td>How we estimate out-of-sample performance</td><td>5</td></tr>
+  </table>
+
+  <div class="grid-pros-cons">
+    <div class="card-pro">
+      <h4>Strengths</h4>
+      <ul>
+        <li>Fully interpretable — coefficients = feature impact</li>
+        <li>Fast to train, easy to productionize</li>
+        <li>Calibrated probabilities out of the box</li>
+      </ul>
+    </div>
+    <div class="card-con">
+      <h4>Weaknesses</h4>
+      <ul>
+        <li>Assumes linearity in log-odds — misses interactions</li>
+        <li>Hurts under multicollinearity (rank-deficient warning)</li>
+        <li>Can't model "first tower <em>combined with</em> gold lead" patterns</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- =================== RANDOM FOREST =================== -->
+<section class="topic" id="rf">
+  <div class="toc-header">
+    <h2>Random Forest <span class="badge ml">Classifier</span> <span class="badge done">Done</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S1</span>
+  </div>
+  <p class="one-liner">An ensemble of many decision trees, each trained on a random subset of data and features. Their votes are averaged.</p>
+
+  <h3>How it works</h3>
+  <ol>
+    <li><strong>Bagging</strong>: bootstrap sample the training data N times (with replacement) → N different datasets</li>
+    <li>Grow a deep decision tree on each — but at each split, only consider a random subset of <code>mtry</code> features</li>
+    <li>To predict: every tree votes → majority wins (classification)</li>
+  </ol>
+
+  <div class="diagram">
+    <svg viewBox="0 0 400 140" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke="#4ade80" stroke-width="1.5">
+        <!-- Tree 1 -->
+        <circle cx="40" cy="25" r="6" fill="#4ade80"/>
+        <line x1="40" y1="31" x2="20" y2="60"/>
+        <line x1="40" y1="31" x2="60" y2="60"/>
+        <circle cx="20" cy="65" r="4" fill="#4ade80"/>
+        <circle cx="60" cy="65" r="4" fill="#4ade80"/>
+        <text x="40" y="110" text-anchor="middle" fill="#8891a3" font-size="11" font-family="monospace">tree₁ → Win</text>
+
+        <!-- Tree 2 -->
+        <circle cx="140" cy="25" r="6" fill="#4ade80"/>
+        <line x1="140" y1="31" x2="120" y2="60"/>
+        <line x1="140" y1="31" x2="160" y2="60"/>
+        <circle cx="120" cy="65" r="4" fill="#4ade80"/>
+        <circle cx="160" cy="65" r="4" fill="#4ade80"/>
+        <text x="140" y="110" text-anchor="middle" fill="#8891a3" font-size="11" font-family="monospace">tree₂ → Win</text>
+
+        <!-- Tree 3 -->
+        <circle cx="240" cy="25" r="6" fill="#4ade80"/>
+        <line x1="240" y1="31" x2="220" y2="60"/>
+        <line x1="240" y1="31" x2="260" y2="60"/>
+        <circle cx="220" cy="65" r="4" fill="#4ade80"/>
+        <circle cx="260" cy="65" r="4" fill="#4ade80"/>
+        <text x="240" y="110" text-anchor="middle" fill="#8891a3" font-size="11" font-family="monospace">tree₃ → Loss</text>
+
+        <!-- ellipsis -->
+        <text x="320" y="68" fill="#8891a3" font-size="18">...</text>
+
+        <!-- vote -->
+        <text x="380" y="68" text-anchor="end" fill="#4ade80" font-size="13" font-weight="700">vote → Win</text>
+      </g>
+    </svg>
+    <div class="diagram-caption">Each tree votes independently; majority class wins. Averaging de-correlates errors.</div>
+  </div>
+
+  <div class="callout project">We train <strong>500 trees</strong> with 5-fold CV across 5 values of <code>mtry</code> (25 fits total). RF is our first <em>non-linear</em> model — it can learn that "first tower + gold lead > 1000" is much more predictive than either alone.</div>
+
+  <h3>Hyperparameters we tune</h3>
+  <table class="hp-table">
+    <tr><th>Param</th><th>What it controls</th><th>Our value</th></tr>
+    <tr><td>ntree</td><td>Number of trees in the forest</td><td>500</td></tr>
+    <tr><td>mtry</td><td>Features considered per split (tuned)</td><td>5 values in CV grid</td></tr>
+  </table>
+
+  <div class="grid-pros-cons">
+    <div class="card-pro">
+      <h4>Strengths</h4>
+      <ul>
+        <li>Captures non-linear patterns and interactions</li>
+        <li>Built-in feature importance (Gini decrease)</li>
+        <li>Robust to outliers and scale</li>
+      </ul>
+    </div>
+    <div class="card-con">
+      <h4>Weaknesses</h4>
+      <ul>
+        <li>Slower than LR, memory-hungry</li>
+        <li>"Importance" biased toward high-cardinality features</li>
+        <li>Individual predictions harder to explain</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- =================== XGBOOST =================== -->
+<section class="topic" id="xgb">
+  <div class="toc-header">
+    <h2>XGBoost <span class="badge ml">Classifier</span> <span class="badge done">Done</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S1</span>
+  </div>
+  <p class="one-liner">Gradient-boosted trees. Builds trees <em>sequentially</em>, each correcting the errors of the previous. Usually the strongest classifier.</p>
+
+  <h3>RF vs XGBoost — the key difference</h3>
+  <ul>
+    <li><strong>Random Forest</strong>: all trees built <em>in parallel</em>, independent, vote at the end</li>
+    <li><strong>XGBoost</strong>: tree 1 makes errors → tree 2 is trained specifically to fix those errors → tree 3 fixes what tree 2 got wrong → and so on</li>
+  </ul>
+  <p>It's like a relay where each runner is told exactly where the previous one fumbled.</p>
+
+  <h3>How it works</h3>
+  <ol>
+    <li>Fit a simple model (constant prediction = class mean)</li>
+    <li>Compute residuals (how wrong we are on each row)</li>
+    <li>Train a shallow tree to predict those residuals</li>
+    <li>Add the tree's predictions to the running total (scaled by learning rate <code>eta</code>)</li>
+    <li>Repeat <code>nrounds</code> times</li>
+  </ol>
+
+  <div class="callout project">We tune over a grid of <code>max_depth</code>, <code>eta</code>, and <code>nrounds</code> with 5-fold CV. XGBoost typically wins on accuracy but loses on interpretability — feature importance is given in terms of <em>gain</em> (how much a feature improves the loss when used in a split).</div>
+
+  <h3>Hyperparameters we tune</h3>
+  <table class="hp-table">
+    <tr><th>Param</th><th>What it controls</th><th>Typical effect</th></tr>
+    <tr><td>max_depth</td><td>Max tree depth</td><td>Higher → more complex patterns, risk overfit</td></tr>
+    <tr><td>eta</td><td>Learning rate (shrinkage)</td><td>Lower → slower but more stable learning</td></tr>
+    <tr><td>nrounds</td><td>Number of boosting iterations</td><td>More trees → better fit, risk overfit</td></tr>
+    <tr><td>subsample</td><td>Row sampling per tree</td><td>Adds regularization</td></tr>
+  </table>
+
+  <div class="grid-pros-cons">
+    <div class="card-pro">
+      <h4>Strengths</h4>
+      <ul>
+        <li>Usually the highest accuracy on tabular data</li>
+        <li>Built-in regularization (L1/L2) + tree pruning</li>
+        <li>Handles missing values natively</li>
+      </ul>
+    </div>
+    <div class="card-con">
+      <h4>Weaknesses</h4>
+      <ul>
+        <li>Many hyperparameters → longer tuning</li>
+        <li>Harder to explain than LR or CART</li>
+        <li>Can overfit without careful CV</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- =================== KNN =================== -->
+<section class="topic" id="knn">
+  <div class="toc-header">
+    <h2>K-Nearest Neighbors (KNN) <span class="badge part">Partitioning</span> <span class="badge todo">TODO Adriana</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S1</span>
+  </div>
+  <p class="one-liner">No training. To classify a new point, find its K closest neighbors in the training set and let them vote.</p>
+
+  <h3>How it works</h3>
+  <ol>
+    <li>Store the entire training set (no "training" phase)</li>
+    <li>For a new game to classify: compute distance to every training row</li>
+    <li>Pick the K closest ones</li>
+    <li>Majority class among those K = prediction</li>
+  </ol>
+
+  <div class="diagram">
+    <svg viewBox="0 0 300 160" xmlns="http://www.w3.org/2000/svg">
+      <!-- Wins (green) -->
+      <circle cx="80" cy="40" r="5" fill="#4ade80"/>
+      <circle cx="110" cy="60" r="5" fill="#4ade80"/>
+      <circle cx="90" cy="90" r="5" fill="#4ade80"/>
+      <circle cx="140" cy="50" r="5" fill="#4ade80"/>
+      <circle cx="160" cy="80" r="5" fill="#4ade80"/>
+      <!-- Losses (red) -->
+      <circle cx="200" cy="100" r="5" fill="#f87171"/>
+      <circle cx="220" cy="130" r="5" fill="#f87171"/>
+      <circle cx="240" cy="110" r="5" fill="#f87171"/>
+      <circle cx="180" cy="140" r="5" fill="#f87171"/>
+      <circle cx="250" cy="140" r="5" fill="#f87171"/>
+      <!-- New point -->
+      <circle cx="160" cy="110" r="7" fill="none" stroke="#fbbf24" stroke-width="2"/>
+      <text x="170" y="115" fill="#fbbf24" font-size="11" font-family="monospace">new</text>
+      <!-- K=5 radius -->
+      <circle cx="160" cy="110" r="45" fill="none" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+    </svg>
+    <div class="diagram-caption">With K=5, we count the 5 nearest points and take a majority vote.</div>
+  </div>
+
+  <div class="callout warn">KNN is <strong>distance-based</strong> — so features MUST be standardized first (otherwise <code>goldat15</code> in the 20,000s will dominate <code>void_grubs</code> in the 0–6 range). That's why we prepare <code>X_train_scaled</code> specifically for KNN and LR.</div>
+
+  <div class="callout project">We tune <code>k</code> with CV (odd values to avoid ties). Low <code>k</code> = flexible but noisy; high <code>k</code> = smooth but misses local patterns. KNN gets added to the ROC overlay alongside LR/RF/XGB for direct comparison.</div>
+
+  <div class="grid-pros-cons">
+    <div class="card-pro">
+      <h4>Strengths</h4>
+      <ul>
+        <li>No training — simple mental model</li>
+        <li>Captures arbitrary non-linear boundaries</li>
+        <li>Good baseline for partitioning</li>
+      </ul>
+    </div>
+    <div class="card-con">
+      <h4>Weaknesses</h4>
+      <ul>
+        <li>Slow at prediction time (scans all training data)</li>
+        <li>Suffers in high dimensions (curse of dimensionality)</li>
+        <li>No intrinsic explainability</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- =================== CART =================== -->
+<section class="topic" id="cart">
+  <div class="toc-header">
+    <h2>Decision Tree — CART <span class="badge part">Partitioning</span> <span class="badge todo">TODO Adriana</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S1</span>
+  </div>
+  <p class="one-liner">A single tree of if/else rules. Each split carves the feature space into rectangles.</p>
+
+  <h3>How it works</h3>
+  <ol>
+    <li>At each node, try every possible split on every feature</li>
+    <li>Pick the split that maximally reduces impurity (Gini or entropy)</li>
+    <li>Recurse on each child</li>
+    <li>Stop when nodes are pure or size limit hit</li>
+  </ol>
+
+  <pre><code>if golddiffat15 &gt; 1500 → Win (92%)
+else if firsttower = 1 → Win (71%)
+else if xpdiffat15 &gt; 500 → Win (58%)
+else → Loss (68%)</code></pre>
+
+  <div class="callout project">CART is our <strong>most visually interpretable</strong> model. We plot the tree with <code>rpart.plot</code> — every rule is directly readable. Tree-based, so scale-invariant — we use the <em>unscaled</em> <code>X_train</code>.</div>
+
+  <h3>Hyperparameters we tune</h3>
+  <table class="hp-table">
+    <tr><th>Param</th><th>What it controls</th></tr>
+    <tr><td>cp</td><td>Complexity penalty — smaller = deeper tree</td></tr>
+    <tr><td>maxdepth</td><td>Max levels allowed</td></tr>
+    <tr><td>minsplit</td><td>Minimum rows needed to attempt a split</td></tr>
+  </table>
+
+  <div class="grid-pros-cons">
+    <div class="card-pro">
+      <h4>Strengths</h4>
+      <ul>
+        <li>Visual — every decision rule is legible</li>
+        <li>Scale-invariant, handles mixed types</li>
+        <li>Fast prediction</li>
+      </ul>
+    </div>
+    <div class="card-con">
+      <h4>Weaknesses</h4>
+      <ul>
+        <li>High variance — small data changes = different tree</li>
+        <li>Weaker accuracy than ensembles (RF, XGB)</li>
+        <li>Can overfit deep-branch leaves</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- =================== RFE =================== -->
+<section class="topic" id="rfe">
+  <div class="toc-header">
+    <h2>RFE — Recursive Feature Elimination <span class="badge fs">Feature Selection</span> <span class="badge todo">TODO Adriana</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S3</span>
+  </div>
+  <p class="one-liner">Start with all features. Drop the least important one. Re-fit. Repeat until you reach the target count.</p>
+
+  <h3>How it works</h3>
+  <ol>
+    <li>Train model on all 46 features → get importance ranking</li>
+    <li>Drop the bottom feature</li>
+    <li>Retrain on the remaining 45</li>
+    <li>Repeat until you hit the target feature count (e.g. 10)</li>
+    <li>Report features surviving + performance curve</li>
+  </ol>
+
+  <div class="callout project">We use Logistic Regression as the RFE "estimator". At each step, LR coefficients rank features → lowest |β| gets dropped. Output: a <strong>ranked list</strong> + an accuracy-vs-features curve showing where the sweet spot is.</div>
+
+  <div class="grid-pros-cons">
+    <div class="card-pro">
+      <h4>Strengths</h4>
+      <ul>
+        <li>Simple, interpretable process</li>
+        <li>Respects the chosen model's logic</li>
+        <li>Shows performance at every step</li>
+      </ul>
+    </div>
+    <div class="card-con">
+      <h4>Weaknesses</h4>
+      <ul>
+        <li>Expensive — N refits for N features</li>
+        <li>Greedy — can miss feature combinations</li>
+        <li>Dependent on estimator choice</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- =================== FORWARD =================== -->
+<section class="topic" id="fwd">
+  <div class="toc-header">
+    <h2>Forward Stepwise Selection <span class="badge fs">Feature Selection</span> <span class="badge todo">TODO Adriana</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S3</span>
+  </div>
+  <p class="one-liner">Opposite of RFE. Start empty. Add the best feature. Repeat until adding more doesn't help.</p>
+
+  <h3>How it works</h3>
+  <ol>
+    <li>Start with zero features; baseline model = class prior</li>
+    <li>For every candidate feature, fit a model with it + current set; pick the one that reduces loss most</li>
+    <li>Add that feature; repeat</li>
+    <li>Stop when no remaining feature meaningfully improves the model (AIC / BIC / CV drop)</li>
+  </ol>
+
+  <div class="callout insight">Forward selection is greedy — it picks feature <em>k</em> conditional on features 1..k−1. It may miss a pair of features that only help together. LASSO handles such cases better.</div>
+</section>
+
+<!-- =================== LASSO =================== -->
+<section class="topic" id="lasso">
+  <div class="toc-header">
+    <h2>LASSO (L1 regularization) <span class="badge fs">Feature Selection</span> <span class="badge done">Done</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S3 (line 1031)</span>
+  </div>
+  <p class="one-liner">Logistic Regression with a penalty that can shrink coefficients <em>all the way to exactly zero</em>. Acts as classifier + feature selector in one step.</p>
+
+  <h3>The math, in English</h3>
+  <p>Normal LR minimizes: <code>log-loss</code>. LASSO minimizes: <code>log-loss + λ · Σ|βᵢ|</code>. The extra term penalizes large coefficients — and crucially, the <em>L1 norm</em> (sum of absolute values) tends to produce exactly-zero solutions for weak features.</p>
+
+  <h3>What λ does</h3>
+  <ul>
+    <li><strong>λ = 0</strong>: no penalty — same as ordinary LR, all features kept</li>
+    <li><strong>λ small</strong>: a few weak features dropped</li>
+    <li><strong>λ large</strong>: almost all features zeroed out — only the strongest survive</li>
+    <li><strong>λ → ∞</strong>: everything zero, model = class mean</li>
+  </ul>
+
+  <div class="callout project">We use <code>cv.glmnet</code> with <strong>5-fold CV</strong> to find the best λ. Rather than picking the minimum CV error (<code>lambda.min</code>), we use <code>lambda.1se</code> — the largest λ within 1 standard error of the minimum. This gives a <em>sparser</em> model that's nearly as accurate but drops more features — ideal for feature selection.</div>
+
+  <h3>Why it fits our data</h3>
+  <p>Our EDA revealed heavy multicollinearity: <code>goldat15</code>, <code>opp_goldat15</code>, and <code>golddiffat15</code> carry near-identical signal. LASSO handles this by keeping the strongest of the group and zeroing the rest.</p>
+
+  <div class="grid-pros-cons">
+    <div class="card-pro">
+      <h4>Strengths</h4>
+      <ul>
+        <li>Does selection + classification in one fit</li>
+        <li>Shrinks coefficients → robust to multicollinearity</li>
+        <li>Sparse output is easy to report</li>
+      </ul>
+    </div>
+    <div class="card-con">
+      <h4>Weaknesses</h4>
+      <ul>
+        <li>Among correlated features, LASSO picks one <em>arbitrarily</em> — order can depend on data noise</li>
+        <li>Struggles when features > rows (we're fine)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- =================== ELASTIC NET =================== -->
+<section class="topic" id="enet">
+  <div class="toc-header">
+    <h2>Elastic Net (L1 + L2) <span class="badge fs">Feature Selection</span> <span class="badge todo">TODO Adriana</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S3</span>
+  </div>
+  <p class="one-liner">LASSO and Ridge combined. Fixes LASSO's "pick one from a correlated group arbitrarily" problem by grouping them together.</p>
+
+  <h3>The penalty</h3>
+  <pre><code>log-loss + λ · [ α·Σ|βᵢ| + (1−α)·Σβᵢ² ]</code></pre>
+  <ul>
+    <li><code>α = 1</code> → pure LASSO</li>
+    <li><code>α = 0</code> → pure Ridge (shrinks but never exactly zero)</li>
+    <li><code>α ≈ 0.5</code> → balanced Elastic Net</li>
+  </ul>
+
+  <div class="callout insight">When two features are highly correlated (e.g. <code>goldat15</code> and <code>opp_goldat15</code>), LASSO picks one and zeros the other. Elastic Net tends to <em>keep both with shrunk coefficients</em>, preserving signal while controlling overfitting.</div>
+
+  <div class="callout project">We'll use <code>cv.glmnet</code> with <code>alpha</code> between 0 and 1, tuned via CV. Expected result: a slightly less sparse model than LASSO, potentially with more stable feature selection.</div>
+</section>
+
+<!-- =================== RF IMPORTANCE =================== -->
+<section class="topic" id="rfimp">
+  <div class="toc-header">
+    <h2>Random Forest Importance <span class="badge fs">Feature Selection</span> <span class="badge todo">TODO Adriana</span></h2>
+    <span class="project-tag">analysis.Rmd · Sec. S3</span>
+  </div>
+  <p class="one-liner">Use RF's built-in feature importance as a ranking, then pick the top-N as your selected set.</p>
+
+  <h3>Two importance types</h3>
+  <ul>
+    <li><strong>Gini importance</strong> (mean decrease in impurity): how much each feature reduces Gini across all splits in all trees. Fast, but biased toward high-cardinality features.</li>
+    <li><strong>Permutation importance</strong>: shuffle the feature's values → measure how much accuracy drops. Slower but unbiased and more reliable.</li>
+  </ul>
+
+  <div class="callout project">We get RF importance "for free" from the Scenario 1 RF model — just re-use the trained object and rank features. This is the <em>embedded</em> category of feature selection (vs. the wrapper methods RFE and Stepwise).</div>
+</section>
+
+<!-- =================== CONFUSION MATRIX =================== -->
+<section class="topic" id="cm">
+  <div class="toc-header">
+    <h2>Confusion Matrix <span class="badge ev">Evaluation</span></h2>
+  </div>
+  <p class="one-liner">A 2×2 table counting predictions vs actuals. Every other classification metric is derived from it.</p>
+
+  <table class="hp-table">
+    <tr><th></th><th>Predicted Loss</th><th>Predicted Win</th></tr>
+    <tr><td>Actual Loss</td><td>TN (true negative)</td><td>FP (false positive)</td></tr>
+    <tr><td>Actual Win</td><td>FN (false negative)</td><td>TP (true positive)</td></tr>
+  </table>
+
+  <div class="callout project">In our context: <strong>TP</strong> = we predicted win, team did win. <strong>FP</strong> = we predicted win, team lost (over-optimistic). <strong>FN</strong> = we predicted loss, team actually won (missed a comeback-able position). Since the target is 50/50, no class is privileged — we can read all metrics straight off.</div>
+</section>
+
+<!-- =================== ACCURACY =================== -->
+<section class="topic" id="acc">
+  <div class="toc-header">
+    <h2>Accuracy <span class="badge ev">Evaluation</span></h2>
+  </div>
+  <p class="one-liner">Fraction of predictions we got right. <code>(TP + TN) / total</code>.</p>
+
+  <div class="callout">Accuracy is reliable here because our target is <strong>perfectly balanced</strong> (50/50). A naive "always predict win" baseline gets 50%. Our EDA baseline ("gold lead at 15 → win") hits <strong>72.9%</strong> — any model that doesn't beat this isn't learning anything beyond that single rule.</div>
+
+  <div class="callout warn">Accuracy is <em>misleading</em> on imbalanced data (e.g. 95% losses → a "always loss" predictor gets 95% accuracy while being useless). Doesn't apply to us, but worth knowing.</div>
+</section>
+
+<!-- =================== PRECISION/RECALL/F1 =================== -->
+<section class="topic" id="prf1">
+  <div class="toc-header">
+    <h2>Precision, Recall, F1 <span class="badge ev">Evaluation</span></h2>
+  </div>
+  <p class="one-liner">Three metrics capturing different types of errors.</p>
+
+  <table class="hp-table">
+    <tr><th>Metric</th><th>Formula</th><th>Asks</th></tr>
+    <tr><td>Precision</td><td>TP / (TP + FP)</td><td>Of the games we predicted as wins, how many actually were?</td></tr>
+    <tr><td>Recall</td><td>TP / (TP + FN)</td><td>Of the actual wins, how many did we catch?</td></tr>
+    <tr><td>F1</td><td>2·(P·R)/(P+R)</td><td>Harmonic mean — balances the two</td></tr>
+  </table>
+
+  <div class="callout insight">Precision and Recall trade off against each other. A model that predicts "win" only on 90%+ gold leads will have high precision but low recall (misses close games it could have called). A model that predicts "win" on any advantage has high recall but low precision (calls everything a win).</div>
+</section>
+
+<!-- =================== AUC-ROC =================== -->
+<section class="topic" id="auc">
+  <div class="toc-header">
+    <h2>AUC-ROC <span class="badge ev">Evaluation</span></h2>
+  </div>
+  <p class="one-liner">The area under the ROC curve. Measures <em>how well the model ranks</em> wins above losses, independent of any specific threshold.</p>
+
+  <h3>What the ROC curve plots</h3>
+  <ul>
+    <li>X-axis: False Positive Rate (FPR = FP / actual losses)</li>
+    <li>Y-axis: True Positive Rate (TPR = recall = TP / actual wins)</li>
+    <li>Each point = the model's performance at a different classification threshold</li>
+  </ul>
+
+  <h3>AUC interpretation</h3>
+  <ul>
+    <li><strong>0.5</strong> — random guessing</li>
+    <li><strong>0.7–0.8</strong> — fair / good</li>
+    <li><strong>0.8–0.9</strong> — strong (where our models land)</li>
+    <li><strong>0.9+</strong> — excellent (suspect data leakage in our domain)</li>
+  </ul>
+
+  <div class="callout project">We overlay all 5 models' ROC curves on the same plot in <code>## Model comparison</code>. A curve closer to the top-left corner = a better ranker. AUC-ROC is our <strong>primary metric</strong> because it's threshold-independent and handles balanced binary classification cleanly.</div>
+</section>
+
+<!-- =================== CV =================== -->
+<section class="topic" id="cv">
+  <div class="toc-header">
+    <h2>Stratified K-Fold Cross-Validation <span class="badge ev">Evaluation</span></h2>
+  </div>
+  <p class="one-liner">Split training data into K chunks. Train on K-1, validate on the left-out fold. Rotate. Average the K scores.</p>
+
+  <h3>Why "stratified"?</h3>
+  <p>Each fold preserves the original class balance (50/50). Without stratification, a fold could randomly end up 60/40 or worse, giving biased metrics.</p>
+
+  <div class="callout project">We use <strong>5-fold stratified CV</strong> throughout — for LR (1 fit × 5 folds), RF (5 mtry values × 5 folds = 25 fits), XGBoost grid search (many × 5), KNN, CART, LASSO. The <code>trainControl</code> object in caret sets this up once and reuses it across all models so the scores are directly comparable.</div>
+
+  <h3>Why not a single train/validation split?</h3>
+  <p>Every metric becomes a <em>distribution</em>, not a point estimate. We can report mean ± SD and see if two models' CV scores actually differ beyond noise.</p>
+</section>
+
+<!-- =================== TRAIN/TEST SPLIT =================== -->
+<section class="topic" id="split">
+  <div class="toc-header">
+    <h2>Train/Test Split by Game ID <span class="badge cnc">Concept</span></h2>
+  </div>
+  <p class="one-liner">Each game produces 2 team rows (Blue + Red) that are exact mirrors. We split on <code>gameid</code>, not on row, to prevent leakage.</p>
+
+  <div class="callout warn">If we split rows randomly: Blue side of game X could land in train while Red side lands in test. But Blue's <code>golddiffat15 = +500</code> is literally Red's <code>golddiffat15 = −500</code> — same information, flipped sign. The model would "cheat" by memorizing games it's already seen.</div>
+
+  <div class="callout project">We split <strong>80% of games to train, 20% to test</strong>, stratified by result. The same <code>gameid</code> split is reused for H2 so both hypotheses are evaluated on identical holdout games.</div>
+</section>
+
+<!-- =================== SCALING =================== -->
+<section class="topic" id="scale">
+  <div class="toc-header">
+    <h2>Standardization (z-score scaling) <span class="badge cnc">Concept</span></h2>
+  </div>
+  <p class="one-liner">Transform every feature to mean=0, std=1. Required for distance- and magnitude-based models.</p>
+
+  <pre><code>x_scaled = (x − mean(x_train)) / sd(x_train)</code></pre>
+
+  <div class="callout warn">Always compute the scaler on <strong>training data only</strong>, then apply it to test data. If you use test data statistics, you've leaked information about the test set into preprocessing.</div>
+
+  <h3>Which models need it in our project</h3>
+  <table class="hp-table">
+    <tr><th>Model</th><th>Scaling needed?</th><th>Reason</th></tr>
+    <tr><td>Logistic Regression</td><td>Yes</td><td>Coefficients comparable only if features on same scale</td></tr>
+    <tr><td>KNN</td><td>Yes</td><td>Distances dominated by large-scale features otherwise</td></tr>
+    <tr><td>LASSO / Elastic Net</td><td>Yes</td><td>Penalty applied equally — must equalize scale first</td></tr>
+    <tr><td>Random Forest</td><td>No</td><td>Splits are threshold-based, scale-invariant</td></tr>
+    <tr><td>XGBoost</td><td>No</td><td>Same reason as RF</td></tr>
+    <tr><td>CART</td><td>No</td><td>Single tree, scale-invariant</td></tr>
+  </table>
+</section>
+
+<!-- =================== MULTICOLLINEARITY =================== -->
+<section class="topic" id="collin">
+  <div class="toc-header">
+    <h2>Multicollinearity <span class="badge cnc">Concept</span></h2>
+  </div>
+  <p class="one-liner">When two or more features carry almost the same signal. Breaks linear model interpretation.</p>
+
+  <div class="callout project">In our data: <code>goldat15</code>, <code>opp_goldat15</code>, and <code>golddiffat15 = goldat15 − opp_goldat15</code> are mathematically redundant. When we initially threw all three into Logistic Regression, R threw the "rank deficient" warning — that's the statistical term for "these columns are linearly dependent, I can't uniquely fit coefficients."</div>
+
+  <h3>How we handle it</h3>
+  <ul>
+    <li>Drop the raw absolute values, keep only <strong>differentials</strong></li>
+    <li>Use <strong>momentum features</strong> (diff@15 − diff@10) instead of having both snapshots</li>
+    <li>Rely on <strong>LASSO / Elastic Net</strong> to auto-zero redundant features</li>
+    <li>Tree-based models (RF, XGB) are tolerant — collinearity doesn't break them, just splits importance arbitrarily between correlated features</li>
+  </ul>
+</section>
+
+<!-- =================== DATA LEAKAGE =================== -->
+<section class="topic" id="leak">
+  <div class="toc-header">
+    <h2>Data Leakage <span class="badge cnc">Concept</span></h2>
+  </div>
+  <p class="one-liner">When your training data sneakily contains information about the target that won't be available at prediction time. Produces suspiciously high accuracy that doesn't survive deployment.</p>
+
+  <h3>Where we defend against it</h3>
+  <ol>
+    <li><strong>Feature selection</strong> — we reject post-game stats like <code>towers</code> (r=0.89) because they're measured <em>after</em> the game we're trying to predict. Only features available by minute 15.</li>
+    <li><strong>Train/test split by gameid</strong> — so the test set never contains the mirror row of a training game.</li>
+    <li><strong>Rolling team win rate</strong> — we compute each team's historical winrate using <em>only games played before the current one</em>. Teams with no history default to 0.5. Never use the current game's result or any future game.</li>
+    <li><strong>Standardization</strong> fit on train only, applied to test.</li>
+  </ol>
+
+  <div class="callout insight">A suspiciously good model (AUC > 0.95 on this problem) would almost certainly be leaking. Our models land at AUC ≈ 0.83–0.84 — consistent with the 74–85% range in the published literature, which is a good sanity check.</div>
+</section>
+
+<!-- =================== FEATURE ENGINEERING =================== -->
+<section class="topic" id="fe">
+  <div class="toc-header">
+    <h2>Feature Engineering <span class="badge cnc">Concept</span></h2>
+  </div>
+  <p class="one-liner">Creating new features that capture signal better than raw columns. Often the single biggest lever for model performance.</p>
+
+  <h3>Engineered features in our project</h3>
+  <table class="hp-table">
+    <tr><th>Feature</th><th>Formula</th><th>Intuition</th></tr>
+    <tr><td>gold_momentum</td><td>golddiffat15 − golddiffat10</td><td>Is the lead <em>growing</em>?</td></tr>
+    <tr><td>xp_momentum</td><td>xpdiffat15 − xpdiffat10</td><td>Same, for levels</td></tr>
+    <tr><td>cs_momentum</td><td>csdiffat15 − csdiffat10</td><td>Same, for farming</td></tr>
+    <tr><td>kill_pressure</td><td>killsat15 − killsat10</td><td>Kills in the 10→15 window</td></tr>
+    <tr><td>kda_at_15</td><td>(kills+assists) / max(deaths,1)</td><td>Standard KDA metric</td></tr>
+    <tr><td>grub_diff</td><td>void_grubs − opp_void_grubs</td><td>Objective differential</td></tr>
+    <tr><td>winrate_diff</td><td>team_winrate − opp_winrate</td><td>Pre-game team strength edge</td></tr>
+  </table>
+
+  <div class="callout project">Our experiments showed that adding the rolling <code>winrate_diff</code> + turret plate differential bumped XGBoost accuracy from <strong>74.7% → 75.3%</strong> and AUC from <strong>0.833 → 0.843</strong>. Small but real — these features aren't common in the LoL prediction literature.</div>
+</section>
+
+</main>
+</div>
+
+<script>
+  // Highlight nav item as sections scroll into view
+  const sections = document.querySelectorAll('section.topic');
+  const navLinks = document.querySelectorAll('.nav-item');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
