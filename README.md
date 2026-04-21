@@ -16,7 +16,7 @@ Predicting professional League of Legends match outcomes from early-game perform
 
 ## Scenarios
 
-- **S1**: Model Comparison (LR, RF, XGBoost, KNN, CART) + feature-space partitioning
+- **S1**: Model Comparison (LR, RF, Naive Bayes, KNN, CART) + feature-space partitioning
 - **S3**: Feature Selection (RFE, Forward Stepwise, LASSO, Elastic Net, RF importance)
 
 ## Setup
@@ -26,7 +26,7 @@ Install R packages:
 ```r
 install.packages(c(
   "tidyverse", "corrplot", "caret", "glmnet",
-  "randomForest", "xgboost", "rpart", "rpart.plot",
+  "randomForest", "naivebayes", "rpart", "rpart.plot",
   "class", "pROC", "shiny", "shinydashboard"
 ))
 ```

@@ -52,12 +52,12 @@
 ### Martin: S1 partial - classifiers
 - Logistic Regression
 - Random Forest
-- XGBoost
+- Naive Bayes
 - Stratified k-fold CV for all three
 - Metrics: accuracy, AUC-ROC, precision, recall, F1
 - Confusion matrices
 - ROC curves
-- Explainability: LR coefficients vs RF importance vs XGBoost importance
+- Explainability: LR coefficients vs RF importance vs Naive Bayes filter importance
 - H1 vs H2 comparison: both feature sets through all 3 models, compare AUC-ROC
 - Conclusion: which role's early-game stats matter most
 
@@ -95,7 +95,7 @@
 ## Dependency diagram
 
 ```
-Martin: Setup -> Data Prep -> Feature Eng -> EDA -----> Martin: LR + RF + XGB + H2
+Martin: Setup -> Data Prep -> Feature Eng -> EDA -----> Martin: LR + RF + NB + H2
                                                   \
                                                    \--> Adriana: KNN + CART + Feature Selection + Shiny + One-pager
 ```
