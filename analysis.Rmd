@@ -806,14 +806,76 @@ ggplot(xgb_imp %>% head(20),
 # TODO - Adriana
 # Use X_train_scaled / X_test_scaled (standardized)
 # Tune k with ctrl cross-validation
+
+cat("Training KNN...\n")
+t0 <- Sys.time()
+
+# KNN requires standardized features, also tuning k via 5-fold CV over odd values to avoid ties in matches
+knn_model <- train(
+    x = X_train_scaled,
+    y = y_train_fct,
+    method = "knn",
+    trControl = ctrl,
+    metric = "ROC",
+    tuneGrid = expand.grid(k = c(25, 31, 41, 51, 71, 101, 151, 201, 231, 251))
+)
+
+knn_pred <- predict(knn_model, X_test_scaled)
+knn_prob <- predict(knn_model, X_test_scaled, type = "prob")
+knn_cm <- confusionMatrix(knn_pred, y_test_fct)
+
+cat(sprintf("\nKNN Results (%.1fs):\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nBest k: %d\nCV AUC-ROC: %.3f",
+    as.numeric(Sys.time() - t0, units = "secs"),
+    knn_cm$overall["Accuracy"] * 100,
+    knn_cm$byClass["Sensitivity"] * 100,
+    knn_cm$byClass["Specificity"] * 100,
+    knn_model$bestTune$k,
+    max(knn_model$results$ROC)))
+
+
 ```
 
 ## Decision Tree CART (Adriana)
 
+CART (Classification and Regression Trees) recursively splits the feature space into rectangular regions by asking binary questions about individual features (e.g. "is `golddiffat15` > 500?"). At each node, it selects the split that maximally reduces Gini impurity — a measure of class mixing. Unlike KNN, CART is scale-invariant and fully interpretable: the final model is a set of human-readable rules that directly show which features drive the prediction and at what thresholds. We tune the complexity parameter `cp`, which penalizes tree growth — small `cp` allows deep trees (risk of overfitting), large `cp` forces early stopping (risk of underfitting).
+
 ```{r s1-cart}
-# TODO - Adriana
-# Use X_train / X_test (raw, tree is scale-invariant)
-# Visualize tree with rpart.plot
+cat("Training Decision Tree CART...\n")
+t0 <- Sys.time()
+
+# cp (complexity parameter) controls tree depth — tuned via 5-fold CV
+cart_model <- train(
+    x = X_train,
+    y = y_train_fct,
+    method = "rpart",
+    trControl = ctrl,
+    metric = "ROC",
+    tuneGrid = expand.grid(cp = c(0.00001, 0.00005, 0.0001, 0.0005, 0.001))
+)
+
+cart_pred <- predict(cart_model, X_test)
+cart_prob <- predict(cart_model, X_test, type = "prob")
+cart_cm <- confusionMatrix(cart_pred, y_test_fct)
+
+cat(sprintf("\nCART Results (%.1fs):\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nBest cp: %.4f\nCV AUC-ROC: %.3f",
+    as.numeric(Sys.time() - t0, units = "secs"),
+    cart_cm$overall["Accuracy"] * 100,
+    cart_cm$byClass["Sensitivity"] * 100,
+    cart_cm$byClass["Specificity"] * 100,
+    cart_model$bestTune$cp,
+    max(cart_model$results$ROC)))
+
+cart_imp <- varImp(cart_model)$importance %>%
+    rownames_to_column("feature") %>%
+    arrange(desc(Overall))
+```
+
+```{r s1-cart-plot}
+# Tree is too deep to be readable at this pruning level
+# rpart.plot(cart_model$finalModel,
+#            main = "Decision Tree - Match Outcome Prediction",
+#            type = 4,
+#            extra = 104)
 ```
 
 ## Model comparison
@@ -837,7 +899,9 @@ calc_metrics <- function(cm, prob, y_true, name) {
 metrics <- bind_rows(
     calc_metrics(lr_cm, lr_prob, y_test_fct, "Logistic Regression"),
     calc_metrics(rf_cm, rf_prob, y_test_fct, "Random Forest"),
-    calc_metrics(xgb_cm, xgb_prob, y_test_fct, "XGBoost")
+    calc_metrics(cart_cm, cart_prob, y_test_fct, "CART"),
+    calc_metrics(xgb_cm, xgb_prob, y_test_fct, "XGBoost"),
+    calc_metrics(knn_cm, knn_prob, y_test_fct, "KNN")
 )
 
 knitr::kable(metrics, digits = 1, caption = "Model Performance Comparison (H1)")
@@ -858,30 +922,38 @@ plot_cm <- function(cm, title) {
 gridExtra::grid.arrange(
     plot_cm(lr_cm, "Logistic Regression"),
     plot_cm(rf_cm, "Random Forest"),
+    plot_cm(cart_cm, "CART"),
     plot_cm(xgb_cm, "XGBoost"),
-    ncol = 3
+    plot_cm(knn_cm, "KNN"),
+    ncol = 5
 )
 ```
 
 ```{r s1-roc-curves}
-roc_lr <- roc(y_test_fct, lr_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
-roc_rf <- roc(y_test_fct, rf_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
-roc_xgb <- roc(y_test_fct, xgb_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_lr   <- roc(y_test_fct, lr_prob[, "Win"],   levels = c("Loss", "Win"), quiet = TRUE)
+roc_rf   <- roc(y_test_fct, rf_prob[, "Win"],   levels = c("Loss", "Win"), quiet = TRUE)
+roc_cart <- roc(y_test_fct, cart_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_xgb  <- roc(y_test_fct, xgb_prob[, "Win"],  levels = c("Loss", "Win"), quiet = TRUE)
+roc_knn  <- roc(y_test_fct, knn_prob[, "Win"],  levels = c("Loss", "Win"), quiet = TRUE)
 
 ggroc(list(
     "Logistic Regression" = roc_lr,
     "Random Forest" = roc_rf,
-    "XGBoost" = roc_xgb
+    "CART" = roc_cart,
+    "XGBoost" = roc_xgb,
+    "KNN" = roc_knn
 )) +
     geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray40") +
     scale_color_manual(values = c(
         "Logistic Regression" = "#3498db",
         "Random Forest" = "#27ae60",
-        "XGBoost" = "#e67e22"
+        "CART" = "#9b59b6",
+        "XGBoost" = "#e67e22",
+        "KNN" = "#e74c3c"
     )) +
     labs(title = "ROC Curves - Model Comparison",
-         subtitle = sprintf("AUC: LR=%.3f, RF=%.3f, XGB=%.3f",
-                            auc(roc_lr), auc(roc_rf), auc(roc_xgb)),
+         subtitle = sprintf("AUC: LR=%.3f, RF=%.3f, CART=%.3f, XGB=%.3f, KNN=%.3f",
+                            auc(roc_lr), auc(roc_rf), auc(roc_cart), auc(roc_xgb), auc(roc_knn)),
          x = "Specificity", y = "Sensitivity", color = "Model") +
     theme_minimal()
 ```
@@ -893,20 +965,23 @@ The ROC curves show each model's trade-off between true positive rate and false 
 Different models define "importance" differently: LR uses coefficient magnitude, RF uses mean decrease in Gini impurity, and XGBoost uses gain. We compare the top features across all three to identify **consensus features** - those that all models agree are important, regardless of the method. Features that appear in all top-10 lists are the most robust predictors.
 
 ```{r s1-explainability}
+# KNN excluded - no meaningful feature importance
 top_features <- bind_rows(
     lr_coefs %>% mutate(rank = row_number(), model = "LR") %>%
         select(feature, rank, model) %>% head(10),
     rf_imp %>% mutate(rank = row_number(), model = "RF") %>%
+        select(feature, rank, model) %>% head(10),
+    cart_imp %>% mutate(rank = row_number(), model = "CART") %>%
         select(feature, rank, model) %>% head(10),
     xgb_imp %>% mutate(rank = row_number(), model = "XGB") %>%
         select(feature, rank, model) %>% head(10)
 )
 
 ggplot(top_features, aes(x = reorder(feature, -rank), y = rank, color = model)) +
-    geom_point(size = 3) +
+    geom_jitter(size = 3, width = 0, height = 0.2) +
     coord_flip() +
     scale_y_reverse(breaks = 1:10) +
-    scale_color_manual(values = c("LR" = "#3498db", "RF" = "#27ae60", "XGB" = "#e67e22")) +
+    scale_color_manual(values = c("LR" = "#3498db", "RF" = "#27ae60", "CART" = "#9b59b6", "XGB" = "#e67e22")) +
     labs(title = "Feature Importance Rankings - Top 10 per Model",
          subtitle = "Features appearing across multiple models are the most robust predictors",
          x = NULL, y = "Rank (1 = most important)", color = "Model") +
@@ -1068,6 +1143,9 @@ cat(sprintf("\nLASSO Results (%.1fs):\nLambda (1se): %.6f\nFeatures kept: %d / %
     lasso_cm$byClass["Sensitivity"] * 100,
     lasso_cm$byClass["Specificity"] * 100,
     auc(lasso_roc)))
+
+cat("\nKept features:\n")
+cat(paste(lasso_selected$feature, collapse = ", "), "\n")
 
 cat("\nEliminated features:\n")
 cat(paste(lasso_eliminated$feature, collapse = ", "), "\n")
