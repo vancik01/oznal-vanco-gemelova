@@ -31,7 +31,7 @@ This analysis investigates two hypotheses about professional League of Legends e
 
 ## Related work
 
-Published research on LoL match prediction from early-game data reports accuracy in the **73-78% range** at the 15-minute mark. Lafrance & Grewal (2026) achieved 77.1% with XGBoost on ranked data at @15 min. A Tilburg University thesis (2023) using Oracle's Elixir data reached 78.0% with Logistic Regression, and Chen (2024) reported 78.2% with tuned LR at @20 min. At the 10-minute mark, accuracy drops to ~73% (Jiang, CatBoost). Studies consistently find that **gold differential** is the strongest single early-game predictor, and that **first tower** outweighs first blood or first dragon as an objective. Our analysis uses 2025 data, which includes **void grubs** (added in Season 14) and **turret plate differentials** - features that have not been explored in the published literature. We also incorporate a **rolling team win rate** as a pre-game strength signal, inspired by Chowdhury et al. (2025) who showed that combining pre-game and in-game features improves prediction to 76.8%.
+Published research on LoL match prediction from early-game data reports accuracy in the **73-78% range** at the 15-minute mark. Lafrance & Grewal (2026) achieved 77.1% with XGBoost on ranked data at @15 min. A Tilburg University thesis (2023) using Oracle's Elixir data reached 78.0% with Logistic Regression, and Chen (2024) reported 78.2% with tuned LR at @20 min. At the 10-minute mark, accuracy drops to \~73% (Jiang, CatBoost). Studies consistently find that **gold differential** is the strongest single early-game predictor, and that **first tower** outweighs first blood or first dragon as an objective. Our analysis uses 2025 data, which includes **void grubs** (added in Season 14) and **turret plate differentials** - features that have not been explored in the published literature. We also incorporate a **rolling team win rate** as a pre-game strength signal, inspired by Chowdhury et al. (2025) who showed that combining pre-game and in-game features improves prediction to 76.8%.
 
 # Setup
 
@@ -52,7 +52,6 @@ library(doParallel)
 # Use all available cores minus 1 for parallel model training
 cl <- makePSOCKcluster(parallel::detectCores() - 1)
 registerDoParallel(cl)
-cat(sprintf("Parallel backend: %d cores", parallel::detectCores() - 1))
 ```
 
 # Data Loading and Cleaning
@@ -392,13 +391,7 @@ Key findings that inform our modeling decisions:
 
 Based on the EDA findings and experiments with different feature combinations, we now select and engineer features. The key insight from the correlation analysis is that **differential features** (gold diff, xp diff, cs diff) are the strongest predictors - not the raw values. This makes sense: it's the *gap* between teams that matters, not the absolute numbers. Since `golddiffat15 = goldat15 - opp_goldat15`, keeping all three is pure redundancy that causes multicollinearity (the LR rank-deficient warning confirms this). We also add two features not commonly found in the LoL prediction literature: **turret plate differential** (a purely early-game objective, plates fall at 14:00) and **team strength differential** (rolling win rate from prior games), which improved our XGBoost accuracy from 74.7% to 75.3% and AUC from 0.833 to 0.843 in experiments.
 
-Our strategy:
-- **Keep differentials, drop raw + opponent pairs** - eliminates the `goldat15` / `opp_goldat15` / `golddiffat15` redundancy
-- **Keep @15 diffs as primary, drop @10 raw** - the @15 snapshot subsumes @10 info. We capture @10 signal through **momentum features** (diff@15 - diff@10) instead
-- **Engineer derived features** - momentum, gold efficiency, KDA, grub differential
-- **Keep all first objectives** - binary flags with no redundancy
-- **Add turret plate differential** - plates fall at 14:00, making this a purely early-game feature (r=0.413 with result)
-- **Add rolling team win rate differential** - the difference between each team's historical win rate (computed from *only* prior games to avoid leakage), capturing pre-game team strength (r=0.263 with result)
+Our strategy: - **Keep differentials, drop raw + opponent pairs** - eliminates the `goldat15` / `opp_goldat15` / `golddiffat15` redundancy - **Keep @15 diffs as primary, drop @10 raw** - the @15 snapshot subsumes @10 info. We capture @10 signal through **momentum features** ([diff\@15](mailto:diff@15){.email} - [diff\@10](mailto:diff@10){.email}) instead - **Engineer derived features** - momentum, gold efficiency, KDA, grub differential - **Keep all first objectives** - binary flags with no redundancy - **Add turret plate differential** - plates fall at 14:00, making this a purely early-game feature (r=0.413 with result) - **Add rolling team win rate differential** - the difference between each team's historical win rate (computed from *only* prior games to avoid leakage), capturing pre-game team strength (r=0.263 with result)
 
 ## Rolling team win rate
 
@@ -590,7 +583,7 @@ cat(sprintf("Games: %d train, %d test\nH1 - Train: %d rows, Test: %d rows\nH2 - 
 In this scenario we compare five classification methods on the same data to evaluate how well early-game features predict match outcome, and which model family offers the best trade-off between performance and interpretability.
 
 | Category       | Model                | Why we chose it                                                                   |
-|----------------|----------------------|-----------------------------------------------------------------------------------|
+|----------------|----------------|----------------------------------------|
 | Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                              |
 | Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance |
 | Statistical/ML | XGBoost              | Gradient-boosted trees, typically strongest performance                           |
