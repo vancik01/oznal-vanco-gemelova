@@ -31,24 +31,11 @@ This analysis investigates two hypotheses about professional League of Legends e
 
 ## Game primer - what our features actually measure
 
-League of Legends is a 5v5 team game where two teams (Blue side, Red side) fight to destroy each other's base ("Nexus"). A match takes \~30-40 minutes and has three macro phases: **early game** (0-15 min, the focus of this analysis), **mid game** (15-25 min), and **late game** (25+ min). Each team is split into five **roles** on a fixed map:
--   **Top** - solo-lanes a side lane, durable duelist
--   **Jungle (jng)** - roams the neutral map, secures objectives, ganks lanes
--   **Mid** - solo-lanes the central lane, high-impact mage or assassin
--   **Bot / ADC (bot)** - ranged damage carry, shares a lane with support
--   **Support (sup)** - peels for and enables the ADC, provides vision and utility
+League of Legends is a 5v5 team game where two teams (Blue side, Red side) fight to destroy each other's base ("Nexus"). A match takes \~30-40 minutes and has three macro phases: **early game** (0-15 min, the focus of this analysis), **mid game** (15-25 min), and **late game** (25+ min). Each team is split into five **roles** on a fixed map: - **Top** - solo-lanes a side lane, durable duelist - **Jungle (jng)** - roams the neutral map, secures objectives, ganks lanes - **Mid** - solo-lanes the central lane, high-impact mage or assassin - **Bot / ADC (bot)** - ranged damage carry, shares a lane with support - **Support (sup)** - peels for and enables the ADC, provides vision and utility
 
-Three resources accumulate continuously and drive almost everything:
--   **Gold** - earned by killing minions, enemy champions, and objectives. Spent on items that make champions stronger. A team's gold total at 15 min is the main economic snapshot our models use (`goldat15`, `golddiffat15`).
--   **XP (experience)** - levels champions up, unlocking abilities. Tracked as `xpat15` and `xpdiffat15`.
--   **CS (creep score)** - number of minions killed, a proxy for lane efficiency. Tracked as `csat15` and `csdiffat15`. Each CS gives both gold and XP, so CS is tightly correlated with gold but captures mechanical consistency rather than team fight outcomes.
+Three resources accumulate continuously and drive almost everything: - **Gold** - earned by killing minions, enemy champions, and objectives. Spent on items that make champions stronger. A team's gold total at 15 min is the main economic snapshot our models use (`goldat15`, `golddiffat15`). - **XP (experience)** - levels champions up, unlocking abilities. Tracked as `xpat15` and `xpdiffat15`. - **CS (creep score)** - number of minions killed, a proxy for lane efficiency. Tracked as `csat15` and `csdiffat15`. Each CS gives both gold and XP, so CS is tightly correlated with gold but captures mechanical consistency rather than team fight outcomes.
 
-On top of these continuous resources, the early game has a set of **one-off objective races**, each of which flips a binary feature in our dataset:
--   **First blood** (`firstblood`) - the first champion kill of the match. Small gold bonus, large momentum swing.
--   **First dragon** (`firstdragon`) - dragons spawn at 5:00 in a pit on the bot side of the map; each gives a stacking buff.
--   **Void grubs** (`void_grubs`, `opp_void_grubs`) - spawn at 5:00 and despawn at 13:45 in the river; up to 6 can be killed and each grub stacks a tower-damage buff.
--   **First herald** (`firstherald`) - a neutral monster that spawns at 14:00; killing it yields a "Herald" summon that slams into towers for big plate/turret damage.
--   **First tower** (`firsttower`) and **turret plates** (`turretplates`) - every outer tower has five plates that can be broken until 14:00, each giving gold. Destroying the tower itself gives a large team-wide gold bonus.
+On top of these continuous resources, the early game has a set of **one-off objective races**, each of which flips a binary feature in our dataset: - **First blood** (`firstblood`) - the first champion kill of the match. Small gold bonus, large momentum swing. - **First dragon** (`firstdragon`) - dragons spawn at 5:00 in a pit on the bot side of the map; each gives a stacking buff. - **Void grubs** (`void_grubs`, `opp_void_grubs`) - spawn at 5:00 and despawn at 13:45 in the river; up to 6 can be killed and each grub stacks a tower-damage buff. - **First herald** (`firstherald`) - a neutral monster that spawns at 14:00; killing it yields a "Herald" summon that slams into towers for big plate/turret damage. - **First tower** (`firsttower`) and **turret plates** (`turretplates`) - every outer tower has five plates that can be broken until 14:00, each giving gold. Destroying the tower itself gives a large team-wide gold bonus.
 
 Finally there is **side** (Blue / Red), a known small structural asymmetry because Blue gets first pick in the champion draft and slightly different map geography. This is why our dataset has one row per team per game — two mirror rows where one team's `golddiffat15 = +500` is the other team's `-500`.
 
@@ -648,13 +635,13 @@ cat(sprintf(
 
 In this scenario we compare five classification methods on the same data to evaluate how well early-game features predict match outcome, and which model family offers the best trade-off between performance and interpretability.
 
-| Category       | Model                | Why we chose it                                                                   |
-|----------------|----------------------|-----------------------------------------------------------------------------------|
-| Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                              |
-| Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance |
+| Category       | Model                | Why we chose it                                                                      |
+|----------------|----------------------|--------------------------------------------------------------------------------------|
+| Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                                 |
+| Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance    |
 | Statistical/ML | Naive Bayes          | Probabilistic classifier using Bayes' theorem with a feature-independence assumption |
-| Partitioning   | KNN                  | Instance-based, partitions feature space by proximity                             |
-| Partitioning   | Decision Tree (CART) | Recursive binary splits, directly visible decision rules                          |
+| Partitioning   | KNN                  | Instance-based, partitions feature space by proximity                                |
+| Partitioning   | Decision Tree (CART) | Recursive binary splits, directly visible decision rules                             |
 
 Our baseline from EDA is 72.9% accuracy (simple "gold lead at 15 min = win" rule). Any model that doesn't beat this is not learning useful patterns beyond the single strongest feature. Published research on early-game LoL prediction reports 73-78% accuracy at the 15-minute mark, so we expect our models to land in this range. We evaluate using accuracy, AUC-ROC, precision, recall, and F1-score, with stratified 5-fold cross-validation for hyperparameter tuning.
 
@@ -848,7 +835,7 @@ We compare the RF importance ranking with the LR coefficients to see whether bot
 
 ## Naive Bayes
 
-Naive Bayes applies Bayes' theorem under the *naive* assumption that all features are conditionally independent given the class. For a new game, it computes P(Win | features) ∝ P(Win) · ∏ P(feature_i | Win) and compares it against the same quantity for Loss — the class with the higher posterior wins. Each numeric feature is modelled with a Gaussian per class, or optionally a kernel density estimate. The independence assumption is clearly violated here (gold, XP, and CS move together), but in practice Naive Bayes can still classify well, because correct classification only requires the *right class* to have the higher posterior, not perfectly calibrated probabilities. We tune whether to use Gaussian vs kernel density (`usekernel`) and the KDE bandwidth multiplier (`adjust`).
+Naive Bayes applies Bayes' theorem under the *naive* assumption that all features are conditionally independent given the class. For a new game, it computes P(Win \| features) ∝ P(Win) · ∏ P(feature_i \| Win) and compares it against the same quantity for Loss — the class with the higher posterior wins. Each numeric feature is modelled with a Gaussian per class, or optionally a kernel density estimate. The independence assumption is clearly violated here (gold, XP, and CS move together), but in practice Naive Bayes can still classify well, because correct classification only requires the *right class* to have the higher posterior, not perfectly calibrated probabilities. We tune whether to use Gaussian vs kernel density (`usekernel`) and the KDE bandwidth multiplier (`adjust`).
 
 ```{r s1-nb}
 cat("Training Naive Bayes...\n")
@@ -1172,9 +1159,9 @@ The true consensus — features ranked highly by **all four** methods — is a c
 
 The interesting disagreement is around binary objective flags, especially `firstdragon` and `firstherald`, which rank high in Logistic Regression (and LASSO) but low in Random Forest and Naive Bayes. This is a model-family effect, not noise:
 
--   **Logistic Regression treats features as independent additive log-odds shifts.** A clean binary signal with a 57-58% win rate still produces a meaningful standardized coefficient (~0.33 for `firstdragon`), so LR ranks it in the top 10.
+-   **Logistic Regression treats features as independent additive log-odds shifts.** A clean binary signal with a 57-58% win rate still produces a meaningful standardized coefficient (\~0.33 for `firstdragon`), so LR ranks it in the top 10.
 -   **Tree ensembles split greedily on continuous features first.** A binary feature produces at most one split per tree and competes against continuous features (gold, XP, CS) that admit hundreds of candidate splits. By the time the greedy algorithm considers `firstdragon`, most of its signal is already absorbed by the earlier gold/XP splits, so its Gini-based importance collapses.
--   **Naive Bayes uses filter-based importance (single-feature AUC).** `firstdragon` has marginal AUC ≈ 0.58, which maps to an importance score far below the ~0.82 of `golddiffat15`. NB is simply reading it as a weak standalone predictor.
+-   **Naive Bayes uses filter-based importance (single-feature AUC).** `firstdragon` has marginal AUC ≈ 0.58, which maps to an importance score far below the \~0.82 of `golddiffat15`. NB is simply reading it as a weak standalone predictor.
 
 The takeaway is not that `firstdragon` is irrelevant — LASSO (Scenario 3) keeps it with a non-zero coefficient, and the EDA confirmed a real WR effect. It is that **importance metrics are not comparable across model families**, and that "consensus" should be defined carefully. For H1, the four-way consensus on continuous diffs is the strongest evidence; the two-way LR/CART signal on first objectives is a secondary, model-dependent finding.
 
@@ -1497,13 +1484,13 @@ The CV plot shows how model error changes as lambda increases (fewer features). 
 
 ## Elastic Net (L1 + L2)
 
-Elastic Net combines L1 (LASSO) and L2 (Ridge) penalties in a single term. The mix is controlled by `alpha`: `alpha = 1` is pure LASSO, `alpha = 0` is pure Ridge, values in between give Elastic Net. Where LASSO tends to pick one feature from a correlated group and zero out the rest, Elastic Net can keep several features from the same group at reduced coefficients — potentially more stable when features are strongly correlated, as ours are (e.g. `goldat15` and `golddiffat15`). We search a grid of alpha values and for each find the optimal lambda via 5-fold CV, then refit with the best alpha to get the final model.
+Elastic Net combines L1 (LASSO) and L2 (Ridge) penalties in a single term. The mix is controlled by `alpha`: `alpha = 1` is pure LASSO, `alpha = 0` is pure Ridge, values in between give Elastic Net. Where LASSO tends to pick one feature from a correlated group and zero out the rest, Elastic Net can keep several features from the same group at reduced coefficients — potentially more stable when features are strongly correlated, as ours are (e.g. `goldat15` and `golddiffat15`). We search the full alpha range from 0 (Ridge) to 1 (LASSO) in 0.05 steps, and for each find the optimal lambda via 5-fold CV. For every alpha we also record the CV binomial deviance at `lambda.1se` and its standard error, so we can judge whether the "best" alpha is meaningfully better than its neighbours or the curve is flat within 1 SE.
 
 ```{r s3-elasticnet}
-cat("Running Elastic Net - searching alpha grid (0.1 to 0.9)...\n")
+cat("Running Elastic Net - searching alpha grid (0 to 1, step 0.05)...\n")
 t0 <- Sys.time()
 
-alpha_grid <- seq(0.1, 0.9, by = 0.2)
+alpha_grid <- seq(0, 1, by = 0.05)
 
 enet_cv_results <- map_dfr(alpha_grid, function(a) {
     cv_fit     <- cv.glmnet(
@@ -1513,6 +1500,7 @@ enet_cv_results <- map_dfr(alpha_grid, function(a) {
         family = "binomial",
         nfolds = 5
     )
+    idx_1se    <- which(cv_fit$lambda == cv_fit$lambda.1se)
     pred_prob  <- predict(cv_fit, newx = as.matrix(X_test_scaled),
                           s = "lambda.1se", type = "response")
     pred_class <- factor(ifelse(pred_prob > 0.5, "Win", "Loss"), levels = c("Loss", "Win"))
@@ -1522,13 +1510,27 @@ enet_cv_results <- map_dfr(alpha_grid, function(a) {
     tibble(
         alpha      = a,
         lambda_1se = cv_fit$lambda.1se,
+        cv_dev     = cv_fit$cvm[idx_1se],
+        cv_dev_se  = cv_fit$cvsd[idx_1se],
         n_features = n_kept,
         accuracy   = cm$overall["Accuracy"] * 100,
         auc        = as.numeric(auc(roc_obj))
     )
 })
 
-best_alpha <- enet_cv_results %>% arrange(desc(auc)) %>% dplyr::slice(1) %>% pull(alpha)
+best_row   <- enet_cv_results %>% arrange(cv_dev) %>% dplyr::slice(1)
+best_alpha <- best_row$alpha
+best_dev   <- best_row$cv_dev
+best_se    <- best_row$cv_dev_se
+within_1se <- enet_cv_results %>% filter(cv_dev <= best_dev + best_se)
+
+cat(sprintf("\nAlpha grid diagnostic: %d of %d alphas sit within 1 SE of the best (%.3f <= %.3f).\n",
+            nrow(within_1se), nrow(enet_cv_results), best_dev, best_dev + best_se))
+cat(sprintf("Alphas within 1 SE: %s\n",
+            paste(sprintf("%.2f", within_1se$alpha), collapse = ", ")))
+if (nrow(within_1se) >= nrow(enet_cv_results) - 2) {
+    cat("-> CV curve is effectively flat across alpha; the L1/L2 mix is underdetermined by this data.\n")
+}
 
 enet_cv_final <- cv.glmnet(
     x      = as.matrix(X_train_scaled),
@@ -1574,15 +1576,18 @@ cat(paste(enet_coef_df %>% filter(coefficient == 0) %>% pull(feature), collapse 
 ```
 
 ```{r s3-elasticnet-plot}
-ggplot(enet_cv_results, aes(x = alpha, y = auc)) +
+ggplot(enet_cv_results, aes(x = alpha, y = cv_dev)) +
+    geom_ribbon(aes(ymin = cv_dev - cv_dev_se, ymax = cv_dev + cv_dev_se),
+                fill = "#1abc9c", alpha = 0.2) +
+    geom_hline(yintercept = best_dev + best_se, linetype = "dashed", color = "#7f8c8d") +
     geom_line(color = "#1abc9c", linewidth = 1.2) +
     geom_point(size = 3, color = "#1abc9c") +
     geom_point(data = filter(enet_cv_results, alpha == best_alpha),
                size = 5, shape = 21, fill = "#e74c3c", color = "white", stroke = 1.5) +
-    labs(title = "Elastic Net: AUC-ROC across Alpha Values",
-         subtitle = sprintf("Best alpha = %.1f (red dot) — balance between L1 sparsity and L2 stability",
+    labs(title = "Elastic Net: CV Binomial Deviance across Alpha Values",
+         subtitle = sprintf("Best alpha = %.2f (red dot); dashed line = best + 1 SE. Points below the line are statistically indistinguishable from the best.",
                             best_alpha),
-         x = "Alpha (0 = Ridge, 1 = LASSO)", y = "Test AUC-ROC") +
+         x = "Alpha (0 = Ridge, 1 = LASSO)", y = "5-fold CV Deviance at lambda.1se") +
     theme_minimal()
 
 enet_selected_df %>%
@@ -1599,8 +1604,7 @@ enet_selected_df %>%
     theme_minimal()
 ```
 
-TODO alter the description so its fits our findings 
-The alpha search plot shows how sensitive the feature set is to the L1/L2 mix. If the curve is flat, both approaches yield similar results; a clear peak suggests the data benefits from a specific balance. The coefficient plot mirrors the LASSO plot above — differences between the two reveal which features LASSO eliminated but Elastic Net retained due to correlated grouping.
+The alpha search plot shows the 5-fold CV deviance at `lambda.1se` across the full 0–1 range, with the shaded band covering ±1 SE and the dashed line marking `best + 1 SE`. Every alpha whose point sits on or below that line is statistically indistinguishable from the best — so if many points fall below it, the L1/L2 mix is effectively underdetermined by this data and the "best alpha" is a tiebreak rather than a real optimum. A sharp U- or V-shape, by contrast, would indicate the data genuinely benefits from a specific mix. The coefficient plot mirrors the LASSO plot above; differences between the two reveal which features LASSO eliminated but Elastic Net retained due to correlated grouping.
 
 ## Random Forest Importance
 
