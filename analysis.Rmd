@@ -43,7 +43,30 @@ The key intuition driving H1 is that by 15 minutes these streams have already di
 
 ## Related work
 
-Published research on LoL match prediction from early-game data reports accuracy in the **73-78% range** at the 15-minute mark. Lafrance & Grewal (2026) achieved 77.1% with XGBoost on ranked data at @15 min. A Tilburg University thesis (2023) using Oracle's Elixir data reached 78.0% with Logistic Regression, and Chen (2024) reported 78.2% with tuned LR at @20 min. At the 10-minute mark, accuracy drops to \~73% (Jiang, CatBoost). Studies consistently find that **gold differential** is the strongest single early-game predictor, and that **first tower** outweighs first blood or first dragon as an objective. Our analysis uses 2025 data, which includes **void grubs** (added in Season 14) and **turret plate differentials** - features that have not been explored in the published literature. We also incorporate a **rolling team win rate** as a pre-game strength signal, inspired by Chowdhury et al. (2025) who showed that combining pre-game and in-game features improves prediction to 76.8%.
+Published work on early-game LoL match prediction at the **15-minute mark** converges tightly: reported accuracy clusters in the **76-78% band** across model families and dataset types. The table below collects the numbers we could verify directly from each source.
+
+| Study                                          | Year | Dataset                           | Model               | Acc. \@15  |
+|------------------------------------------------|------|-----------------------------------|---------------------|------------|
+| Spaargaren, MSc thesis (Tilburg)               | 2022 | Oracle's Elixir pro, 2021         | Logistic Regression | **77.99%** |
+| Spaargaren                                     | 2022 | Oracle's Elixir pro, 2021         | Random Forest       | 77.26%     |
+| Spaargaren                                     | 2022 | Oracle's Elixir pro, 2021         | SVM                 | 76.99%     |
+| Spaargaren                                     | 2022 | Oracle's Elixir pro, 2021         | Naïve Bayes         | 76.82%     |
+| Spaargaren                                     | 2022 | Oracle's Elixir pro, 2021         | kNN (k=9)           | 74.83%     |
+| Lafrance & Grewal, *Entertainment Computing*   | 2026 | Riot API solo queue, Bronze       | XGBoost             | 77.1%      |
+| Lafrance & Grewal                              | 2026 | Riot API solo queue, Diamond      | XGBoost             | 76.9%      |
+| Junior & Campelo, arXiv 2309.02449             | 2023 | Riot API solo queue               | LightGBM            | \~77.9%\*  |
+| Junior & Campelo                               | 2023 | Riot API solo queue               | Random Forest       | \~77.8%\*  |
+| Junior & Campelo                               | 2023 | Riot API solo queue               | Logistic Regression | \~77.2%\*  |
+
+\*interpolated from their "% elapsed time" buckets (15 min ≈ 50% PET for a \~30-min median match).
+
+Three observations follow from this. First, **professional play is not materially easier to predict than ranked** at 15 minutes: Spaargaren's pro-data Logistic Regression (77.99%) sits within one percentage point of Lafrance & Grewal's solo-queue XGBoost. Second, **algorithm choice matters little** at this timestamp — LR, RF, SVM, Naïve Bayes, and XGBoost all land in the 77 ± 1% band, with only kNN trailing. Third, across every study **gold differential is the strongest single feature**, and first tower or first herald typically ranks next among objective flags.
+
+Three works use Oracle's Elixir professional data directly. Spaargaren (2022) is the cleanest @15-minute benchmark and the one our models compare against most directly. Chen (2024) reports 78.18% with tuned Logistic Regression, but at the **20-minute mark** rather than 15 — his feature set is unavailable at our chosen cutoff. Tsang (2025) does not train a held-out classifier but, by fitting logistic regressions per season across 2020-2025, shows that the coefficient of `golddiffat15` has **declined** from above 1.0 in 2020-2023 to 0.83 in 2025, and that first blood has flipped to a slightly negative win-rate coefficient. This is external evidence that the 2025 season is *harder* to predict from a single gold-at-15 signal than any previous season.
+
+Chowdhury et al. (2025) reach 76.8% on Riot-API data by combining pre-game with in-game features, motivating our use of a **rolling team win rate** as a pre-game strength signal. We additionally include two features absent from the published @15-minute literature: **turret plate differential** (plates fall before 14:00, making them a purely early-game resource) and **void grubs** (added in Season 14, despawning at 13:45). To our knowledge, no peer-reviewed study has yet used the 2025 Oracle's Elixir data - which introduced Atakhan and Feats of Strength - so this work is the first analysis on that season and on those features.
+
+Finally, we note a framing gap in the literature: the trivial rule "team with a gold lead at 15 minutes wins" already delivers \~73% accuracy on professional data (72.9% on our own set). The 76-78% models above are therefore only 3-5 percentage points above this naïve baseline, yet prior work rarely evaluates results explicitly against this heuristic or analyses where the ML gains are concentrated. We adopt this framing directly in our results.
 
 # Setup
 
@@ -61,7 +84,6 @@ library(pROC)
 library(gridExtra)
 library(doParallel)
 
-# Use all available cores minus 1 for parallel model training
 cl <- makePSOCKcluster(parallel::detectCores() - 1)
 registerDoParallel(cl)
 ```
@@ -99,7 +121,7 @@ cat(sprintf(
 
 # Exploratory Data Analysis
 
-Before making any decisions about feature engineering or modeling, we explore the raw data to understand what signal exists, which features are worth keeping, and what problems we might face. The findings from this section directly inform the feature engineering, model selection, and preprocessing steps that follow.
+Before making any decisions about feature engineering or modeling, we explore the raw data to understand what signal exists, which features are worth keeping, and what problems we might face.
 
 ## Target distribution
 
@@ -187,7 +209,7 @@ cat(sprintf(
 ))
 ```
 
-The differential features (`golddiffat15` r=0.52, `xpdiffat15` r=0.49, `csdiffat15` r=0.45) are the strongest predictors - substantially above the raw absolute values. This makes sense: it's the *gap* between teams that matters, not the raw numbers. Among objectives, `firsttower` (r=0.40) and `firstherald` (r=0.33) stand out, while `firstblood` (r=0.16) and `firstdragon` (r=0.15) are weaker. The correlation matrix also reveals high multicollinearity between raw stats and their diff counterparts (e.g. `goldat15` and `golddiffat15`), which will cause issues for Logistic Regression and motivates regularization methods like LASSO and Elastic Net in Scenario 3.
+The differential features (`golddiffat15` r=0.52, `xpdiffat15` r=0.49, `csdiffat15` r=0.45) are the strongest predictors. This makes sense: it's the *gap* between teams that matters. Among objectives, `firsttower` (r=0.40) and `firstherald` (r=0.33) stand out, while `firstblood` (r=0.16) and `firstdragon` (r=0.15) are weaker. The correlation matrix also reveals high multicollinearity between raw stats and their counterparts (e.g. `goldat15` and `golddiffat15`), which will cause issues for Logistic Regression and **motivates regularization methods like LASSO and Elastic Net in Scenario 3.**
 
 ## Gold differential distribution
 
@@ -636,7 +658,7 @@ cat(sprintf(
 In this scenario we compare five classification methods on the same data to evaluate how well early-game features predict match outcome, and which model family offers the best trade-off between performance and interpretability.
 
 | Category       | Model                | Why we chose it                                                                      |
-|----------------|----------------------|--------------------------------------------------------------------------------------|
+|--------------|--------------|--------------------------------------------|
 | Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                                 |
 | Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance    |
 | Statistical/ML | Naive Bayes          | Probabilistic classifier using Bayes' theorem with a feature-independence assumption |

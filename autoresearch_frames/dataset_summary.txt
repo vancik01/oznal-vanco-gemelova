@@ -1,0 +1,8 @@
+rows=6780
+games=3390
+features=430
+positive_rate=0.5000
+frame_groups=18
+leagues=18
+mapped_games_with_frames=3781
+kept_games=3390

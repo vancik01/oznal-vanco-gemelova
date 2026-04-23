@@ -1,5 +1,18 @@
 # Data (too large for git)
 data/*.csv
+data/frames/
+autoresearch_frames/frames_dataset.csv
+autoresearch_frames/frames_dataset.rds
+autoresearch/poc/leagues_tmp/
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+autoresearch/poc/log_*.txt
+autoresearch/poc/logs/
 
 # R
 .Rproj.user/
