@@ -1164,8 +1164,10 @@ full_ranks <- lr_coefs %>%
     ) %>%
     arrange(avg_rank)
 
+options(tibble.print_max = Inf)
+
 cat("Cross-model feature ranking (lower avg_rank = more consistently important):\n")
-print(full_ranks, n = Inf)
+print(as.data.frame(full_ranks))
 
 cat("\nTrue consensus features (in all 4 top-10s):\n")
 full_ranks %>% filter(times_in_top10 == 4) %>% print()
@@ -1788,7 +1790,7 @@ overlap_long <- overlap_df %>%
 
 ggplot(overlap_long, aes(x = method, y = feature_label, fill = selected)) +
     geom_tile(color = "grey85", linewidth = 0.5) +
-    geom_text(aes(label = ifelse(selected, "✓", "")), size = 3.5, color = "white", fontface = "bold") +
+    
     scale_fill_manual(
         values = c("TRUE" = "#27ae60", "FALSE" = "white"),
         labels = c("Not selected", "Selected"),
@@ -1809,8 +1811,30 @@ ggplot(overlap_long, aes(x = method, y = feature_label, fill = selected)) +
 ```
 
 ```{r s3-comparison-auc}
-  #TODO: find a proper way to visualize findings from comparison 
+baseline_auc <- perf_summary$AUC_ROC[perf_summary$Method == "LR_all"]
 
+perf_summary %>%
+    filter(Method != "LR_all") %>%
+    mutate(Method = reorder(Method, AUC_ROC)) %>%
+    ggplot(aes(x = AUC_ROC, y = Method)) +
+    geom_segment(aes(x = baseline_auc - 1.5, xend = AUC_ROC, yend = Method),
+                 color = "grey75", linewidth = 1) +
+    geom_point(size = 5, color = "#2ecc71") +
+    geom_text(aes(label = sprintf("%d features", n_features)),
+              nudge_x = 0.15, hjust = 0, size = 3.5, color = "grey30") +
+    geom_vline(xintercept = baseline_auc, linetype = "dashed",
+               color = "#e74c3c", linewidth = 0.8) +
+    annotate("text", x = baseline_auc + 0.05, y = 0.6,
+             label = sprintf("Baseline\n(all %d feat.)", ncol(X_train_scaled)),
+             color = "#e74c3c", size = 3, hjust = 0) +
+    scale_x_continuous(limits = c(baseline_auc - 1.5, baseline_auc + 1.5)) +
+    labs(
+        title   = "Feature Selection: AUC-ROC vs. Method",
+        subtitle = "Red dashed line = LR trained on all features  ·  Labels show number of features used",
+        x = "AUC-ROC (%)", y = NULL
+    ) +
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank())
 ```
 
 Každý riadok = jedna metóda. Dĺžka stĺpca = AUC-ROC, číslo v texte hovorí koľko features použila. Prerušovaná čiara = baseline (všetky features). LASSO a RFE sú tesne pod čiarou s 9 features — prakticky rovnaký výkon pri polovici features.
@@ -1840,3 +1864,22 @@ The key practical takeaway is that **9 features achieve 84.3% AUC-ROC** — with
 ## S1 vs S3 synthesis
 
 <!-- TODO: which models + features work best together -->
+
+# Export models for Shiny app
+
+```{r save-models}
+dir.create("shiny/models", recursive = TRUE, showWarnings = FALSE)
+
+saveRDS(lr_model,      "shiny/models/lr_model.rds")
+saveRDS(rf_model,      "shiny/models/rf_model.rds")
+saveRDS(nb_model,      "shiny/models/nb_model.rds")
+saveRDS(knn_model,     "shiny/models/knn_model.rds")
+saveRDS(cart_model,    "shiny/models/cart_model.rds")
+saveRDS(preproc,       "shiny/models/preproc.rds")
+saveRDS(perf_summary,  "shiny/models/perf_summary.rds")
+saveRDS(overlap_df,    "shiny/models/overlap_df.rds")
+saveRDS(teams_model,   "shiny/models/teams_model.rds")
+saveRDS(X_train,       "shiny/models/X_train.rds")
+
+cat("Models saved to shiny/models/\n")
+```
