@@ -1881,5 +1881,26 @@ saveRDS(overlap_df,    "shiny/models/overlap_df.rds")
 saveRDS(teams_model,   "shiny/models/teams_model.rds")
 saveRDS(X_train,       "shiny/models/X_train.rds")
 
+# Game lookup table for Shiny browser
+opp_lookup <- teams %>%
+    select(gameid, side, opp_teamname = teamname) %>%
+    mutate(opp_side = ifelse(side == "Blue", "Red", "Blue")) %>%
+    select(gameid, opp_side, opp_teamname)
+
+game_lookup <- teams %>%
+    select(gameid, league, date, teamname, side_label = side) %>%
+    left_join(opp_lookup, by = c("gameid", "side_label" = "opp_side")) %>%
+    mutate(side_encoded = ifelse(side_label == "Blue", 1, 0)) %>%
+    inner_join(
+        teams_model %>% rename(side_encoded = side),
+        by = c("gameid", "side_encoded")
+    ) %>%
+    mutate(
+        date         = as.Date(date),
+        result_label = ifelse(result == 1, "WIN", "LOSS")
+    )
+
+saveRDS(game_lookup, "shiny/models/game_lookup.rds")
+
 cat("Models saved to shiny/models/\n")
 ```
