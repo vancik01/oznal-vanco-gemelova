@@ -1902,5 +1902,14 @@ game_lookup <- teams %>%
 
 saveRDS(game_lookup, "shiny/models/game_lookup.rds")
 
+# ROC objects for Shiny Model Comparison tab
+roc_lr   <- pROC::roc(y_test_fct, lr_prob[,   "Win"], levels = c("Loss","Win"), quiet = TRUE)
+roc_rf   <- pROC::roc(y_test_fct, rf_prob[,   "Win"], levels = c("Loss","Win"), quiet = TRUE)
+roc_nb   <- pROC::roc(y_test_fct, nb_prob[,   "Win"], levels = c("Loss","Win"), quiet = TRUE)
+roc_knn  <- pROC::roc(y_test_fct, knn_prob[,  "Win"], levels = c("Loss","Win"), quiet = TRUE)
+roc_cart <- pROC::roc(y_test_fct, cart_prob[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
+saveRDS(list(lr = roc_lr, rf = roc_rf, nb = roc_nb, knn = roc_knn, cart = roc_cart),
+        "shiny/models/roc_list.rds")
+
 cat("Models saved to shiny/models/\n")
 ```

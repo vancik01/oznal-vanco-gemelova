@@ -22,34 +22,36 @@ feature_names <- names(X_train)
 train_means   <- colMeans(X_train)
 
 # ── Model metadata ─────────────────────────────────────────────────────────────
+ACCENT <- "#6366f1"
+
 model_meta <- list(
     LR = list(
         name  = "Logistic Regression",
-        color = "#6366f1",
+        color = ACCENT,
         param = "None",
         desc  = "Standard GLM — no hyperparameter search. All features used, trained on standardized inputs. Coefficients are directly interpretable as log-odds weights."
     ),
     RF = list(
         name  = "Random Forest",
-        color = "#0ea5e9",
+        color = ACCENT,
         param = "mtry",
         desc  = "Ensemble of 500 decision trees. mtry controls how many features are randomly considered at each split. Tested: 5, 7, 10, 15, 20."
     ),
     NB = list(
         name  = "Naive Bayes",
-        color = "#8b5cf6",
+        color = ACCENT,
         param = "usekernel + adjust",
         desc  = "Probabilistic classifier. Tunes density estimation (Gaussian vs. kernel) and bandwidth multiplier (adjust). Tested: 2 × 3 = 6 combinations."
     ),
     KNN = list(
         name  = "K-Nearest Neighbors",
-        color = "#f59e0b",
+        color = ACCENT,
         param = "k",
         desc  = "Classifies by majority vote among the k nearest neighbors in scaled feature space. Small k = noisy boundary; large k = smooth but biased."
     ),
     CART = list(
         name  = "Decision Tree (CART)",
-        color = "#ef4444",
+        color = ACCENT,
         param = "cp (complexity parameter)",
         desc  = "Recursive binary splitting tree. cp penalizes tree growth — small cp allows deep trees, large cp forces early stopping. Tested on log scale."
     )
@@ -353,8 +355,8 @@ body { background: #f8fafc; color: #1e293b; }
     transition: all 0.2s !important;
 }
 .btn-primary:hover {
-    background: #4f46e5 !important;
-    border-color: #4f46e5 !important;
+    background: #6366f1 !important;
+    border-color: #6366f1 !important;
     box-shadow: 0 4px 12px rgba(99,102,241,0.4) !important;
     transform: translateY(-1px);
 }
@@ -455,6 +457,43 @@ h4 { font-weight: 700; font-size: 18px; color: #1e293b; letter-spacing: -0.3px; 
 h5 { font-weight: 600; font-size: 14px; color: #1e293b; }
 h6 { font-weight: 700; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
 
+/* Data tab — segmented control tabs */
+.data-view .nav-tabs {
+    border-bottom: none !important;
+    background: #f1f5f9;
+    border-radius: 8px;
+    display: inline-flex;
+    padding: 3px;
+    gap: 2px;
+    margin-bottom: 20px;
+}
+.data-view .nav-tabs > li { margin: 0 !important; }
+.data-view .nav-tabs > li > a {
+    border-radius: 6px !important;
+    padding: 6px 20px !important;
+    border: none !important;
+    color: #64748b !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    background: transparent !important;
+    margin: 0 !important;
+    line-height: 1.5 !important;
+}
+.data-view .nav-tabs > li.active > a,
+.data-view .nav-tabs > li.active > a:hover,
+.data-view .nav-tabs > li.active > a:focus {
+    background: #ffffff !important;
+    color: #6366f1 !important;
+    font-weight: 600 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    border-bottom: none !important;
+}
+.data-view .nav-tabs > li > a:hover {
+    background: rgba(255,255,255,0.55) !important;
+    color: #475569 !important;
+}
+.data-view .tab-content { padding-top: 20px !important; }
+
 /* DT table */
 .dataTables_wrapper { font-size: 13px; }
 table.dataTable thead th {
@@ -490,6 +529,56 @@ ui <- navbarPage(
     header = tags$head(
         tags$style(HTML(nuxt_css)),
         tags$script(HTML(pill_js))
+    ),
+
+    # ── Tab 0: Data ─────────────────────────────────────────────────────────────
+    tabPanel("Data",
+        sidebarLayout(
+            sidebarPanel(width = 3,
+                div(class = "sidebar-section",
+                    p(class = "sidebar-section-title", "Load Data"),
+                    fileInput("data_upload", NULL,
+                        accept      = ".csv",
+                        placeholder = "Upload CSV...",
+                        buttonLabel = "Browse"),
+                    div(style = "text-align:center; margin:4px 0 8px 0; font-size:11px; color:#94a3b8;", "or"),
+                    actionButton("use_builtin", "Use built-in dataset",
+                        class = "btn-primary", style = "width:100%;")
+                ),
+                uiOutput("data_info_box")
+            ),
+            mainPanel(width = 9,
+                br(),
+                # Zone 1: KPI stat cards
+                uiOutput("data_stat_cards"),
+                # Zone 2: Small multiples distributions
+                div(class = "card",
+                    div(style = "display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;",
+                        div(
+                            h5("Feature Distributions", style = "margin:0 0 2px 0;"),
+                            p("Win (green) vs. Loss (red)  ·  dashed line = group mean",
+                              style = "font-size:12px; color:#94a3b8; margin:0;")
+                        )
+                    ),
+                    uiOutput("small_multiples_container")
+                ),
+                # Zone 3: Raw data table
+                div(class = "card",
+                    div(style = "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;",
+                        div(
+                            h5("Raw Data", style = "margin:0 0 2px 0;"),
+                            p("All loaded rows.", style = "font-size:12px; color:#94a3b8; margin:0;")
+                        ),
+                        div(style = "display:flex; align-items:center; gap:10px;",
+                            textInput("preview_search", NULL,
+                                placeholder = "Search...", width = "180px"),
+                            uiOutput("preview_badge")
+                        )
+                    ),
+                    DTOutput("preview_table")
+                )
+            )
+        )
     ),
 
     # ── Tab 1: Match Predictor ──────────────────────────────────────────────────
@@ -559,29 +648,30 @@ ui <- navbarPage(
                 fluidRow(
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "Logistic Regression"),
-                        div(class = "prob-value", style = "color:#6366f1", textOutput("prob_lr"))
+                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_lr"))
                     )),
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "Random Forest"),
-                        div(class = "prob-value", style = "color:#0ea5e9", textOutput("prob_rf"))
+                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_rf"))
                     )),
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "Naive Bayes"),
-                        div(class = "prob-value", style = "color:#8b5cf6", textOutput("prob_nb"))
+                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_nb"))
                     ))
                 ),
                 fluidRow(
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "KNN"),
-                        div(class = "prob-value", style = "color:#f59e0b", textOutput("prob_knn"))
+                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_knn"))
                     )),
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "CART"),
-                        div(class = "prob-value", style = "color:#ef4444", textOutput("prob_cart"))
+                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_cart"))
                     )),
                     column(4, div(class = "prob-box",
-                        div(class = "prob-label", "Average"),
-                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_avg"))
+                        style = "border-color:#6366f1;",
+                        div(class = "prob-label", style = "color:#6366f1;", "Average"),
+                        div(class = "prob-value", style = "color:#6366f1", textOutput("prob_avg"))
                     ))
                 ),
                 plotOutput("prob_bar", height = "200px")
@@ -603,11 +693,11 @@ ui <- navbarPage(
                         div(class = "model-nav",
                             radioButtons("tune_model", NULL, selected = "RF",
                                 choiceNames = list(
-                                    tagList(tags$span(class="model-dot", style="background:#6366f1;"), "Logistic Regression"),
-                                    tagList(tags$span(class="model-dot", style="background:#0ea5e9;"), "Random Forest"),
-                                    tagList(tags$span(class="model-dot", style="background:#8b5cf6;"), "Naive Bayes"),
-                                    tagList(tags$span(class="model-dot", style="background:#f59e0b;"), "KNN"),
-                                    tagList(tags$span(class="model-dot", style="background:#ef4444;"), "CART")
+                                    "Logistic Regression",
+                                    "Random Forest",
+                                    "Naive Bayes",
+                                    "KNN",
+                                    "CART"
                                 ),
                                 choiceValues = c("LR","RF","NB","KNN","CART"))
                         )
@@ -696,7 +786,270 @@ ui <- navbarPage(
 # ── Server ─────────────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
 
-    rv <- reactiveValues(input_row = NULL, game_info = NULL)
+    rv <- reactiveValues(input_row = NULL, game_info = NULL, loaded_data = NULL)
+
+    # ── Data tab ────────────────────────────────────────────────────────────────
+
+    builtin_data <- function() {
+        teams_model %>%
+            select(result, side, golddiffat15, xpdiffat15, csdiffat15,
+                   firsttower, firstherald, firstdragon, firstblood,
+                   winrate_diff, grub_diff) %>%
+            mutate(result = factor(ifelse(result == 1, "Win", "Loss"),
+                                   levels = c("Win", "Loss")))
+    }
+
+    observe({
+        if (is.null(rv$loaded_data)) rv$loaded_data <- builtin_data()
+    })
+
+    observeEvent(input$use_builtin, {
+        rv$loaded_data <- builtin_data()
+    })
+
+    observeEvent(input$data_upload, {
+        req(input$data_upload)
+        rv$loaded_data <- read.csv(input$data_upload$datapath)
+    })
+
+    output$data_info_box <- renderUI({
+        req(rv$loaded_data)
+        df    <- rv$loaded_data
+        n_win <- if ("result" %in% names(df)) sum(df$result == "Win", na.rm = TRUE) else NA
+        n_loss <- if (!is.na(n_win)) nrow(df) - n_win else NA
+
+        info_row <- function(label, value, color = "#1e293b") {
+            div(style = "display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9;",
+                span(style = "font-size:12px; color:#64748b;", label),
+                span(style = paste0("font-size:12px; font-weight:700; color:", color), value)
+            )
+        }
+
+        div(class = "sidebar-section", style = "margin-top:10px;",
+            p(class = "sidebar-section-title", "Dataset Info"),
+            info_row("Rows",    nrow(df)),
+            info_row("Columns", ncol(df)),
+            if (!is.na(n_win))  info_row("Wins",   n_win,  "#16a34a"),
+            if (!is.na(n_loss)) info_row("Losses", n_loss, "#dc2626")
+        )
+    })
+
+    # ── Zone 1: KPI cards ───────────────────────────────────────────────────────
+    output$data_stat_cards <- renderUI({
+        req(rv$loaded_data)
+        df     <- rv$loaded_data
+        n      <- nrow(df)
+        n_feat <- ncol(df) - if ("result" %in% names(df)) 1 else 0
+        n_win  <- if ("result" %in% names(df)) sum(df$result == "Win", na.rm = TRUE) else NA
+        n_loss <- if (!is.na(n_win)) n - n_win else NA
+        wr     <- if (!is.na(n_win)) round(n_win / n * 100, 1) else NA
+
+        kpi <- function(label, value, color = "#1e293b", bg = "#ffffff", border = "#e2e8f0") {
+            div(style = paste0("background:", bg, "; border:1px solid ", border, "; border-radius:12px; padding:16px 20px; flex:1; min-width:0;"),
+                div(style = "font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#94a3b8; margin-bottom:8px;", label),
+                div(style = paste0("font-size:26px; font-weight:700; color:", color, "; line-height:1;"), value)
+            )
+        }
+
+        div(style = "display:flex; gap:10px; margin-bottom:16px;",
+            kpi("Games",    format(n, big.mark = ",")),
+            kpi("Features", n_feat),
+            if (!is.na(n_win))  kpi("Wins",     format(n_win,  big.mark = ","), "#16a34a", "#f0fdf4", "#bbf7d0"),
+            if (!is.na(n_loss)) kpi("Losses",   format(n_loss, big.mark = ","), "#dc2626", "#fef2f2", "#fecaca"),
+            if (!is.na(wr))     kpi("Win Rate",  paste0(wr, "%"),               "#6366f1", "#eef2ff", "#c7d2fe")
+        )
+    })
+
+    # ── Zone 2: Small multiples ──────────────────────────────────────────────────
+    output$small_multiples_container <- renderUI({
+        req(rv$loaded_data)
+        num_cols <- names(rv$loaded_data)[sapply(rv$loaded_data, is.numeric)]
+        n_rows   <- ceiling(length(num_cols) / 3)
+        height   <- max(260, n_rows * 130)
+        plotOutput("small_multiples", height = paste0(height, "px"))
+    })
+
+    output$small_multiples <- renderPlot({
+        req(rv$loaded_data)
+        df         <- rv$loaded_data
+        has_result <- "result" %in% names(df) && is.factor(df$result)
+        num_cols   <- names(df)[sapply(df, is.numeric)]
+
+        long <- df %>%
+            select(all_of(c(if (has_result) "result", num_cols))) %>%
+            pivot_longer(all_of(num_cols), names_to = "feature", values_to = "value")
+
+        if (has_result) {
+            means <- long %>%
+                group_by(feature, result) %>%
+                summarise(m = mean(value, na.rm = TRUE), .groups = "drop")
+
+            ggplot(long, aes(x = value, fill = result)) +
+                geom_histogram(alpha = 0.65, position = "identity", bins = 35,
+                               color = "white", linewidth = 0.15) +
+                geom_vline(data = means, aes(xintercept = m, color = result),
+                           linetype = "dashed", linewidth = 0.85, show.legend = FALSE) +
+                facet_wrap(~ feature, scales = "free", ncol = 3) +
+                scale_fill_manual(values  = c("Win" = "#16a34a", "Loss" = "#dc2626"), name = NULL) +
+                scale_color_manual(values = c("Win" = "#16a34a", "Loss" = "#dc2626")) +
+                scale_y_continuous(labels = scales::comma) +
+                labs(x = NULL, y = NULL) +
+                theme_minimal(base_size = 11) +
+                theme(legend.position    = "top",
+                      panel.grid.minor   = element_blank(),
+                      panel.grid.major.x = element_blank(),
+                      strip.text         = element_text(face = "bold", color = "#475569", size = 10),
+                      strip.background   = element_rect(fill = "#f8fafc", color = NA),
+                      panel.spacing      = unit(1.2, "lines"))
+        } else {
+            ggplot(long, aes(x = value)) +
+                geom_histogram(fill = "#6366f1", alpha = 0.8, bins = 35,
+                               color = "white", linewidth = 0.15) +
+                facet_wrap(~ feature, scales = "free", ncol = 3) +
+                scale_y_continuous(labels = scales::comma) +
+                labs(x = NULL, y = NULL) +
+                theme_minimal(base_size = 11) +
+                theme(panel.grid.minor   = element_blank(),
+                      panel.grid.major.x = element_blank(),
+                      strip.text         = element_text(face = "bold", color = "#475569", size = 10),
+                      strip.background   = element_rect(fill = "#f8fafc", color = NA),
+                      panel.spacing      = unit(1.2, "lines"))
+        }
+    })
+
+    preview_filtered <- reactive({
+        req(rv$loaded_data)
+        df <- rv$loaded_data
+        q  <- trimws(if (is.null(input$preview_search)) "" else input$preview_search)
+        if (nchar(q) == 0) return(df)
+        mask <- apply(df, 1, function(row)
+            any(grepl(q, as.character(row), ignore.case = TRUE)))
+        df[mask, ]
+    })
+
+    output$preview_badge <- renderUI({
+        req(rv$loaded_data)
+        n     <- nrow(rv$loaded_data)
+        n_flt <- nrow(preview_filtered())
+        txt   <- if (n_flt == n) paste(format(n, big.mark = ","), "rows") else
+                     paste(format(n_flt, big.mark = ","), "of", format(n, big.mark = ","))
+        span(style = "background:#eef2ff; color:#6366f1; border-radius:6px; padding:5px 12px; font-size:12px; font-weight:600; white-space:nowrap;",
+             txt)
+    })
+
+    output$preview_table <- renderDT({
+        datatable(preview_filtered(), rownames = FALSE,
+                  options = list(pageLength = 15, scrollX = TRUE, dom = "tp"))
+    })
+
+    output$dist_feature_selector <- renderUI({
+        req(rv$loaded_data)
+        num_cols <- names(rv$loaded_data)[sapply(rv$loaded_data, is.numeric)]
+        selectInput("dist_feature", "Select feature", choices = num_cols, width = "100%")
+    })
+
+    output$dist_stats_row <- renderUI({
+        req(rv$loaded_data, input$dist_feature)
+        df   <- rv$loaded_data
+        vals <- df[[input$dist_feature]]
+
+        stat_box <- function(label, value, color = "#1e293b") {
+            div(style = "background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; text-align:center; flex:1;",
+                div(style = "font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#94a3b8; margin-bottom:4px;", label),
+                div(style = paste0("font-size:15px; font-weight:700; color:", color),
+                    format(value, big.mark = ","))
+            )
+        }
+
+        has_result <- "result" %in% names(df) && is.factor(df$result)
+        if (has_result) {
+            win_mean  <- round(mean(vals[df$result == "Win"],  na.rm = TRUE), 2)
+            loss_mean <- round(mean(vals[df$result == "Loss"], na.rm = TRUE), 2)
+            div(style = "display:flex; gap:6px; align-items:flex-end; height:100%; padding-top:22px;",
+                stat_box("Mean",     round(mean(vals, na.rm = TRUE), 2)),
+                stat_box("SD",       round(sd(vals, na.rm = TRUE), 2)),
+                stat_box("Win avg",  win_mean,  "#16a34a"),
+                stat_box("Loss avg", loss_mean, "#dc2626")
+            )
+        } else {
+            div(style = "display:flex; gap:6px; align-items:flex-end; height:100%; padding-top:22px;",
+                stat_box("Mean",   round(mean(vals, na.rm = TRUE), 2)),
+                stat_box("Median", round(median(vals, na.rm = TRUE), 2)),
+                stat_box("SD",     round(sd(vals, na.rm = TRUE), 2)),
+                stat_box("Min",    round(min(vals, na.rm = TRUE), 2)),
+                stat_box("Max",    round(max(vals, na.rm = TRUE), 2))
+            )
+        }
+    })
+
+    output$dist_plot <- renderPlot({
+        req(rv$loaded_data, input$dist_feature)
+        df         <- rv$loaded_data
+        feat       <- input$dist_feature
+        has_result <- "result" %in% names(df) && is.factor(df$result)
+
+        if (has_result) {
+            means <- df %>%
+                group_by(result) %>%
+                summarise(m = mean(.data[[feat]], na.rm = TRUE), .groups = "drop")
+            ggplot(df, aes(x = .data[[feat]], fill = result)) +
+                geom_histogram(alpha = 0.65, position = "identity", bins = 40,
+                               color = "white", linewidth = 0.2) +
+                geom_vline(data = means, aes(xintercept = m, color = result),
+                           linetype = "dashed", linewidth = 1, show.legend = FALSE) +
+                scale_fill_manual(values  = c("Win" = "#16a34a", "Loss" = "#dc2626"), name = NULL) +
+                scale_color_manual(values = c("Win" = "#16a34a", "Loss" = "#dc2626")) +
+                scale_y_continuous(labels = scales::comma) +
+                labs(x = feat, y = "Games") +
+                theme_minimal(base_size = 13) +
+                theme(legend.position  = "top",
+                      panel.grid.minor = element_blank(),
+                      panel.grid.major.x = element_blank())
+        } else {
+            mean_val <- mean(df[[feat]], na.rm = TRUE)
+            ggplot(df, aes(x = .data[[feat]])) +
+                geom_histogram(fill = "#6366f1", alpha = 0.8, bins = 40,
+                               color = "white", linewidth = 0.2) +
+                geom_vline(xintercept = mean_val, linetype = "dashed",
+                           color = "#f59e0b", linewidth = 1) +
+                scale_y_continuous(labels = scales::comma) +
+                labs(x = feat, y = "Games") +
+                theme_minimal(base_size = 13) +
+                theme(panel.grid.minor    = element_blank(),
+                      panel.grid.major.x  = element_blank())
+        }
+    })
+
+    output$summary_table <- renderDT({
+        req(rv$loaded_data)
+        df       <- rv$loaded_data
+        num_cols <- df[, sapply(df, is.numeric), drop = FALSE]
+
+        summary_df <- data.frame(
+            Feature = names(num_cols),
+            Mean    = round(colMeans(num_cols, na.rm = TRUE), 3),
+            SD      = round(apply(num_cols, 2, sd,  na.rm = TRUE), 3),
+            Min     = round(apply(num_cols, 2, min, na.rm = TRUE), 3),
+            Max     = round(apply(num_cols, 2, max, na.rm = TRUE), 3),
+            Missing = colSums(is.na(num_cols)),
+            row.names = NULL
+        )
+
+        sd_range <- range(summary_df$SD, na.rm = TRUE)
+
+        datatable(summary_df, rownames = FALSE,
+                  options = list(dom = "t", pageLength = 20, ordering = TRUE)) %>%
+            formatStyle("Feature",
+                fontWeight = "600", color = "#1e293b") %>%
+            formatStyle("SD",
+                background  = styleColorBar(sd_range, "#6366f1"),
+                backgroundSize     = "95% 55%",
+                backgroundRepeat   = "no-repeat",
+                backgroundPosition = "center") %>%
+            formatStyle("Missing",
+                color      = styleInterval(0, c("#94a3b8", "#dc2626")),
+                fontWeight = styleInterval(0, c("400", "700")))
+    })
 
     # ── Match Predictor: Browse ─────────────────────────────────────────────────
     observe({
@@ -827,22 +1180,27 @@ server <- function(input, output, session) {
     output$prob_bar <- renderPlot({
         req(rv$input_row)
         p <- probs()
+        avg_p <- round(mean(unlist(p)), 1)
         tibble(
             Model = c("LR","RF","NB","KNN","CART"),
-            Prob  = c(p$lr, p$rf, p$nb, p$knn, p$cart),
-            col   = c("#6366f1","#0ea5e9","#8b5cf6","#f59e0b","#ef4444")
+            Prob  = c(p$lr, p$rf, p$nb, p$knn, p$cart)
         ) %>%
-            mutate(Model = reorder(Model, Prob)) %>%
-            ggplot(aes(x = Prob, y = Model, fill = col)) +
-            geom_col(width = 0.55) +
-            geom_text(aes(label = paste0(Prob, "%")), hjust = -0.2, size = 4) +
-            geom_vline(xintercept = 50, linetype = "dashed", color = "grey60") +
-            scale_fill_identity() +
-            scale_x_continuous(limits = c(0, 115), expand = c(0,0)) +
+            mutate(Model = reorder(Model, Prob),
+                   is_avg = FALSE) %>%
+            ggplot(aes(x = Prob, y = Model)) +
+            geom_col(width = 0.5, fill = "#e0e7ff") +
+            geom_col(aes(x = pmin(Prob, Prob)), width = 0.5, fill = "#6366f1") +
+            geom_text(aes(label = paste0(Prob, "%")), hjust = -0.2, size = 3.8,
+                      color = "#475569", fontface = "bold") +
+            geom_vline(xintercept = 50, linetype = "dashed", color = "#94a3b8", linewidth = 0.8) +
+            annotate("text", x = 50.5, y = 0.5, label = "50%", color = "#94a3b8",
+                     size = 3, hjust = 0) +
+            scale_x_continuous(limits = c(0, 115), expand = c(0, 0)) +
             labs(x = "Win Probability (%)", y = NULL) +
-            theme_minimal() +
-            theme(panel.grid.minor = element_blank(),
-                  panel.grid.major.y = element_blank())
+            theme_minimal(base_size = 12) +
+            theme(panel.grid.minor   = element_blank(),
+                  panel.grid.major.y = element_blank(),
+                  axis.text.y        = element_text(color = "#475569", face = "bold"))
     })
 
     # ── Hyperparameter Tuning tab ───────────────────────────────────────────────
@@ -1075,22 +1433,47 @@ server <- function(input, output, session) {
         sr  <- selected_row()
 
         if (m == "LR") {
-            lr_coefs <- coef(lr_model$finalModel) %>%
-                as.data.frame() %>% rownames_to_column("feature") %>%
-                rename(coefficient = 2) %>%
+            # Odds Ratio forest plot with 95% CI
+            sm   <- summary(lr_model$finalModel)$coefficients
+            or_df <- data.frame(
+                feature  = rownames(sm),
+                estimate = sm[, "Estimate"],
+                se       = sm[, "Std. Error"],
+                p        = sm[, "Pr(>|z|)"]
+            ) %>%
                 filter(feature != "(Intercept)") %>%
-                arrange(desc(abs(coefficient))) %>% head(15)
+                mutate(
+                    OR      = exp(estimate),
+                    CI_low  = exp(estimate - 1.96 * se),
+                    CI_high = exp(estimate + 1.96 * se),
+                    sig     = p < 0.05
+                ) %>%
+                arrange(OR) %>%
+                slice_max(abs(log(OR)), n = 20) %>%
+                arrange(OR)
+
             return(
-                ggplot(lr_coefs, aes(x = reorder(feature, abs(coefficient)),
-                                     y = coefficient, fill = coefficient > 0)) +
-                geom_col(width = 0.65) + coord_flip() +
-                scale_fill_manual(values = c("TRUE" = col, "FALSE" = "#f59e0b"),
-                    labels = c("TRUE" = "Positive", "FALSE" = "Negative"), name = NULL) +
-                labs(title = "Logistic Regression — Top 15 Coefficients",
-                     subtitle = "Standard GLM · no hyperparameter search · standardized features",
-                     x = NULL, y = "Coefficient") +
+                ggplot(or_df, aes(x = OR, y = reorder(feature, OR), color = sig)) +
+                geom_vline(xintercept = 1, linetype = "dashed", color = "#94a3b8", linewidth = 0.8) +
+                geom_errorbarh(aes(xmin = CI_low, xmax = CI_high),
+                               height = 0.35, linewidth = 0.7) +
+                geom_point(size = 3.5) +
+                scale_x_log10(labels = function(x) sprintf("%.1fx", x)) +
+                scale_color_manual(
+                    values = c("FALSE" = "#cbd5e1", "TRUE" = ACCENT),
+                    labels = c("FALSE" = "p ≥ 0.05  (not significant)",
+                               "TRUE"  = "p < 0.05  (significant)"),
+                    name = NULL
+                ) +
+                labs(
+                    title    = "Logistic Regression — Odds Ratios",
+                    subtitle = "Each point = how much the feature multiplies the odds of winning · bars = 95% CI · log scale",
+                    x = "Odds Ratio (log scale)", y = NULL
+                ) +
                 theme_minimal(base_size = 13) +
-                theme(legend.position = "top", panel.grid.major.y = element_blank())
+                theme(legend.position  = "top",
+                      panel.grid.minor = element_blank(),
+                      panel.grid.major.y = element_line(color = "#f1f5f9"))
             )
         }
 
@@ -1244,12 +1627,45 @@ server <- function(input, output, session) {
     })
 
     output$roc_plot <- renderPlot({
-        plot(1, type = "n", xlim = c(1, 0), ylim = c(0, 1),
-             xlab = "1 - Specificity", ylab = "Sensitivity", main = "ROC Curves")
-        abline(a = 1, b = -1, lty = 2, col = "grey70")
-        text(0.5, 0.5,
-             "Add saveRDS(roc_lr, 'shiny/models/roc_lr.rds') etc. to analysis.Rmd",
-             col = "grey50", cex = 1)
+        roc_path <- "models/roc_list.rds"
+        if (!file.exists(roc_path)) {
+            plot(1, type = "n", xlim = c(1,0), ylim = c(0,1),
+                 xlab = "1 - Specificity", ylab = "Sensitivity",
+                 main = "ROC Curves — re-run analysis.Rmd to generate")
+            abline(a = 1, b = -1, lty = 2, col = "grey80")
+            return(invisible(NULL))
+        }
+        rocs <- readRDS(roc_path)
+
+        models <- list(
+            list(roc = rocs$lr,   label = "Logistic Regression", lty = 1,  lwd = 2.2, col = "#1e293b"),
+            list(roc = rocs$rf,   label = "Random Forest",        lty = 1,  lwd = 2.2, col = "#64748b"),
+            list(roc = rocs$nb,   label = "Naive Bayes",          lty = 2,  lwd = 1.8, col = "#1e293b"),
+            list(roc = rocs$knn,  label = "KNN",                  lty = 2,  lwd = 1.8, col = "#64748b"),
+            list(roc = rocs$cart, label = "CART",                 lty = 3,  lwd = 1.6, col = "#94a3b8")
+        )
+
+        par(mar = c(5, 5, 4, 2), family = "sans", bg = "white")
+        plot(0, type = "n", xlim = c(1, 0), ylim = c(0, 1),
+             xlab = "1 - Specificity (False Positive Rate)",
+             ylab = "Sensitivity (True Positive Rate)",
+             main = "ROC Curves — All Models",
+             cex.main = 1.3, cex.lab = 1.05,
+             las = 1, bty = "l")
+        abline(a = 1, b = -1, lty = 3, col = "grey80", lwd = 1.2)
+
+        for (m in models) {
+            lines(1 - m$roc$specificities, m$roc$sensitivities,
+                  col = m$col, lty = m$lty, lwd = m$lwd)
+        }
+
+        legend("bottomright",
+               legend = sapply(models, function(m)
+                   sprintf("%s  (AUC = %.3f)", m$label, as.numeric(pROC::auc(m$roc)))),
+               col    = sapply(models, `[[`, "col"),
+               lty    = sapply(models, `[[`, "lty"),
+               lwd    = sapply(models, `[[`, "lwd"),
+               bty    = "n", cex = 0.92, pt.cex = 1)
     })
 
     # ── Feature Selection tab ───────────────────────────────────────────────────
