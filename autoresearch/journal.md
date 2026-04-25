@@ -160,6 +160,6 @@ Metric: **test AUC-ROC** on H1 holdout (20% of games, seed 42). Higher is better
 
 ### Run 25 - 2026-04-19 - pairwise interactions via model.matrix(~.^2)
 - Hypothesis: expand 25 → 325 features (25 raw + 300 pairwise). Let LASSO select; may find non-obvious interactions (e.g. gd15 × firsttower).
-- OOF: glm dropped to 0.84560 (vs 0.84579 baseline). Interactions hurt OOF too.
+- OOF: glm dropped to 0.84560 (vs 0.8457 9 baseline). Interactions hurt OOF too.
 - AUC: **0.84523** (-0.00042) | ACC: 0.75460 | DUR: 141.8s
 - Decision: **DISCARD**. 300 interaction candidates overwhelm the lambda-path; LASSO selects spurious interactions that don't generalize.

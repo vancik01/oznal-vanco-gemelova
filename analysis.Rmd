@@ -23,50 +23,63 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-This analysis investigates two hypotheses about professional League of Legends esports using early-game match data from the 2025 competitive season.
+League of Legends is the most-played and most-watched esport in the world, with a 2025 professional scene running across 45 leagues in every major region. Predicting which team will win from the early state of the match is a long-standing question in esports analytics: by 15 minutes - well before half of a typical game has elapsed - gold, experience, and objective leads have already begun to compound. We use the 2025 season of professional play to test how reliably this 15-minute snapshot forecasts the eventual winner, and which features actually drive the prediction.
 
-**H1:** *"Early-game performance metrics and objective control can reliably predict match outcome in professional League of Legends."* We test whether gold, XP, and CS differentials at 10 and 15 minutes, combined with first objective captures (first blood, first dragon, first tower, void grubs), contain enough signal to classify wins and losses. We also ask which of these features are the most informative and whether different models agree on what matters.
+The analysis runs two scenarios on the same data:
 
-**H2:** *"Bot lane (ADC) gold advantage is the most impactful role-specific early-game factor for predicting match outcome."* We test whether the bot lane player's early-game differentials carry stronger predictive signal than those of other roles (top, jungle, mid, support). While H1 operates on team-level aggregates, H2 reframes the same data at role level and compares feature importances across models.
+-   **Scenario 1 - Model Comparison.** We train and tune five classifiers (Logistic Regression, Random Forest, Naive Bayes, KNN, CART) on the engineered early-game feature set and compare them on accuracy, AUC-ROC, precision, recall, and F1. The goal is to see whether any model can extract signal beyond the trivial "team with the gold lead at 15 min wins" baseline (\~73% accuracy), and whether different model families agree on what matters.
+-   **Scenario 3 - Feature Selection.** With \~46 candidate features carrying a lot of redundancy, we apply RFE, LASSO, and Elastic Net to find the minimal subset that retains predictive performance. This both improves interpretability and stress-tests which features are genuinely informative versus carrying duplicate signal.
 
-## Game primer - what our features actually measure
+## Hypotheses
 
-League of Legends is a 5v5 team game where two teams (Blue side, Red side) fight to destroy each other's base ("Nexus"). A match takes \~30-40 minutes and has three macro phases: **early game** (0-15 min, the focus of this analysis), **mid game** (15-25 min), and **late game** (25+ min). Each team is split into five **roles** on a fixed map: - **Top** - solo-lanes a side lane, durable duelist - **Jungle (jng)** - roams the neutral map, secures objectives, ganks lanes - **Mid** - solo-lanes the central lane, high-impact mage or assassin - **Bot / ADC (bot)** - ranged damage carry, shares a lane with support - **Support (sup)** - peels for and enables the ADC, provides vision and utility
+**H1:** *"Early-game performance metrics and objective control can reliably predict match outcome in professional League of Legends."* We test whether gold, XP, and CS differentials at 10 and 15 minutes, combined with first objective captures (first blood, first dragon, first tower, void grubs), contain enough signal to classify wins and losses.
 
-Three resources accumulate continuously and drive almost everything: - **Gold** - earned by killing minions, enemy champions, and objectives. Spent on items that make champions stronger. A team's gold total at 15 min is the main economic snapshot our models use (`goldat15`, `golddiffat15`). - **XP (experience)** - levels champions up, unlocking abilities. Tracked as `xpat15` and `xpdiffat15`. - **CS (creep score)** - number of minions killed, a proxy for lane efficiency. Tracked as `csat15` and `csdiffat15`. Each CS gives both gold and XP, so CS is tightly correlated with gold but captures mechanical consistency rather than team fight outcomes.
+**H2:** *"Bot lane (ADC) gold advantage is the most impactful role-specific early-game factor for predicting match outcome."* We test whether the bot lane player's early-game differentials carry stronger predictive signal than those of other roles (top, jungle, mid, support).
 
-On top of these continuous resources, the early game has a set of **one-off objective races**, each of which flips a binary feature in our dataset: - **First blood** (`firstblood`) - the first champion kill of the match. Small gold bonus, large momentum swing. - **First dragon** (`firstdragon`) - dragons spawn at 5:00 in a pit on the bot side of the map; each gives a stacking buff. - **Void grubs** (`void_grubs`, `opp_void_grubs`) - spawn at 5:00 and despawn at 13:45 in the river; up to 6 can be killed and each grub stacks a tower-damage buff. - **First herald** (`firstherald`) - a neutral monster that spawns at 14:00; killing it yields a "Herald" summon that slams into towers for big plate/turret damage. - **First tower** (`firsttower`) and **turret plates** (`turretplates`) - every outer tower has five plates that can be broken until 14:00, each giving gold. Destroying the tower itself gives a large team-wide gold bonus.
+## Motivation
 
-Finally there is **side** (Blue / Red), a known small structural asymmetry because Blue gets first pick in the champion draft and slightly different map geography. This is why our dataset has one row per team per game — two mirror rows where one team's `golddiffat15 = +500` is the other team's `-500`.
+Both of us on this project are long-time League of Legends players and regular viewers of the professional scene. Watching pro matches, you very quickly develop a feel for when a game is "already over" - a significant gold lead at early game mostly means a quick and decisive game. We had been wondering for a while how much of that intuition is actually backed by data: how reliably do those early signals predict the eventual winner and which signals matter the most.
 
-The key intuition driving H1 is that by 15 minutes these streams have already diverged enough to forecast the winner, even though two-thirds of the game are still to come. H2 narrows that further: among the five roles, which one's early lead carries the most predictive signal?
+# Dataset
 
-## Related work
+We use the 2025 season export from **Oracle's Elixir**, the standard public source for professional League of Legends match data. The raw file contains **120,636 rows across 165 columns**, covering **10,053 unique matches** played by 445 teams across 45 professional leagues (LPL, LCK, LEC, LFL, LAS, EM, ...) on patches 15.01-15.24.
 
-Published work on early-game LoL match prediction at the **15-minute mark** converges tightly: reported accuracy clusters in the **76-78% band** across model families and dataset types. The table below collects the numbers we could verify directly from each source.
+The row layout is **12 rows per game**: one per player (5 per team) plus one aggregated team-level row per side (Blue and Red, 50/50). About **91.9% of rows are marked `complete`**, meaning the early-game snapshots at 10/15/20/25 min are populated; the remaining 8.1% are missing these values.
 
-| Study                                          | Year | Dataset                           | Model               | Acc. \@15  |
-|------------------------------------------------|------|-----------------------------------|---------------------|------------|
-| Spaargaren, MSc thesis (Tilburg)               | 2022 | Oracle's Elixir pro, 2021         | Logistic Regression | **77.99%** |
-| Spaargaren                                     | 2022 | Oracle's Elixir pro, 2021         | Random Forest       | 77.26%     |
-| Spaargaren                                     | 2022 | Oracle's Elixir pro, 2021         | SVM                 | 76.99%     |
-| Spaargaren                                     | 2022 | Oracle's Elixir pro, 2021         | Naïve Bayes         | 76.82%     |
-| Spaargaren                                     | 2022 | Oracle's Elixir pro, 2021         | kNN (k=9)           | 74.83%     |
-| Lafrance & Grewal, *Entertainment Computing*   | 2026 | Riot API solo queue, Bronze       | XGBoost             | 77.1%      |
-| Lafrance & Grewal                              | 2026 | Riot API solo queue, Diamond      | XGBoost             | 76.9%      |
-| Junior & Campelo, arXiv 2309.02449             | 2023 | Riot API solo queue               | LightGBM            | \~77.9%\*  |
-| Junior & Campelo                               | 2023 | Riot API solo queue               | Random Forest       | \~77.8%\*  |
-| Junior & Campelo                               | 2023 | Riot API solo queue               | Logistic Regression | \~77.2%\*  |
+Columns group into metadata (`gameid`, `league`, `patch`, `side`, `position`, ...), draft (`pick1-5`, `ban1-5`), outcome (`result`, `gamelength`), combat (kills/deaths/assists, first blood), objectives (dragons, heralds, void grubs, towers, turret plates), economy (gold, CS), vision (wards, vision score), and the **early-game timeline snapshots** (`goldatX`, `xpatX`, `csatX`, `golddiffatX`, etc. for X in {10, 15, 20, 25}) which form the core of our feature set.
 
-\*interpolated from their "% elapsed time" buckets (15 min ≈ 50% PET for a \~30-min median match).
+# Game introduction
 
-Three observations follow from this. First, **professional play is not materially easier to predict than ranked** at 15 minutes: Spaargaren's pro-data Logistic Regression (77.99%) sits within one percentage point of Lafrance & Grewal's solo-queue XGBoost. Second, **algorithm choice matters little** at this timestamp — LR, RF, SVM, Naïve Bayes, and XGBoost all land in the 77 ± 1% band, with only kNN trailing. Third, across every study **gold differential is the strongest single feature**, and first tower or first herald typically ranks next among objective flags.
+League of Legends (LoL) is a 5v5 team game. Two teams (Blue and Red side) try to destroy each other's base. A single match is typically around 30 minutes but can last as long as 50 minutes. In this work, we focus on the **early game** stage (the first 15 minutes). Each team has five fixed roles - **top**, **jungle (jng)**, **mid**, **bot (ADC)**, and **support (sup)** - each playing a different lane or area of the map.
 
-Three works use Oracle's Elixir professional data directly. Spaargaren (2022) is the cleanest @15-minute benchmark and the one our models compare against most directly. Chen (2024) reports 78.18% with tuned Logistic Regression, but at the **20-minute mark** rather than 15 — his feature set is unavailable at our chosen cutoff. Tsang (2025) does not train a held-out classifier but, by fitting logistic regressions per season across 2020-2025, shows that the coefficient of `golddiffat15` has **declined** from above 1.0 in 2020-2023 to 0.83 in 2025, and that first blood has flipped to a slightly negative win-rate coefficient. This is external evidence that the 2025 season is *harder* to predict from a single gold-at-15 signal than any previous season.
+Three continuous resources accumulate throughout the match:
 
-Chowdhury et al. (2025) reach 76.8% on Riot-API data by combining pre-game with in-game features, motivating our use of a **rolling team win rate** as a pre-game strength signal. We additionally include two features absent from the published @15-minute literature: **turret plate differential** (plates fall before 14:00, making them a purely early-game resource) and **void grubs** (added in Season 14, despawning at 13:45). To our knowledge, no peer-reviewed study has yet used the 2025 Oracle's Elixir data - which introduced Atakhan and Feats of Strength - so this work is the first analysis on that season and on those features.
+-   **Gold** - earned from minions, champion kills, and objectives, and spent on items that strengthen champions.
+-   **XP (experience)** - levels champions up and unlocks abilities.
+-   **CS (creep score)** - the number of minions a player has killed
 
-Finally, we note a framing gap in the literature: the trivial rule "team with a gold lead at 15 minutes wins" already delivers \~73% accuracy on professional data (72.9% on our own set). The 76-78% models above are therefore only 3-5 percentage points above this naïve baseline, yet prior work rarely evaluates results explicitly against this heuristic or analyses where the ML gains are concentrated. We adopt this framing directly in our results.
+The early game also has a set of one-off objective races, each won by exactly one team: **first blood** (the first champion kill of the match), **first dragon**, **first herald**, **first tower** (each granting a stacking buff, a tower-damaging summon, or a large gold bonus), **turret plates** (five plates on each outer tower, all paid out as gold before 14:00), and **void grubs** (a shared pit of up to 6 grubs that despawns at 13:45 on early-2025 patches and 14:45 mid-season).
+
+# Related work
+
+Published work on early-game LoL match prediction at the **15-minute mark** converges tightly, with reported accuracy clustering in the **76-78% band** across model families and dataset types.
+
+| Study                                        | Year | Dataset                      | Model               | Acc. \@15  |
+|----------------------------------------------|------|------------------------------|---------------------|------------|
+| Spaargaren, MSc thesis (Tilburg)             | 2022 | Oracle's Elixir pro, 2021    | Logistic Regression | **77.99%** |
+| Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Random Forest       | 77.26%     |
+| Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Naïve Bayes         | 76.82%     |
+| Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | kNN (k=9)           | 74.83%     |
+| Lafrance & Grewal, *Entertainment Computing* | 2026 | Riot API solo queue, Diamond | XGBoost             | 76.9%      |
+| Junior & Campelo, arXiv 2309.02449           | 2023 | Riot API solo queue          | Random Forest       | \~74%\*    |
+
+\*Interpolated to 50% PET (≈ 15 min for a \~30-min median match) from Junior & Campelo's PET-bucket accuracy curves.
+
+Two takeaways. First, **professional play is not materially easier to predict than solo queue** at 15 minutes - Spaargaren's pro-data LR sits within one percentage point of Lafrance & Grewal's solo-queue XGBoost. Second, **algorithm choice matters little**: pro-data classifiers all land in the 77 ± 1% band, with solo-queue interpolations \~3 points lower. Across every study, **gold differential is the strongest single feature**, with first tower or first herald typically ranked next.
+
+Tsang (2025, Medium) adds a temporal signal: the coefficient of `golddiffat15` has **declined** from above 1.0 in 2020-2023 to 0.83 in 2025, suggesting the 2025 season is harder to predict from a single gold-at-15 signal than any previous season. We additionally include two features absent from the @15-minute literature - **turret plate differential** and **void grubs** - and to our knowledge no peer-reviewed study has yet used the 2025 Oracle's Elixir data.
+
+Finally, we note a framing gap: the trivial rule "team with a gold lead at 15 min wins" already delivers \~73% accuracy on professional data (72.9% on our own set), so the 76-78% models above only beat this naïve baseline by 3-5 points. We adopt this framing directly in our results.
 
 # Setup
 
@@ -88,10 +101,6 @@ cl <- makePSOCKcluster(parallel::detectCores() - 1)
 registerDoParallel(cl)
 ```
 
-# Data Loading and Cleaning
-
-The dataset comes from Oracle's Elixir, a comprehensive source of professional League of Legends esports match data. It contains 120,636 rows across 165 columns, covering 10,053 games from the 2025 competitive season. Each game produces 12 rows - one per player (5 per team) plus one team-level aggregate per side. We focus on 2025 data only, as the game meta (champion balance, objectives, map changes) shifts significantly between seasons.
-
 ## Load data
 
 ```{r load-data}
@@ -99,11 +108,8 @@ raw <- read_csv("data/2025_LoL_esports_match_data_from_OraclesElixir.csv")
 glimpse(raw)
 ```
 
-## Filter to complete games
-
-Not all games have complete early-game timeline data (gold, XP, CS snapshots at 10 and 15 minutes). We filter to `datacompleteness == "complete"` to ensure every row has the full set of features we need. We then split into team-level rows (used for H1 modeling) and player-level rows (used later for H2 role-specific analysis).
-
-```{r filter}
+```{r}
+# select only complete data - with @10, 15, 20, 25 metrics
 complete <- raw %>% filter(datacompleteness == "complete")
 
 teams <- complete %>% filter(position == "team")
@@ -119,71 +125,150 @@ cat(sprintf(
 ))
 ```
 
+## Restructure: one row per game
+
+The raw `teams` table stores two mirror rows per game, one per side. For EDA we pivot to one row per game with `blue_*` and `red_*` columns and a binary `blue_win` target, following the **tidy data** convention of one observation per row (Wickham, 2014, *JSS* 59(10)).
+
+After the pivot, the Blue and Red copies of each signed differential and each mutually-exclusive binary flag are pure mirrors: `red_golddiffat15 = -blue_golddiffat15` and `red_firstblood = 1 - blue_firstblood`. We drop the `red_*` side of those columns, since the model gains nothing from a feature it can recover from the one next to it. Independent counts (kills, deaths, assists, turret plates) and the shared-pool grub count stay on both sides - neither side can be reconstructed from the other.
+
+```{r restructure-one-row-per-game}
+game_cols <- c(
+    "result",
+    "goldat10", "xpat10", "csat10",
+    "goldat15", "xpat15", "csat15",
+    "golddiffat10", "xpdiffat10", "csdiffat10",
+    "golddiffat15", "xpdiffat15", "csdiffat15",
+    "killsat10", "deathsat10", "assistsat10",
+    "killsat15", "deathsat15", "assistsat15",
+    "firstblood", "firstdragon", "firstherald", "firsttower",
+    "void_grubs", "turretplates"
+)
+
+games_full <- teams %>%
+    select(gameid, side, all_of(game_cols)) %>%
+    mutate(side = tolower(side)) %>%
+    pivot_wider(
+        id_cols     = gameid,
+        names_from  = side,
+        values_from = all_of(game_cols),
+        names_glue  = "{side}_{.value}"
+    ) %>%
+    mutate(blue_win = blue_result) %>%
+    select(-blue_result, -red_result)
+
+# Sanity: blue/red signed diffs must be exact negatives of each other,
+# and mutually exclusive binary flags must satisfy red = 1 - blue whenever
+# the objective fires.
+stopifnot(all.equal(games_full$blue_golddiffat15, -games_full$red_golddiffat15))
+stopifnot(all.equal(games_full$blue_xpdiffat15,   -games_full$red_xpdiffat15))
+stopifnot(all.equal(games_full$blue_csdiffat15,   -games_full$red_csdiffat15))
+stopifnot(all(games_full$blue_firstblood   + games_full$red_firstblood   <= 1))
+stopifnot(all(games_full$blue_firsttower   + games_full$red_firsttower   <= 1))
+
+# Drop the strict-mirror columns identified above. We keep both sides for
+# independent counts (kills/deaths/assists/turret plates) and for the
+# shared-pool grub count, since those carry information beyond their pair.
+redundant_mirrors <- c(
+    "red_golddiffat10", "red_xpdiffat10", "red_csdiffat10",
+    "red_golddiffat15", "red_xpdiffat15", "red_csdiffat15",
+    "red_firstblood", "red_firstdragon", "red_firstherald", "red_firsttower"
+)
+
+games <- games_full %>% select(-all_of(redundant_mirrors))
+
+cat(sprintf(
+    "Games (one row per game): %d\nFeatures dropped as strict mirrors: %d\nFeatures retained: %d\nBlue win rate: %.2f%% (Red: %.2f%%)\n",
+    nrow(games),
+    length(redundant_mirrors),
+    ncol(games) - 2, # excluding gameid and blue_win
+    mean(games$blue_win) * 100,
+    mean(1 - games$blue_win) * 100
+))
+
+cat("\nDropped features (recoverable as -blue_X or 1-blue_X):\n  ",
+    paste(redundant_mirrors, collapse = ", "), "\n")
+
+# Statistical test for side imbalance — hypotheses should be evaluated with
+# significance tests, not just point estimates.
+side_test <- prop.test(sum(games$blue_win), nrow(games), p = 0.5)
+cat(sprintf(
+    "\nTwo-sided proportion test vs 50%%:\n  chi^2 = %.2f, df = 1, p = %.3g\n  95%% CI for Blue WR: [%.3f, %.3f]\n  -> Blue-side advantage is %s.\n",
+    side_test$statistic, side_test$p.value,
+    side_test$conf.int[1], side_test$conf.int[2],
+    ifelse(side_test$p.value < 0.05, "statistically significant", "not statistically significant")
+))
+```
+
+Blue side wins slightly more than half of games. The imbalance is mild enough that no resampling is needed and accuracy remains valid alongside AUC-ROC.
+
 # Exploratory Data Analysis
 
-Before making any decisions about feature engineering or modeling, we explore the raw data to understand what signal exists, which features are worth keeping, and what problems we might face.
+Before deciding on feature engineering or models, we look at the data to see what signal is there, which features are worth keeping, and what problems to watch for. Everything below uses the **single-row-per-game** `games` dataset.
 
 ## Target distribution
 
-A balanced target means we don't need resampling techniques (SMOTE, oversampling) and can use accuracy as a meaningful metric alongside AUC-ROC. With 18,472 team rows split exactly 50/50 between wins and losses, a naive baseline that always predicts one class would achieve exactly 50% accuracy - any model that beats this is learning real signal.
-
 ```{r eda-target}
-teams %>%
-    mutate(result = factor(result, labels = c("Loss", "Win"))) %>%
-    ggplot(aes(x = result, fill = result)) +
+games %>%
+    mutate(blue_win = factor(blue_win, levels = c(0, 1), labels = c("Red won", "Blue won"))) %>%
+    ggplot(aes(x = blue_win, fill = blue_win)) +
     geom_bar() +
     geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5) +
-    scale_fill_manual(values = c("Loss" = "#e74c3c", "Win" = "#2ecc71")) +
+    scale_fill_manual(values = c("Red won" = "#e74c3c", "Blue won" = "#3498db")) +
+    geom_hline(yintercept = nrow(games) / 2, linetype = "dashed", color = "gray40") +
     labs(
-        title = "Target Variable Distribution",
-        x = "Match Result", y = "Count"
+        title    = "Target Variable Distribution (blue_win)",
+        subtitle = "Dashed line = perfect 50/50",
+        x = "Outcome", y = "Count"
     ) +
     theme_minimal() +
     theme(legend.position = "none")
 ```
 
-## Early-game feature correlations with result
+Blue side wins slightly more than half of all games. The proportion test above puts this at p \< 0.001, so the imbalance is real, but at roughly 3 percentage points above 50% it is small enough that we keep accuracy as a valid metric and skip resampling.
 
-We compute correlations between all early-game numeric features and the target variable. This gives us a first look at which features carry predictive signal and which might be redundant.
+## Early-game feature correlations with `blue_win`
+
+We correlate each early-game numeric feature (Blue's perspective) with the target.
 
 ```{r eda-correlation, fig.width=12, fig.height=10}
 early_game_cols <- c(
-    "goldat10", "xpat10", "csat10",
-    "golddiffat10", "xpdiffat10", "csdiffat10",
-    "killsat10", "deathsat10", "assistsat10",
-    "goldat15", "xpat15", "csat15",
-    "golddiffat15", "xpdiffat15", "csdiffat15",
-    "killsat15", "deathsat15", "assistsat15",
-    "firstblood", "firstdragon", "firstherald", "firsttower",
-    "void_grubs", "opp_void_grubs",
-    "result"
+    "blue_goldat10", "blue_xpat10", "blue_csat10",
+    "blue_golddiffat10", "blue_xpdiffat10", "blue_csdiffat10",
+    "blue_killsat10", "blue_deathsat10", "blue_assistsat10",
+    "blue_goldat15", "blue_xpat15", "blue_csat15",
+    "blue_golddiffat15", "blue_xpdiffat15", "blue_csdiffat15",
+    "blue_killsat15", "blue_deathsat15", "blue_assistsat15",
+    "blue_firstblood", "blue_firstdragon", "blue_firstherald", "blue_firsttower",
+    "blue_void_grubs", "red_void_grubs",
+    "blue_win"
 )
 
-cor_data <- teams %>%
+cor_data <- games %>%
     select(all_of(early_game_cols)) %>%
     drop_na()
 
 cor_matrix <- cor(cor_data)
 
 corrplot(cor_matrix,
-    method = "color", type = "lower",
-    tl.cex = 0.7, tl.col = "black",
-    col = colorRampPalette(c("#e74c3c", "white", "#2ecc71"))(200),
-    title = "Correlation Matrix - Early-Game Features",
-    mar = c(0, 0, 2, 0)
+    method   = "color", type = "lower",
+    tl.cex   = 0.7, tl.col = "black",
+    col      = colorRampPalette(c("#e74c3c", "white", "#2ecc71"))(200),
+    col.lim  = c(-1, 1),
+    title    = "Correlation Matrix - Early-Game Features (Blue's perspective)",
+    mar      = c(0, 0, 2, 0)
 )
 ```
 
 ```{r eda-correlation-with-result}
 result_cors <- cor_data %>%
-    select(-result) %>%
-    summarise(across(everything(), ~ cor(.x, cor_data$result))) %>%
+    select(-blue_win) %>%
+    summarise(across(everything(), ~ cor(.x, cor_data$blue_win))) %>%
     pivot_longer(everything(), names_to = "feature", values_to = "correlation") %>%
     arrange(desc(abs(correlation)))
 
 ggplot(result_cors, aes(
-    x = reorder(feature, abs(correlation)),
-    y = correlation,
+    x    = reorder(feature, abs(correlation)),
+    y    = correlation,
     fill = correlation > 0
 )) +
     geom_col() +
@@ -193,7 +278,8 @@ ggplot(result_cors, aes(
         labels = c("Negative", "Positive")
     ) +
     labs(
-        title = "Feature Correlation with Match Result",
+        title    = "Feature Correlation with blue_win",
+        subtitle = "All features oriented from Blue's perspective",
         x = NULL, y = "Pearson Correlation", fill = "Direction"
     ) +
     theme_minimal()
@@ -209,173 +295,207 @@ cat(sprintf(
 ))
 ```
 
-The differential features (`golddiffat15` r=0.52, `xpdiffat15` r=0.49, `csdiffat15` r=0.45) are the strongest predictors. This makes sense: it's the *gap* between teams that matters. Among objectives, `firsttower` (r=0.40) and `firstherald` (r=0.33) stand out, while `firstblood` (r=0.16) and `firstdragon` (r=0.15) are weaker. The correlation matrix also reveals high multicollinearity between raw stats and their counterparts (e.g. `goldat15` and `golddiffat15`), which will cause issues for Logistic Regression and **motivates regularization methods like LASSO and Elastic Net in Scenario 3.**
+Differentials (`blue_golddiffat15`, `blue_xpdiffat15`, `blue_csdiffat15`) dominate the ranking, since what matters is the *gap* between teams rather than the absolute totals. Among objectives, `blue_firsttower` and `blue_firstherald` stand out; `blue_firstblood` and `blue_firstdragon` carry less signal. The matrix also shows two flavours of multicollinearity: between a raw stat and its differential (`blue_goldat15` vs `blue_golddiffat15`), and between Blue and Red counts of the same shared-pool objective (`blue_void_grubs` vs `red_void_grubs`, strongly negatively correlated because they share a 6-grub pit). Both forms hurt Logistic Regression and **motivate the LASSO and Elastic Net regularization used in Scenario 3**.
 
 ## Gold differential distribution
 
-Gold differential at 15 minutes is the strongest single early-game predictor (r=0.52). We check how well it separates wins from losses and whether a simple linear decision boundary (gold lead -\> win) is sufficient, or whether we need non-linear models.
+Gold differential at 15 minutes is the single strongest early-game predictor. We look at how cleanly it separates Blue wins from Red wins, and whether a simple linear cut (positive gold diff -\> Blue win) would already do most of the work or whether we need non-linear models.
 
 ```{r eda-golddiff}
-teams %>%
-    filter(!is.na(golddiffat15)) %>%
-    mutate(result = factor(result, labels = c("Loss", "Win"))) %>%
-    ggplot(aes(x = golddiffat15, fill = result)) +
+games %>%
+    filter(!is.na(blue_golddiffat15)) %>%
+    mutate(blue_win = factor(blue_win, levels = c(0, 1), labels = c("Red won", "Blue won"))) %>%
+    ggplot(aes(x = blue_golddiffat15, fill = blue_win)) +
     geom_density(alpha = 0.5) +
-    scale_fill_manual(values = c("Loss" = "#e74c3c", "Win" = "#2ecc71")) +
+    scale_fill_manual(values = c("Red won" = "#e74c3c", "Blue won" = "#3498db")) +
     geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
     labs(
-        title = "Gold Differential at 15 Minutes - Wins vs Losses",
-        x = "Gold Diff @15 min", y = "Density", fill = "Result"
+        title    = "Gold Differential at 15 Minutes - Blue's Perspective",
+        subtitle = "One row per game: positive = Blue ahead, negative = Red ahead",
+        x = "blue_golddiffat15", y = "Density", fill = "Outcome"
     ) +
     theme_minimal()
 ```
 
 ```{r eda-golddiff-10vs15}
-teams %>%
-    filter(!is.na(golddiffat10), !is.na(golddiffat15)) %>%
-    mutate(result = factor(result, labels = c("Loss", "Win"))) %>%
-    ggplot(aes(x = golddiffat10, y = golddiffat15, color = result)) +
+games %>%
+    filter(!is.na(blue_golddiffat10), !is.na(blue_golddiffat15)) %>%
+    mutate(blue_win = factor(blue_win, levels = c(0, 1), labels = c("Red won", "Blue won"))) %>%
+    ggplot(aes(x = blue_golddiffat10, y = blue_golddiffat15, color = blue_win)) +
     geom_point(alpha = 0.15, size = 0.8) +
-    scale_color_manual(values = c("Loss" = "#e74c3c", "Win" = "#2ecc71")) +
+    scale_color_manual(values = c("Red won" = "#e74c3c", "Blue won" = "#3498db")) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
     geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
     labs(
-        title = "Gold Diff @10 vs @15 - Do Leads Grow?",
+        title    = "Blue Gold Diff @10 vs @15 - Do Leads Grow?",
         subtitle = "Points far from the diagonal indicate momentum shifts between 10 and 15 min",
-        x = "Gold Diff @10 min", y = "Gold Diff @15 min", color = "Result"
+        x = "blue_golddiffat10", y = "blue_golddiffat15", color = "Outcome"
     ) +
     theme_minimal()
 ```
 
-The density plot shows clear separation: winning teams have a mean gold lead of +1345 at 15 minutes, while losing teams sit at -1345. A simple rule ("team with gold lead at 15 min wins") achieves 72.9% accuracy - already well above the 50% baseline, confirming strong signal in this single feature. However, the substantial overlap region around zero means a non-trivial fraction of games aren't decided by gold alone. The @10 vs @15 scatter plot shows that most leads grow between 10 and 15 minutes (points clustered along a steeper-than-diagonal trend), justifying our momentum features that capture this growth.
+The two densities are clearly separated. A naive "team ahead in gold at 15 min wins" rule reaches \~72.9% accuracy at the team level - well above the 50% baseline, and good enough that any model has to beat it to be worth keeping. The wide overlap around zero says a meaningful share of games are not decided by gold alone. In the @10 vs @15 scatter the cloud sits along a line steeper than the diagonal, meaning leads tend to grow between 10 and 15 minutes - which is what the momentum features in the modelling pipeline are meant to capture.
 
 ## First objective win rates
 
-First objectives (first blood, first dragon, first herald, first tower) happen within the first \~14 minutes and are binary indicators. We check the win rate for teams that secure each objective to gauge how much each one matters.
+The four "first" objectives (first blood, first dragon, first herald, first tower) all happen in the first \~14 minutes and are mutually exclusive: exactly one team secures each. For every objective we compute `P(Blue wins | Blue secured X)` and run a chi-square test of independence between securer and outcome.
 
 ```{r eda-objectives}
 obj_cols <- c("firstblood", "firstdragon", "firstherald", "firsttower")
 
+obj_winrates <- map_dfr(obj_cols, function(obj) {
+    blue_col <- paste0("blue_", obj)
+    df <- games %>%
+        select(all_of(c(blue_col, "blue_win"))) %>%
+        drop_na()
 
-obj_winrates <- teams %>%
-    select(all_of(c(obj_cols, "result"))) %>%
-    drop_na() %>%
-    pivot_longer(all_of(obj_cols), names_to = "objective", values_to = "secured") %>%
-    filter(secured == 1) %>%
-    group_by(objective) %>%
-    summarise(
-        win_rate = mean(result) * 100,
-        n = n(),
-        .groups = "drop"
-    ) %>%
-    mutate(objective = str_replace(objective, "first", "First ") %>% str_to_title())
+    n_blue <- sum(df[[blue_col]] == 1)
+    n_red  <- sum(df[[blue_col]] == 0)
+    blue_wr <- mean(df$blue_win[df[[blue_col]] == 1]) * 100
+    red_wr  <- mean(df$blue_win[df[[blue_col]] == 0]) * 100  # P(Blue wins | Red secured)
 
-ggplot(obj_winrates, aes(
-    x = reorder(objective, win_rate),
-    y = win_rate, fill = win_rate
-)) +
-    geom_col() +
-    geom_text(aes(label = sprintf("%.1f%% (n=%d)", win_rate, n)),
-        hjust = -0.1, size = 3.5
+    chi <- chisq.test(table(df[[blue_col]], df$blue_win))
+
+    tibble(
+        objective       = str_replace(obj, "first", "First ") %>% str_to_title(),
+        secured_by      = c("Blue secured", "Red secured"),
+        win_rate_blue   = c(blue_wr, red_wr),
+        n               = c(n_blue, n_red),
+        chi2            = chi$statistic,
+        p_value         = chi$p.value
+    )
+})
+
+ggplot(
+    obj_winrates,
+    aes(x = reorder(objective, win_rate_blue), y = win_rate_blue, fill = secured_by)
+) +
+    geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+    geom_text(
+        aes(label = sprintf("%.1f%% (n=%d)", win_rate_blue, n)),
+        position = position_dodge(width = 0.7),
+        hjust = -0.05, size = 3
     ) +
     coord_flip() +
-    scale_fill_gradient(low = "#f39c12", high = "#2ecc71") +
+    scale_fill_manual(values = c("Blue secured" = "#3498db", "Red secured" = "#e74c3c")) +
     scale_y_continuous(limits = c(0, 100)) +
     geom_hline(yintercept = 50, linetype = "dashed", color = "gray40") +
     labs(
-        title = "Win Rate by First Objective Secured",
+        title    = "P(Blue wins) by Who Secured the First Objective",
         subtitle = "Dashed line = 50% baseline (no advantage)",
-        x = NULL, y = "Win Rate (%)"
+        x = NULL, y = "Blue Win Rate (%)", fill = NULL
     ) +
-    theme_minimal() +
-    theme(legend.position = "none")
+    theme_minimal()
+
+cat("Chi-square independence tests (objective securer vs blue_win):\n")
+obj_winrates %>%
+    distinct(objective, chi2, p_value) %>%
+    mutate(
+        chi2    = round(chi2, 1),
+        p_value = formatC(p_value, format = "e", digits = 2)
+    ) %>%
+    print()
 ```
 
-First tower (70.1%) and first herald (66.5%) provide a substantial win rate advantage, well above the 50% baseline. First blood (57.8%) and first dragon (57.6%) are weaker. This aligns with the correlation analysis where `firsttower` (r=0.40) ranked much higher than `firstblood` (r=0.16). Tower-related objectives translate more directly into map control and gold, while first blood is often a single lucky skirmish. All four are still worth including as features, but we expect the models to weigh tower and herald much more heavily.
+When Blue secures first tower or first herald, Blue's win rate jumps well above 50%, and drops by a similar amount when Red gets them instead. First blood and first dragon move the rate much less. Every chi-square test rejects independence at p ≪ 0.001, so the *direction* is certain, but the *magnitude* varies sharply between objectives - the same pattern the correlation analysis showed. Tower-related objectives translate straight into map control and gold, while first blood is often a single lucky skirmish. All four are worth keeping, but the models should weight tower and herald more heavily.
 
 ## Void grubs
 
-Void grubs are a 2024+ objective that spawns at 5:00 and despawns at 13:45 - purely early-game. Teams can secure 0 to 6 grubs total. We check whether securing more grubs translates to higher win rates.
+Void grubs are a 2024+ objective: they spawn at 5:00 and despawn at 13:45 on early-2025 patches (moved to 14:45 mid-season), so they are purely early-game. The pit holds up to 6 grubs total, split between the two teams. We plot Blue's win rate against the number of grubs Blue ended up with.
 
 ```{r eda-grubs}
-teams %>%
-    filter(!is.na(void_grubs)) %>%
-    group_by(void_grubs) %>%
+games %>%
+    filter(!is.na(blue_void_grubs)) %>%
+    group_by(blue_void_grubs) %>%
     summarise(
-        win_rate = mean(result) * 100,
-        n = n(),
-        .groups = "drop"
+        win_rate = mean(blue_win) * 100,
+        n        = n(),
+        .groups  = "drop"
     ) %>%
-    ggplot(aes(x = factor(void_grubs), y = win_rate, fill = win_rate)) +
+    ggplot(aes(x = factor(blue_void_grubs), y = win_rate, fill = win_rate)) +
     geom_col() +
     geom_text(aes(label = sprintf("%.1f%%\nn=%d", win_rate, n)),
         vjust = -0.3, size = 3
     ) +
-    scale_fill_gradient(low = "#e74c3c", high = "#2ecc71") +
+    scale_fill_gradient(low = "#e74c3c", high = "#3498db") +
     scale_y_continuous(limits = c(0, 100)) +
     geom_hline(yintercept = 50, linetype = "dashed", color = "gray40") +
     labs(
-        title = "Win Rate by Number of Void Grubs Secured",
-        x = "Void Grubs", y = "Win Rate (%)"
+        title    = "Blue Win Rate by Number of Void Grubs Blue Secured",
+        subtitle = "Pit max = 6 grubs total, shared between Blue and Red",
+        x = "blue_void_grubs", y = "P(Blue wins) (%)"
     ) +
     theme_minimal() +
     theme(legend.position = "none")
 ```
 
-The relationship is clearly monotonic: 0 grubs = 36.4% win rate, up to 6 grubs = 69.9%. Securing the full set of 6 grubs provides a \~34 percentage point win rate boost over getting none. This confirms that `grub_diff` (our engineered differential) is a meaningful feature. Interestingly, there's a slight dip at 4 grubs (53.2%) compared to 3 (57.5%), likely due to small sample size (n=824) - teams that take exactly 4 are rare.
+The relationship is essentially monotonic: 0 grubs sits well below 50% win rate, 6 grubs climbs to \~70%. That justifies the grub differential we build later. Small wobbles at intermediate counts come from low sample sizes - teams that end up with *exactly* 4 grubs are rare, because grub fights usually end with one side taking the whole remaining set.
 
 ## Side advantage
 
-In professional LoL, Blue side gets first pick in champion draft and has slight map asymmetries. We check whether this translates into a measurable win rate difference.
+Blue side gets first pick in the draft and has slight map asymmetries. We measure the side advantage as the share of Blue wins, and report a 95% CI plus a chi-square test against the 50% null.
 
 ```{r eda-side}
-side_stats <- teams %>%
-    group_by(side) %>%
-    summarise(
-        win_rate = mean(result) * 100,
-        n = n(),
-        .groups = "drop"
-    )
+n_games  <- nrow(games)
+n_blue   <- sum(games$blue_win)
+side_pt  <- prop.test(n_blue, n_games, p = 0.5)
+blue_wr  <- n_blue / n_games * 100
+ci_low   <- side_pt$conf.int[1] * 100
+ci_high  <- side_pt$conf.int[2] * 100
 
-ggplot(side_stats, aes(x = side, y = win_rate, fill = side)) +
-    geom_col(width = 0.5) +
-    geom_text(aes(label = sprintf("%.1f%%\nn=%d", win_rate, n)),
-        vjust = -0.3, size = 4
+tibble(
+    label    = "Blue side",
+    win_rate = blue_wr,
+    ci_low   = ci_low,
+    ci_high  = ci_high
+) %>%
+    ggplot(aes(x = label, y = win_rate)) +
+    geom_col(width = 0.4, fill = "#3498db") +
+    geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = 0.15, color = "gray20") +
+    geom_text(
+        aes(label = sprintf("%.2f%%  [%.2f, %.2f]\nn=%d  ·  chi^2=%.1f, p=%.2g",
+                            win_rate, ci_low, ci_high, n_games,
+                            side_pt$statistic, side_pt$p.value)),
+        vjust = -0.6, size = 3.5
     ) +
-    scale_fill_manual(values = c("Blue" = "#3498db", "Red" = "#e74c3c")) +
-    scale_y_continuous(limits = c(0, 70)) +
     geom_hline(yintercept = 50, linetype = "dashed", color = "gray40") +
+    scale_y_continuous(limits = c(0, 70)) +
     labs(
-        title = "Win Rate by Map Side",
-        x = "Side", y = "Win Rate (%)"
+        title    = "Blue-Side Advantage (one row per game)",
+        subtitle = "Dashed line = 50% null hypothesis  ·  error bar = 95% CI",
+        x = NULL, y = "P(Blue wins) (%)"
     ) +
     theme_minimal() +
     theme(legend.position = "none")
 ```
 
-Blue side wins 53.3% of games across 9,236 matches - a consistent \~3 percentage point advantage. While not dramatic, over thousands of games this is statistically significant and justifies including `side` as a feature. The advantage likely comes from first pick in draft and slight camera/map asymmetries.
+Blue wins \~53% of games, a steady \~3 pp advantage. The 95% CI excludes 50% and the chi-square test rejects the null at p ≪ 0.001, so the effect is significant even if small. It comes from first pick in champion draft and small map/camera asymmetries. The modelling pipeline keeps the team-perspective format, so `side` enters the models as a binary feature and the model can decide how much weight to give it.
 
 ## Role-specific gold differentials (H2 preview)
 
-For H2 we need to know whether some roles' early-game advantages matter more than others. We compare the correlation between each role's gold differential at 15 minutes and match outcome. If bot lane stands out, that supports H2; if another role dominates, H2 may be rejected.
+H2 asks whether some roles' early leads matter more than others. As a first look, we take each Blue-side player by role and correlate their gold differential at 15 min with `blue_win`.
 
 ```{r eda-roles}
-role_cors <- players %>%
-    filter(position %in% c("top", "jng", "mid", "bot", "sup")) %>%
-    select(position, golddiffat15, result) %>%
-    drop_na() %>%
+role_diffs_blue <- players %>%
+    filter(position %in% c("top", "jng", "mid", "bot", "sup"),
+           side == "Blue",
+           !is.na(golddiffat15)) %>%
+    select(gameid, position, golddiffat15)
+
+role_cors <- role_diffs_blue %>%
+    inner_join(games %>% select(gameid, blue_win), by = "gameid") %>%
     group_by(position) %>%
     summarise(
-        correlation = cor(golddiffat15, result),
-        mean_diff_win = mean(golddiffat15[result == 1]),
-        mean_diff_loss = mean(golddiffat15[result == 0]),
-        .groups = "drop"
+        correlation     = cor(golddiffat15, blue_win),
+        mean_diff_win   = mean(golddiffat15[blue_win == 1]),
+        mean_diff_loss  = mean(golddiffat15[blue_win == 0]),
+        .groups         = "drop"
     ) %>%
     mutate(position = toupper(position))
 
 ggplot(role_cors, aes(
-    x = reorder(position, correlation),
-    y = correlation, fill = correlation
+    x    = reorder(position, correlation),
+    y    = correlation, fill = correlation
 )) +
     geom_col() +
     geom_text(aes(label = sprintf("r = %.3f", correlation)),
@@ -385,45 +505,44 @@ ggplot(role_cors, aes(
     scale_y_continuous(limits = c(0, 0.42)) +
     scale_fill_gradient(low = "#f39c12", high = "#2ecc71") +
     labs(
-        title = "Correlation: Role Gold Diff @15 vs Match Result",
+        title    = "Correlation: Role Gold Diff @15 (Blue side) vs blue_win",
         subtitle = "Which role's early-game gold advantage best predicts winning?",
-        x = NULL, y = "Pearson Correlation with Result"
+        x = NULL, y = "Pearson Correlation with blue_win"
     ) +
     theme_minimal() +
     theme(legend.position = "none")
 ```
 
 ```{r eda-roles-boxplot}
-players %>%
-    filter(position %in% c("top", "jng", "mid", "bot", "sup")) %>%
-    filter(!is.na(golddiffat15)) %>%
+role_diffs_blue %>%
+    inner_join(games %>% select(gameid, blue_win), by = "gameid") %>%
     mutate(
-        result = factor(result, labels = c("Loss", "Win")),
+        blue_win = factor(blue_win, levels = c(0, 1), labels = c("Red won", "Blue won")),
         position = toupper(position)
     ) %>%
-    ggplot(aes(x = position, y = golddiffat15, fill = result)) +
+    ggplot(aes(x = position, y = golddiffat15, fill = blue_win)) +
     geom_boxplot(outlier.alpha = 0.1) +
-    scale_fill_manual(values = c("Loss" = "#e74c3c", "Win" = "#2ecc71")) +
+    scale_fill_manual(values = c("Red won" = "#e74c3c", "Blue won" = "#3498db")) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
     labs(
-        title = "Gold Differential @15 by Role and Result",
-        x = "Role", y = "Gold Diff @15 min", fill = "Result"
+        title    = "Blue-Side Player Gold Differential @15 by Role and Outcome",
+        x = "Role", y = "Gold Diff @15 min", fill = "Outcome"
     ) +
     theme_minimal()
 ```
 
-Bot lane (ADC) has the highest correlation with match result (r=0.376). This provides early evidence for H2 - bot lane gold advantage does appear to be the most predictive role-specific factor. However, the differences between roles are relatively small (0.376 vs 0.298), so the full modeling analysis in H2 will determine whether this gap is statistically meaningful or within noise. The boxplot confirms that all roles show a clear separation between wins and losses, but bot lane has the widest gap.
+Bot lane (ADC) has the highest correlation with `blue_win`, which is early evidence for H2: the bot lane's gold advantage looks like the most predictive role-specific factor. The gaps between roles are small, though, so the full H2 analysis (using both Blue and Red rows for more training data) will decide whether the gap is real or noise. The boxplot shows clear win/loss separation for every role; bot lane simply has the widest gap.
 
 ## Feature distributions and scaling check
 
-Some models (KNN, Logistic Regression) are sensitive to feature scales. If features have very different ranges, we'll need to standardize them. Tree-based models (Random Forest, CART) are scale-invariant, and Naive Bayes fits each feature's distribution independently so it is unaffected by scaling too.
+KNN and Logistic Regression are sensitive to feature scale; tree-based models and Naive Bayes are not. We check the per-feature ranges below to decide whether standardisation is needed.
 
 ```{r eda-distributions}
-scale_check <- teams %>%
+scale_check <- games %>%
     select(
-        goldat15, xpat15, csat15, killsat15,
-        golddiffat15, xpdiffat15, csdiffat15,
-        void_grubs
+        blue_goldat15, blue_xpat15, blue_csat15, blue_killsat15,
+        blue_golddiffat15, blue_xpdiffat15, blue_csdiffat15,
+        blue_void_grubs
     ) %>%
     drop_na() %>%
     pivot_longer(everything(), names_to = "feature", values_to = "value")
@@ -432,31 +551,31 @@ ggplot(scale_check, aes(x = value)) +
     geom_histogram(bins = 50, fill = "#3498db", alpha = 0.7) +
     facet_wrap(~feature, scales = "free", ncol = 4) +
     labs(
-        title = "Feature Distributions - Scale Check",
-        subtitle = "Different scales across features → standardization needed for KNN and Logistic Regression",
+        title    = "Feature Distributions - Scale Check (Blue's perspective)",
+        subtitle = "Different scales across features → standardisation needed for KNN and Logistic Regression",
         x = "Value", y = "Count"
     ) +
     theme_minimal()
 ```
 
-The scales are wildly different: `goldat15` ranges from \~20,000 to \~36,000 (sd=1622), while `void_grubs` ranges from 0 to 6 (sd=1.7) and `killsat15` from 0 to 27 (sd=3.0). Without standardization, KNN would be dominated by gold values (which are 1000x larger) and effectively ignore kills and grubs. Logistic Regression coefficients would also be misleading. We will apply standardization (z-score scaling) before fitting KNN and Logistic Regression. Tree-based models (RF, CART) and Naive Bayes don't need this.
+The scales differ wildly: `blue_goldat15` runs from \~20,000 to \~36,000, while `blue_void_grubs` lives on 0-6 and `blue_killsat15` on 0-\~27. Without standardisation, KNN distances would be swamped by gold (1000x larger than the rest) and effectively ignore kills and grubs. Logistic Regression coefficients would also be misleading, since coefficient magnitude is only comparable across features when each has unit variance. We z-score standardise before fitting KNN and Logistic Regression. Tree-based models (RF, CART) and Naive Bayes do not need it.
 
 ## EDA Summary
 
-Key findings that inform our modeling decisions:
+Key takeaways from the single-row-per-game `games` dataset:
 
-1.  **Target is perfectly balanced** (50/50) - no resampling needed, accuracy is a valid metric
-2.  **Gold diff @15 is the strongest predictor** (r=0.52) - a simple gold-lead rule gives 72.9% accuracy, setting our baseline
-3.  **High multicollinearity** between raw stats and diffs - regularization needed for linear models
-4.  **First tower** (70.1% WR) and **first herald** (66.5% WR) are high-impact objectives
-5.  **First blood** (57.8% WR) and **first dragon** (57.6% WR) are weak - barely above baseline
-6.  **Void grubs** show clear monotonic win rate gradient (36% to 70%) - include `grub_diff`
-7.  **Blue side** has a consistent 53.3% win rate - include `side` as feature
-8.  **Feature scales differ by 1000x** - must standardize for KNN and Logistic Regression
-9.  **Bot lane** has the highest role-specific correlation (r=0.376) - H2 analysis justified
-10. **Leads tend to grow** from @10 to @15 - momentum features will capture this dynamic
-11. **Turret plate differential** (r=0.413) is a strong purely early-game feature (plates fall at 14:00) not commonly used in the literature
-12. **Total dragon/herald counts** are full-game statistics (not early-game) and must not be used as features to avoid data leakage
+1.  **Target is mildly imbalanced** (\~53/47 in Blue's favour). Significant but small - accuracy is still a valid metric and no resampling is needed.
+2.  **Gold diff @15 is the strongest single predictor.** A naive "gold-leader wins" rule already hits \~73% accuracy at the team level, which is our baseline to beat.
+3.  **Residual multicollinearity** remains between raw stats and their differentials (`blue_goldat15` vs `blue_golddiffat15`) and between paired independent counts (`blue_killsat15` vs `red_killsat15`). Linear models will need regularisation even after dropping the strict mirrors.
+4.  **First tower** and **first herald** swing Blue's win rate sharply (chi-square p ≪ 0.001); they are the highest-impact binary objectives.
+5.  **First blood** and **first dragon** are statistically significant but barely move Blue's win rate above 50% on their own.
+6.  **Void grubs** show a near-monotonic gradient in Blue's win rate from 0 to 6 grubs, which justifies engineering a grub differential.
+7.  **Blue-side advantage** is significant (\~53% win rate, 95% CI excludes 50%), so `side` stays as a feature in the modelling pipeline.
+8.  **Feature scales differ by \~1000x**, so KNN and Logistic Regression need standardisation.
+9.  **Bot lane** has the highest role-specific correlation with `blue_win`, supporting the H2 analysis.
+10. **Leads tend to grow** between @10 and @15, which is what the momentum features will capture.
+11. **Turret plate differential** is a strong, purely early-game feature (plates fall by 14:00) not commonly used in the published literature.
+12. **Total dragon/herald counts** are full-game statistics, not early-game, and must not enter the feature set - using them would leak the outcome.
 
 # Feature Engineering
 
@@ -658,7 +777,7 @@ cat(sprintf(
 In this scenario we compare five classification methods on the same data to evaluate how well early-game features predict match outcome, and which model family offers the best trade-off between performance and interpretability.
 
 | Category       | Model                | Why we chose it                                                                      |
-|--------------|--------------|--------------------------------------------|
+|----------------|----------------------|--------------------------------------------------------------------------------------|
 | Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                                 |
 | Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance    |
 | Statistical/ML | Naive Bayes          | Probabilistic classifier using Bayes' theorem with a feature-independence assumption |
