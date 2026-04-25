@@ -1911,5 +1911,12 @@ roc_cart <- pROC::roc(y_test_fct, cart_prob[, "Win"], levels = c("Loss","Win"), 
 saveRDS(list(lr = roc_lr, rf = roc_rf, nb = roc_nb, knn = roc_knn, cart = roc_cart),
         "shiny/models/roc_list.rds")
 
+# LR test predictions for Shiny (confusion matrix + prob distribution)
+saveRDS(
+    data.frame(actual = as.character(y_test_fct), prob_win = lr_prob[, "Win"]),
+    "shiny/models/lr_test_df.rds"
+)
+saveRDS(lr_cm, "shiny/models/lr_cm.rds")
+
 cat("Models saved to shiny/models/\n")
 ```

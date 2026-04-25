@@ -17,6 +17,8 @@ overlap_df   <- readRDS("models/overlap_df.rds")
 teams_model  <- readRDS("models/teams_model.rds")
 X_train      <- readRDS("models/X_train.rds")
 game_lookup  <- readRDS("models/game_lookup.rds")
+lr_test_df   <- tryCatch(readRDS("models/lr_test_df.rds"), error = function(e) NULL)
+lr_cm_obj    <- tryCatch(readRDS("models/lr_cm.rds"),      error = function(e) NULL)
 
 feature_names <- names(X_train)
 train_means   <- colMeans(X_train)
@@ -457,6 +459,75 @@ h4 { font-weight: 700; font-size: 18px; color: #1e293b; letter-spacing: -0.3px; 
 h5 { font-weight: 600; font-size: 14px; color: #1e293b; }
 h6 { font-weight: 700; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
 
+/* ── Data tab fixed layout ───────────────────────────────── */
+.data-fixed-layout {
+    height: calc(100vh - 110px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+    padding-top: 16px;
+}
+.kpi-row {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.kpi-card {
+    flex: 1;
+    border-radius: 12px;
+    padding: 12px 16px;
+    min-width: 0;
+    border-width: 1px;
+    border-style: solid;
+}
+.kpi-card-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+.kpi-card-value {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+}
+.data-content-card {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    padding: 20px;
+    margin-bottom: 0;
+}
+.data-fill-area {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+.data-fill-area .shiny-plot-output { height: 100% !important; }
+
+/* View toggle */
+.view-toggle { display:inline-flex; background:#f1f5f9; border-radius:8px; padding:3px; gap:2px; }
+.view-toggle .radio-inline { margin:0; padding:0; }
+.view-toggle .radio-inline label {
+    display:inline-block; padding:5px 14px; border-radius:6px;
+    font-size:12px; font-weight:500; color:#64748b;
+    cursor:pointer; margin:0; transition:all 0.15s; user-select:none; white-space:nowrap;
+}
+.view-toggle .radio-inline label.vt-active {
+    background:#ffffff; color:#6366f1; font-weight:600;
+    box-shadow:0 1px 3px rgba(0,0,0,0.1);
+}
+.view-toggle input[type='radio'] { position:absolute; opacity:0; width:0; height:0; }
+
 /* Data tab — segmented control tabs */
 .data-view .nav-tabs {
     border-bottom: none !important;
@@ -503,6 +574,47 @@ table.dataTable thead th {
 }
 table.dataTable tbody tr:hover { background: #f8fafc !important; }
 table.dataTable tbody tr.selected td { background: #eef2ff !important; }
+
+/* ── Data Explorer: fileInput styling ──────────────────── */
+.input-group .btn-file {
+    background: #6366f1 !important;
+    border-color: #6366f1 !important;
+    color: #ffffff !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    border-radius: 0 8px 8px 0 !important;
+}
+.input-group .form-control[readonly] {
+    font-size: 13px !important;
+    color: #64748b !important;
+    border-radius: 8px 0 0 8px !important;
+}
+/* ── Data Explorer sidebar ──────────────────────────────── */
+.data-or-divider {
+    display: flex; align-items: center; gap: 10px;
+    margin: 10px 0; color: #94a3b8;
+    font-size: 11px; font-weight: 600;
+}
+.data-or-divider::before, .data-or-divider::after {
+    content: ''; flex: 1; border-top: 1px solid #e2e8f0;
+}
+.data-stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 0; border-bottom: 1px solid #f1f5f9;
+}
+.data-stat-row:last-child { border-bottom: none; }
+.data-stat-label { font-size: 12px; color: #64748b; font-weight: 500; }
+.data-stat-value { font-size: 15px; font-weight: 700; }
+.data-main-area {
+    min-height: calc(100vh - 130px);
+    display: flex;
+    flex-direction: column;
+    padding-top: 16px;
+}
+.data-no-data-hint {
+    display: flex; align-items: center; justify-content: center;
+    padding: 80px 0; flex-direction: column; text-align: center;
+}
 "
 
 # ── JS for pill active state ───────────────────────────────────────────────────
@@ -519,6 +631,16 @@ $(document).on('shiny:connected', function() {
     }
     $(document).on('change', 'input[name=tune_model]', syncModelNav);
     setTimeout(syncModelNav, 250);
+
+    function syncViewToggle() {
+        var val = $('input[name=data_view]:checked').val();
+        $('.view-toggle label').removeClass('vt-active');
+        $('input[name=data_view]').each(function() {
+            if ($(this).val() === val) $(this).closest('label').addClass('vt-active');
+        });
+    }
+    $(document).on('change', 'input[name=data_view]', syncViewToggle);
+    setTimeout(syncViewToggle, 300);
 });
 "
 
@@ -529,56 +651,6 @@ ui <- navbarPage(
     header = tags$head(
         tags$style(HTML(nuxt_css)),
         tags$script(HTML(pill_js))
-    ),
-
-    # ── Tab 0: Data ─────────────────────────────────────────────────────────────
-    tabPanel("Data",
-        sidebarLayout(
-            sidebarPanel(width = 3,
-                div(class = "sidebar-section",
-                    p(class = "sidebar-section-title", "Load Data"),
-                    fileInput("data_upload", NULL,
-                        accept      = ".csv",
-                        placeholder = "Upload CSV...",
-                        buttonLabel = "Browse"),
-                    div(style = "text-align:center; margin:4px 0 8px 0; font-size:11px; color:#94a3b8;", "or"),
-                    actionButton("use_builtin", "Use built-in dataset",
-                        class = "btn-primary", style = "width:100%;")
-                ),
-                uiOutput("data_info_box")
-            ),
-            mainPanel(width = 9,
-                br(),
-                # Zone 1: KPI stat cards
-                uiOutput("data_stat_cards"),
-                # Zone 2: Small multiples distributions
-                div(class = "card",
-                    div(style = "display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;",
-                        div(
-                            h5("Feature Distributions", style = "margin:0 0 2px 0;"),
-                            p("Win (green) vs. Loss (red)  ·  dashed line = group mean",
-                              style = "font-size:12px; color:#94a3b8; margin:0;")
-                        )
-                    ),
-                    uiOutput("small_multiples_container")
-                ),
-                # Zone 3: Raw data table
-                div(class = "card",
-                    div(style = "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;",
-                        div(
-                            h5("Raw Data", style = "margin:0 0 2px 0;"),
-                            p("All loaded rows.", style = "font-size:12px; color:#94a3b8; margin:0;")
-                        ),
-                        div(style = "display:flex; align-items:center; gap:10px;",
-                            textInput("preview_search", NULL,
-                                placeholder = "Search...", width = "180px"),
-                            uiOutput("preview_badge")
-                        )
-                    ),
-                    DTOutput("preview_table")
-                )
-            )
-        )
     ),
 
     # ── Tab 1: Match Predictor ──────────────────────────────────────────────────
@@ -728,10 +800,17 @@ ui <- navbarPage(
                 div(class = "card", style = "padding:20px;",
                     plotOutput("tune_plot", height = "340px")
                 ),
-                div(class = "card", style = "padding:20px;",
-                    h5("All Tested Configurations",
-                       style = "margin:0 0 14px 0; font-size:13px;"),
-                    DTOutput("tune_table")
+                conditionalPanel(
+                    condition = "input.tune_model !== 'LR'",
+                    div(class = "card", style = "padding:20px;",
+                        h5("All Tested Configurations",
+                           style = "margin:0 0 14px 0; font-size:13px;"),
+                        DTOutput("tune_table")
+                    )
+                ),
+                conditionalPanel(
+                    condition = "input.tune_model === 'LR'",
+                    uiOutput("tune_lr_extra")
                 )
             )
         )
@@ -763,293 +842,61 @@ ui <- navbarPage(
 
     # ── Tab 5: Data Explorer ────────────────────────────────────────────────────
     tabPanel("Data Explorer",
-        sidebarLayout(
-            sidebarPanel(
-                h4("Filters"),
-                selectInput("filter_side", "Side",
-                    choices = c("All", "Blue", "Red"), selected = "All"),
-                selectInput("filter_result", "Result",
-                    choices = c("All", "Win", "Loss"), selected = "All"),
-                sliderInput("filter_gold", "Gold Diff @15 range",
-                    min = -15000, max = 15000,
-                    value = c(-15000, 15000), step = 500)
+        fluidRow(
+
+            # ── Left sidebar ─────────────────────────────────────────────────────
+            column(3,
+                div(class = "predictor-sidebar", style = "padding-top:16px;",
+
+                    # Load section
+                    div(class = "sidebar-section",
+                        p(class = "sidebar-section-title", "Load Data"),
+                        fileInput("data_upload", NULL,
+                            accept      = c(".csv", "text/csv"),
+                            placeholder = "No file selected",
+                            buttonLabel = "Browse",
+                            width       = "100%"),
+                        div(class = "data-or-divider", "or"),
+                        actionButton("data_use_example", "Use Built-in Dataset",
+                            class = "btn-primary",
+                            style = "width:100%;")
+                    ),
+
+                    # Status + stats (NULL when no data)
+                    uiOutput("data_sidebar_stats")
+                )
             ),
-            mainPanel(
-                br(),
-                h5(textOutput("explorer_count")),
-                DTOutput("data_table")
+
+            # ── Right main content ────────────────────────────────────────────────
+            column(9,
+                div(class = "data-main-area data-view",
+                    uiOutput("data_no_data_hint"),
+                    tabsetPanel(id = "data_inner_tabs",
+                        tabPanel("Table",
+                            div(style = "padding-top:16px;",
+                                DTOutput("data_table_full"))
+                        ),
+                        tabPanel("Summary",
+                            div(style = "padding-top:16px;",
+                                DTOutput("data_summary_table"))
+                        ),
+                        tabPanel("Distribution",
+                            div(style = "padding-top:16px;",
+                                uiOutput("data_dist_controls"),
+                                plotOutput("data_dist_plot", height = "400px"))
+                        )
+                    )
+                )
             )
         )
     )
+
 )
 
 # ── Server ─────────────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
 
-    rv <- reactiveValues(input_row = NULL, game_info = NULL, loaded_data = NULL)
-
-    # ── Data tab ────────────────────────────────────────────────────────────────
-
-    builtin_data <- function() {
-        teams_model %>%
-            select(result, side, golddiffat15, xpdiffat15, csdiffat15,
-                   firsttower, firstherald, firstdragon, firstblood,
-                   winrate_diff, grub_diff) %>%
-            mutate(result = factor(ifelse(result == 1, "Win", "Loss"),
-                                   levels = c("Win", "Loss")))
-    }
-
-    observe({
-        if (is.null(rv$loaded_data)) rv$loaded_data <- builtin_data()
-    })
-
-    observeEvent(input$use_builtin, {
-        rv$loaded_data <- builtin_data()
-    })
-
-    observeEvent(input$data_upload, {
-        req(input$data_upload)
-        rv$loaded_data <- read.csv(input$data_upload$datapath)
-    })
-
-    output$data_info_box <- renderUI({
-        req(rv$loaded_data)
-        df    <- rv$loaded_data
-        n_win <- if ("result" %in% names(df)) sum(df$result == "Win", na.rm = TRUE) else NA
-        n_loss <- if (!is.na(n_win)) nrow(df) - n_win else NA
-
-        info_row <- function(label, value, color = "#1e293b") {
-            div(style = "display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9;",
-                span(style = "font-size:12px; color:#64748b;", label),
-                span(style = paste0("font-size:12px; font-weight:700; color:", color), value)
-            )
-        }
-
-        div(class = "sidebar-section", style = "margin-top:10px;",
-            p(class = "sidebar-section-title", "Dataset Info"),
-            info_row("Rows",    nrow(df)),
-            info_row("Columns", ncol(df)),
-            if (!is.na(n_win))  info_row("Wins",   n_win,  "#16a34a"),
-            if (!is.na(n_loss)) info_row("Losses", n_loss, "#dc2626")
-        )
-    })
-
-    # ── Zone 1: KPI cards ───────────────────────────────────────────────────────
-    output$data_stat_cards <- renderUI({
-        req(rv$loaded_data)
-        df     <- rv$loaded_data
-        n      <- nrow(df)
-        n_feat <- ncol(df) - if ("result" %in% names(df)) 1 else 0
-        n_win  <- if ("result" %in% names(df)) sum(df$result == "Win", na.rm = TRUE) else NA
-        n_loss <- if (!is.na(n_win)) n - n_win else NA
-        wr     <- if (!is.na(n_win)) round(n_win / n * 100, 1) else NA
-
-        kpi <- function(label, value, color = "#1e293b", bg = "#ffffff", border = "#e2e8f0") {
-            div(style = paste0("background:", bg, "; border:1px solid ", border, "; border-radius:12px; padding:16px 20px; flex:1; min-width:0;"),
-                div(style = "font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#94a3b8; margin-bottom:8px;", label),
-                div(style = paste0("font-size:26px; font-weight:700; color:", color, "; line-height:1;"), value)
-            )
-        }
-
-        div(style = "display:flex; gap:10px; margin-bottom:16px;",
-            kpi("Games",    format(n, big.mark = ",")),
-            kpi("Features", n_feat),
-            if (!is.na(n_win))  kpi("Wins",     format(n_win,  big.mark = ","), "#16a34a", "#f0fdf4", "#bbf7d0"),
-            if (!is.na(n_loss)) kpi("Losses",   format(n_loss, big.mark = ","), "#dc2626", "#fef2f2", "#fecaca"),
-            if (!is.na(wr))     kpi("Win Rate",  paste0(wr, "%"),               "#6366f1", "#eef2ff", "#c7d2fe")
-        )
-    })
-
-    # ── Zone 2: Small multiples ──────────────────────────────────────────────────
-    output$small_multiples_container <- renderUI({
-        req(rv$loaded_data)
-        num_cols <- names(rv$loaded_data)[sapply(rv$loaded_data, is.numeric)]
-        n_rows   <- ceiling(length(num_cols) / 3)
-        height   <- max(260, n_rows * 130)
-        plotOutput("small_multiples", height = paste0(height, "px"))
-    })
-
-    output$small_multiples <- renderPlot({
-        req(rv$loaded_data)
-        df         <- rv$loaded_data
-        has_result <- "result" %in% names(df) && is.factor(df$result)
-        num_cols   <- names(df)[sapply(df, is.numeric)]
-
-        long <- df %>%
-            select(all_of(c(if (has_result) "result", num_cols))) %>%
-            pivot_longer(all_of(num_cols), names_to = "feature", values_to = "value")
-
-        if (has_result) {
-            means <- long %>%
-                group_by(feature, result) %>%
-                summarise(m = mean(value, na.rm = TRUE), .groups = "drop")
-
-            ggplot(long, aes(x = value, fill = result)) +
-                geom_histogram(alpha = 0.65, position = "identity", bins = 35,
-                               color = "white", linewidth = 0.15) +
-                geom_vline(data = means, aes(xintercept = m, color = result),
-                           linetype = "dashed", linewidth = 0.85, show.legend = FALSE) +
-                facet_wrap(~ feature, scales = "free", ncol = 3) +
-                scale_fill_manual(values  = c("Win" = "#16a34a", "Loss" = "#dc2626"), name = NULL) +
-                scale_color_manual(values = c("Win" = "#16a34a", "Loss" = "#dc2626")) +
-                scale_y_continuous(labels = scales::comma) +
-                labs(x = NULL, y = NULL) +
-                theme_minimal(base_size = 11) +
-                theme(legend.position    = "top",
-                      panel.grid.minor   = element_blank(),
-                      panel.grid.major.x = element_blank(),
-                      strip.text         = element_text(face = "bold", color = "#475569", size = 10),
-                      strip.background   = element_rect(fill = "#f8fafc", color = NA),
-                      panel.spacing      = unit(1.2, "lines"))
-        } else {
-            ggplot(long, aes(x = value)) +
-                geom_histogram(fill = "#6366f1", alpha = 0.8, bins = 35,
-                               color = "white", linewidth = 0.15) +
-                facet_wrap(~ feature, scales = "free", ncol = 3) +
-                scale_y_continuous(labels = scales::comma) +
-                labs(x = NULL, y = NULL) +
-                theme_minimal(base_size = 11) +
-                theme(panel.grid.minor   = element_blank(),
-                      panel.grid.major.x = element_blank(),
-                      strip.text         = element_text(face = "bold", color = "#475569", size = 10),
-                      strip.background   = element_rect(fill = "#f8fafc", color = NA),
-                      panel.spacing      = unit(1.2, "lines"))
-        }
-    })
-
-    preview_filtered <- reactive({
-        req(rv$loaded_data)
-        df <- rv$loaded_data
-        q  <- trimws(if (is.null(input$preview_search)) "" else input$preview_search)
-        if (nchar(q) == 0) return(df)
-        mask <- apply(df, 1, function(row)
-            any(grepl(q, as.character(row), ignore.case = TRUE)))
-        df[mask, ]
-    })
-
-    output$preview_badge <- renderUI({
-        req(rv$loaded_data)
-        n     <- nrow(rv$loaded_data)
-        n_flt <- nrow(preview_filtered())
-        txt   <- if (n_flt == n) paste(format(n, big.mark = ","), "rows") else
-                     paste(format(n_flt, big.mark = ","), "of", format(n, big.mark = ","))
-        span(style = "background:#eef2ff; color:#6366f1; border-radius:6px; padding:5px 12px; font-size:12px; font-weight:600; white-space:nowrap;",
-             txt)
-    })
-
-    output$preview_table <- renderDT({
-        datatable(preview_filtered(), rownames = FALSE,
-                  options = list(pageLength = 15, scrollX = TRUE, dom = "tp"))
-    })
-
-    output$dist_feature_selector <- renderUI({
-        req(rv$loaded_data)
-        num_cols <- names(rv$loaded_data)[sapply(rv$loaded_data, is.numeric)]
-        selectInput("dist_feature", "Select feature", choices = num_cols, width = "100%")
-    })
-
-    output$dist_stats_row <- renderUI({
-        req(rv$loaded_data, input$dist_feature)
-        df   <- rv$loaded_data
-        vals <- df[[input$dist_feature]]
-
-        stat_box <- function(label, value, color = "#1e293b") {
-            div(style = "background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; text-align:center; flex:1;",
-                div(style = "font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#94a3b8; margin-bottom:4px;", label),
-                div(style = paste0("font-size:15px; font-weight:700; color:", color),
-                    format(value, big.mark = ","))
-            )
-        }
-
-        has_result <- "result" %in% names(df) && is.factor(df$result)
-        if (has_result) {
-            win_mean  <- round(mean(vals[df$result == "Win"],  na.rm = TRUE), 2)
-            loss_mean <- round(mean(vals[df$result == "Loss"], na.rm = TRUE), 2)
-            div(style = "display:flex; gap:6px; align-items:flex-end; height:100%; padding-top:22px;",
-                stat_box("Mean",     round(mean(vals, na.rm = TRUE), 2)),
-                stat_box("SD",       round(sd(vals, na.rm = TRUE), 2)),
-                stat_box("Win avg",  win_mean,  "#16a34a"),
-                stat_box("Loss avg", loss_mean, "#dc2626")
-            )
-        } else {
-            div(style = "display:flex; gap:6px; align-items:flex-end; height:100%; padding-top:22px;",
-                stat_box("Mean",   round(mean(vals, na.rm = TRUE), 2)),
-                stat_box("Median", round(median(vals, na.rm = TRUE), 2)),
-                stat_box("SD",     round(sd(vals, na.rm = TRUE), 2)),
-                stat_box("Min",    round(min(vals, na.rm = TRUE), 2)),
-                stat_box("Max",    round(max(vals, na.rm = TRUE), 2))
-            )
-        }
-    })
-
-    output$dist_plot <- renderPlot({
-        req(rv$loaded_data, input$dist_feature)
-        df         <- rv$loaded_data
-        feat       <- input$dist_feature
-        has_result <- "result" %in% names(df) && is.factor(df$result)
-
-        if (has_result) {
-            means <- df %>%
-                group_by(result) %>%
-                summarise(m = mean(.data[[feat]], na.rm = TRUE), .groups = "drop")
-            ggplot(df, aes(x = .data[[feat]], fill = result)) +
-                geom_histogram(alpha = 0.65, position = "identity", bins = 40,
-                               color = "white", linewidth = 0.2) +
-                geom_vline(data = means, aes(xintercept = m, color = result),
-                           linetype = "dashed", linewidth = 1, show.legend = FALSE) +
-                scale_fill_manual(values  = c("Win" = "#16a34a", "Loss" = "#dc2626"), name = NULL) +
-                scale_color_manual(values = c("Win" = "#16a34a", "Loss" = "#dc2626")) +
-                scale_y_continuous(labels = scales::comma) +
-                labs(x = feat, y = "Games") +
-                theme_minimal(base_size = 13) +
-                theme(legend.position  = "top",
-                      panel.grid.minor = element_blank(),
-                      panel.grid.major.x = element_blank())
-        } else {
-            mean_val <- mean(df[[feat]], na.rm = TRUE)
-            ggplot(df, aes(x = .data[[feat]])) +
-                geom_histogram(fill = "#6366f1", alpha = 0.8, bins = 40,
-                               color = "white", linewidth = 0.2) +
-                geom_vline(xintercept = mean_val, linetype = "dashed",
-                           color = "#f59e0b", linewidth = 1) +
-                scale_y_continuous(labels = scales::comma) +
-                labs(x = feat, y = "Games") +
-                theme_minimal(base_size = 13) +
-                theme(panel.grid.minor    = element_blank(),
-                      panel.grid.major.x  = element_blank())
-        }
-    })
-
-    output$summary_table <- renderDT({
-        req(rv$loaded_data)
-        df       <- rv$loaded_data
-        num_cols <- df[, sapply(df, is.numeric), drop = FALSE]
-
-        summary_df <- data.frame(
-            Feature = names(num_cols),
-            Mean    = round(colMeans(num_cols, na.rm = TRUE), 3),
-            SD      = round(apply(num_cols, 2, sd,  na.rm = TRUE), 3),
-            Min     = round(apply(num_cols, 2, min, na.rm = TRUE), 3),
-            Max     = round(apply(num_cols, 2, max, na.rm = TRUE), 3),
-            Missing = colSums(is.na(num_cols)),
-            row.names = NULL
-        )
-
-        sd_range <- range(summary_df$SD, na.rm = TRUE)
-
-        datatable(summary_df, rownames = FALSE,
-                  options = list(dom = "t", pageLength = 20, ordering = TRUE)) %>%
-            formatStyle("Feature",
-                fontWeight = "600", color = "#1e293b") %>%
-            formatStyle("SD",
-                background  = styleColorBar(sd_range, "#6366f1"),
-                backgroundSize     = "95% 55%",
-                backgroundRepeat   = "no-repeat",
-                backgroundPosition = "center") %>%
-            formatStyle("Missing",
-                color      = styleInterval(0, c("#94a3b8", "#dc2626")),
-                fontWeight = styleInterval(0, c("400", "700")))
-    })
+    rv <- reactiveValues(input_row = NULL, game_info = NULL)
 
     # ── Match Predictor: Browse ─────────────────────────────────────────────────
     observe({
@@ -1611,6 +1458,84 @@ server <- function(input, output, session) {
         dt
     })
 
+    # ── LR extras: confusion matrix + probability distribution ──────────────────
+    output$tune_lr_extra <- renderUI({
+        missing <- is.null(lr_cm_obj) || is.null(lr_test_df)
+        if (missing) {
+            return(div(class = "card", style = "padding:20px;",
+                p("Re-run analysis.Rmd to generate lr_cm.rds and lr_test_df.rds",
+                  style = "color:#94a3b8; font-size:13px;")))
+        }
+        fluidRow(
+            column(6,
+                div(class = "card", style = "padding:20px;",
+                    h5("Confusion Matrix — Test Set",
+                       style = "margin:0 0 14px 0; font-size:13px;"),
+                    plotOutput("lr_confmat", height = "300px")
+                )
+            ),
+            column(6,
+                div(class = "card", style = "padding:20px;",
+                    h5("Predicted Probability Distribution",
+                       style = "margin:0 0 14px 0; font-size:13px;"),
+                    plotOutput("lr_prob_dist", height = "300px")
+                )
+            )
+        )
+    })
+
+    output$lr_confmat <- renderPlot({
+        req(!is.null(lr_cm_obj))
+        cm_tbl <- as.data.frame(lr_cm_obj$table) %>%
+            mutate(
+                Prediction = factor(Prediction, levels = rev(levels(Prediction))),
+                Reference  = factor(Reference,  levels = levels(Reference))
+            )
+        acc  <- sprintf("%.1f%%", lr_cm_obj$overall["Accuracy"]  * 100)
+        sens <- sprintf("%.1f%%", lr_cm_obj$byClass["Sensitivity"] * 100)
+        spec <- sprintf("%.1f%%", lr_cm_obj$byClass["Specificity"] * 100)
+
+        ggplot(cm_tbl, aes(x = Reference, y = Prediction, fill = Freq)) +
+            geom_tile(color = "white", linewidth = 1.5) +
+            geom_text(aes(label = Freq), size = 9, fontface = "bold",
+                      color = "white") +
+            scale_fill_gradient(low = "#c7d2fe", high = ACCENT) +
+            labs(
+                subtitle = sprintf("Accuracy %s  ·  Sensitivity %s  ·  Specificity %s",
+                                   acc, sens, spec),
+                x = "Actual", y = "Predicted"
+            ) +
+            theme_minimal(base_size = 13) +
+            theme(panel.grid     = element_blank(),
+                  legend.position = "none",
+                  axis.text       = element_text(size = 12, face = "bold"),
+                  plot.subtitle   = element_text(color = "#64748b", size = 11))
+    })
+
+    output$lr_prob_dist <- renderPlot({
+        req(!is.null(lr_test_df))
+        ggplot(lr_test_df, aes(x = prob_win, fill = actual, color = actual)) +
+            geom_density(alpha = 0.30, linewidth = 1.1) +
+            geom_vline(xintercept = 0.5, linetype = "dashed",
+                       color = "#94a3b8", linewidth = 0.8) +
+            annotate("text", x = 0.52, y = Inf, label = "threshold",
+                     color = "#94a3b8", size = 3.2, hjust = 0, vjust = 1.8) +
+            scale_fill_manual(values  = c("Win" = ACCENT, "Loss" = "#cbd5e1"),
+                              name = NULL) +
+            scale_color_manual(values = c("Win" = ACCENT, "Loss" = "#94a3b8"),
+                               name = NULL) +
+            scale_x_continuous(limits = c(0, 1),
+                               labels = function(x) paste0(round(x * 100), "%")) +
+            labs(
+                subtitle = "Model confidence by actual outcome — good separation = well-calibrated",
+                x = "Predicted Win Probability", y = "Density"
+            ) +
+            theme_minimal(base_size = 13) +
+            theme(legend.position   = "top",
+                  panel.grid.minor  = element_blank(),
+                  plot.subtitle     = element_text(color = "#64748b", size = 11))
+    })
+
     # ── Model Comparison tab ────────────────────────────────────────────────────
     output$model_table <- renderDT({
         perf_summary %>%
@@ -1717,29 +1642,164 @@ server <- function(input, output, session) {
                   axis.text.y = element_text(size = 8))
     })
 
-    # ── Data Explorer tab ───────────────────────────────────────────────────────
-    filtered_data <- reactive({
-        df <- teams_model %>%
-            select(result, side, golddiffat15, xpdiffat15, csdiffat15,
-                   firsttower, firstherald, firstdragon, firstblood, winrate_diff) %>%
-            mutate(Result = ifelse(result == 1, "Win", "Loss"),
-                   Side   = ifelse(side == 1, "Blue", "Red")) %>%
-            select(-result, -side) %>%
-            filter(golddiffat15 >= input$filter_gold[1],
-                   golddiffat15 <= input$filter_gold[2])
-        if (input$filter_side != "All")   df <- df %>% filter(Side   == input$filter_side)
-        if (input$filter_result != "All") df <- df %>% filter(Result == input$filter_result)
-        df
+    # ── Data Explorer ──────────────────────────────────────────────────────────
+    rv_data <- reactiveValues(df = NULL, source = "none")
+
+    observeEvent(input$data_use_example, {
+        rv_data$df     <- as.data.frame(game_lookup)
+        rv_data$source <- "example"
     })
 
-    output$explorer_count <- renderText({
-        sprintf("%d games shown", nrow(filtered_data()))
+    observeEvent(input$data_upload, {
+        req(input$data_upload)
+        tryCatch({
+            df             <- read.csv(input$data_upload$datapath, stringsAsFactors = FALSE)
+            rv_data$df     <- df
+            rv_data$source <- input$data_upload$name
+        }, error = function(e) {
+            showNotification(paste("Read error:", e$message), type = "error", duration = 5)
+        })
     })
 
-    output$data_table <- renderDT({
-        datatable(filtered_data(), rownames = FALSE,
-                  options = list(pageLength = 15, scrollX = TRUE))
+    output$data_sidebar_stats <- renderUI({
+        if (is.null(rv_data$df)) return(NULL)
+        df    <- rv_data$df
+        label <- if (rv_data$source == "example") "Built-in game data" else rv_data$source
+
+        win_rate  <- if ("result"   %in% names(df))
+            sprintf("%.1f%%", mean(df$result == 1, na.rm = TRUE) * 100) else "N/A"
+        n_leagues <- if ("league"   %in% names(df))
+            as.character(length(unique(df$league)))   else "N/A"
+        n_teams   <- if ("teamname" %in% names(df))
+            as.character(length(unique(df$teamname))) else "N/A"
+
+        stat_row <- function(lbl, val, col = "#1e293b") {
+            div(class = "data-stat-row",
+                span(class = "data-stat-label", lbl),
+                span(class = "data-stat-value", style = paste0("color:", col), val)
+            )
+        }
+
+        tagList(
+            div(class = "sidebar-section",
+                div(style = "display:flex; align-items:center; gap:8px; margin-bottom:8px;",
+                    div(style = "width:8px; height:8px; border-radius:50%; background:#22c55e; flex-shrink:0;"),
+                    span(style = "font-size:13px; font-weight:600; color:#475569;", label)
+                ),
+                div(style = "font-size:12px; color:#94a3b8;",
+                    sprintf("%s rows × %s cols",
+                            format(nrow(df), big.mark = ","), ncol(df)))
+            ),
+            div(class = "sidebar-section",
+                p(class = "sidebar-section-title", "Dataset Statistics"),
+                stat_row("Total Games", format(nrow(df), big.mark = ","), "#1d4ed8"),
+                stat_row("Win Rate",    win_rate,                          "#15803d"),
+                stat_row("Leagues",     n_leagues,                         "#7e22ce"),
+                stat_row("Teams",       n_teams,                           "#c2410c")
+            )
+        )
     })
+
+    output$data_no_data_hint <- renderUI({
+        if (!is.null(rv_data$df)) return(NULL)
+        div(class = "data-no-data-hint",
+            div(style = "font-size:15px; font-weight:600; color:#475569; margin-bottom:6px;",
+                "No dataset loaded"),
+            div(style = "font-size:13px; color:#94a3b8;",
+                'Upload a CSV or click "Use Built-in Dataset" in the sidebar')
+        )
+    })
+
+    output$data_dist_controls <- renderUI({
+        req(!is.null(rv_data$df))
+        num_cols <- names(rv_data$df)[sapply(rv_data$df, is.numeric)]
+        if (length(num_cols) == 0) {
+            return(div(style = "color:#94a3b8; font-size:13px; padding:10px 0;",
+                       "No numeric columns found."))
+        }
+        div(style = "max-width:300px; margin-bottom:20px;",
+            selectInput("data_dist_col", "Variable",
+                choices  = num_cols,
+                selected = if ("golddiffat15" %in% num_cols) "golddiffat15" else num_cols[1],
+                width    = "100%")
+        )
+    })
+
+    output$data_table_full <- renderDT({
+        req(!is.null(rv_data$df))
+        datatable(rv_data$df, rownames = FALSE, filter = "top",
+            options = list(pageLength = 15, scrollX = TRUE, dom = "lrtip", autoWidth = TRUE)
+        )
+    })
+
+    output$data_summary_table <- renderDT({
+        req(!is.null(rv_data$df))
+        df     <- rv_data$df
+        num_df <- df[, sapply(df, is.numeric), drop = FALSE]
+        if (ncol(num_df) == 0) {
+            return(datatable(data.frame(Message = "No numeric columns found."), rownames = FALSE))
+        }
+        smry <- as.data.frame(t(sapply(num_df, function(x) {
+            c(N       = sum(!is.na(x)),
+              Min     = round(min(x,  na.rm = TRUE), 3),
+              Q1      = round(quantile(x, 0.25, na.rm = TRUE), 3),
+              Median  = round(median(x, na.rm = TRUE), 3),
+              Mean    = round(mean(x,   na.rm = TRUE), 3),
+              Q3      = round(quantile(x, 0.75, na.rm = TRUE), 3),
+              Max     = round(max(x,  na.rm = TRUE), 3),
+              SD      = round(sd(x,   na.rm = TRUE), 3),
+              Missing = sum(is.na(x))
+            )
+        })))
+        smry <- cbind(Feature = rownames(smry), smry)
+        rownames(smry) <- NULL
+        datatable(smry, rownames = FALSE,
+            options = list(dom = "lrtip", pageLength = 25, scrollX = TRUE))
+    })
+
+    output$data_dist_plot <- renderPlot({
+        req(!is.null(rv_data$df), !is.null(input$data_dist_col))
+        df  <- rv_data$df
+        col <- input$data_dist_col
+        req(col %in% names(df))
+        vals  <- df[[col]]
+        valid <- is.finite(vals)
+        x     <- vals[valid]
+        if (length(x) < 2) return(NULL)
+
+        has_result <- "result" %in% names(df)
+        plot_df    <- data.frame(x = x)
+
+        if (has_result) {
+            plot_df$Outcome <- factor(
+                ifelse(df$result[valid] == 1, "Win", "Loss"),
+                levels = c("Win", "Loss")
+            )
+            p <- ggplot(plot_df, aes(x = x, fill = Outcome, color = Outcome)) +
+                geom_density(alpha = 0.22, linewidth = 1.1) +
+                scale_fill_manual(values  = c("Win" = "#6366f1", "Loss" = "#94a3b8"), name = NULL) +
+                scale_color_manual(values = c("Win" = "#6366f1", "Loss" = "#94a3b8"), name = NULL)
+        } else {
+            p <- ggplot(plot_df, aes(x = x)) +
+                geom_density(fill = "#6366f1", color = "#6366f1", alpha = 0.22, linewidth = 1.1)
+        }
+
+        p +
+            labs(
+                title    = col,
+                subtitle = sprintf("n = %s  ·  mean = %.3f  ·  sd = %.3f  ·  range [%.3f, %.3f]",
+                                   format(length(x), big.mark = ","),
+                                   mean(x), sd(x), min(x), max(x)),
+                x = col, y = "Density"
+            ) +
+            theme_minimal(base_size = 14) +
+            theme(
+                panel.grid.minor = element_blank(),
+                plot.subtitle    = element_text(color = "#64748b", size = 12),
+                legend.position  = if (has_result) "top" else "none"
+            )
+    })
+
 }
 
 shinyApp(ui, server)
