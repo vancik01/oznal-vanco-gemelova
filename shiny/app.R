@@ -24,7 +24,7 @@ feature_names <- names(X_train)
 train_means   <- colMeans(X_train)
 
 # ── Model metadata ─────────────────────────────────────────────────────────────
-ACCENT <- "#6366f1"
+ACCENT <- "#5383e8"
 
 model_meta <- list(
     LR = list(
@@ -59,74 +59,93 @@ model_meta <- list(
     )
 )
 
+# ── Dark ggplot theme ──────────────────────────────────────────────────────────
+dark_theme <- function(base_size = 13) {
+    theme_minimal(base_size = base_size) +
+    theme(
+        plot.background   = element_rect(fill = "#1c1c2e", color = NA),
+        panel.background  = element_rect(fill = "#1c1c2e", color = NA),
+        panel.grid.major  = element_line(color = "#2a2a3e"),
+        panel.grid.minor  = element_blank(),
+        axis.text         = element_text(color = "#9aaccc"),
+        axis.title        = element_text(color = "#9aaccc"),
+        plot.title        = element_text(color = "#ffffff", face = "bold"),
+        plot.subtitle     = element_text(color = "#6a7590"),
+        legend.background = element_rect(fill = "#1c1c2e", color = NA),
+        legend.text       = element_text(color = "#9aaccc"),
+        legend.title      = element_text(color = "#9aaccc"),
+        strip.text        = element_text(color = "#9aaccc")
+    )
+}
+
 # ── CSS ───────────────────────────────────────────────────────────────────────
 nuxt_css <- "
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 * { font-family: 'Inter', sans-serif; }
 
-body { background: #f8fafc; color: #1e293b; }
+body { background: #13131e; color: #c8d0e0; }
 
 /* Navbar */
 .navbar {
-    background: #ffffff !important;
-    border-bottom: 1px solid #e2e8f0;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    background: #1c1c2e !important;
+    border-bottom: 1px solid #2a2a3e;
+    box-shadow: none;
     padding: 0 24px;
 }
 .navbar-brand {
     font-weight: 700;
     font-size: 16px;
-    color: #1e293b !important;
+    color: #5383e8 !important;
     letter-spacing: -0.3px;
 }
 .navbar-nav > li > a {
-    color: #64748b !important;
+    color: #9aaccc !important;
     font-size: 14px;
     font-weight: 500;
     padding: 18px 16px !important;
 }
 .navbar-nav > li.active > a,
 .navbar-nav > li > a:hover {
-    color: #1e293b !important;
-    border-bottom: 2px solid #6366f1;
+    color: #ffffff !important;
+    border-bottom: 2px solid #5383e8;
+    background: transparent !important;
 }
 
 /* Cards */
 .card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    background: #1c1c2e;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
+    box-shadow: none;
     padding: 20px;
     margin-bottom: 16px;
 }
 
 /* Replace wellPanel */
 .well {
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+    background: #1c1c2e !important;
+    border: 1px solid #2a2a3e !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
     padding: 20px !important;
 }
 
 /* Probability boxes */
 .prob-box {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    background: #1c1c2e;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
     padding: 20px 16px;
     text-align: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     margin-bottom: 12px;
-    transition: box-shadow 0.2s;
+    transition: border-color 0.2s;
 }
-.prob-box:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.prob-box:hover { border-color: #5383e8; }
 .prob-label {
     font-size: 12px;
     font-weight: 600;
-    color: #94a3b8;
+    color: #6a7590;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 8px;
@@ -144,15 +163,15 @@ body { background: #f8fafc; color: #1e293b; }
     overflow-y: auto;
     padding-right: 4px;
     scrollbar-width: thin;
-    scrollbar-color: #e2e8f0 transparent;
+    scrollbar-color: #2e3250 transparent;
 }
 .predictor-sidebar::-webkit-scrollbar { width: 4px; }
-.predictor-sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.predictor-sidebar::-webkit-scrollbar-thumb { background: #2e3250; border-radius: 4px; }
 
 .sidebar-section {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    background: #1c1c2e;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
     padding: 14px 16px;
     margin-bottom: 10px;
 }
@@ -161,29 +180,29 @@ body { background: #f8fafc; color: #1e293b; }
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.7px;
-    color: #94a3b8;
+    color: #6a7590;
     margin: 0 0 10px 0;
 }
 
 .predictor-sidebar .shiny-input-container > label {
     font-size: 12px;
-    color: #475569;
+    color: #9aaccc;
     font-weight: 500;
     margin-bottom: 1px;
 }
 .predictor-sidebar .form-group { margin-bottom: 10px; }
 .predictor-sidebar .form-group:last-child { margin-bottom: 0; }
 .predictor-sidebar .checkbox label,
-.predictor-sidebar .radio label { font-size: 13px; color: #475569; }
+.predictor-sidebar .radio label { font-size: 13px; color: #9aaccc; }
 
 .autofill-hint {
     font-size: 11px;
-    color: #94a3b8;
+    color: #6a7590;
     margin: 6px 0 8px 0;
     padding: 6px 8px;
-    background: #f8fafc;
+    background: #13131e;
     border-radius: 6px;
-    border: 1px dashed #e2e8f0;
+    border: 1px dashed #2a2a3e;
 }
 
 .section-divider {
@@ -195,12 +214,12 @@ body { background: #f8fafc; color: #1e293b; }
     flex: 1;
     margin: 0;
     border: none;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid #2a2a3e;
 }
 .section-divider span {
     padding: 0 10px;
     font-size: 10px;
-    color: #94a3b8;
+    color: #6a7590;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.7px;
@@ -211,7 +230,7 @@ body { background: #f8fafc; color: #1e293b; }
     display: flex;
     justify-content: space-between;
     font-size: 10px;
-    color: #94a3b8;
+    color: #6a7590;
     margin-top: -6px;
     margin-bottom: 2px;
 }
@@ -225,9 +244,9 @@ body { background: #f8fafc; color: #1e293b; }
     display: inline-block;
     padding: 6px 16px;
     border-radius: 20px;
-    border: 1px solid #e2e8f0;
-    background: #ffffff;
-    color: #64748b;
+    border: 1px solid #2a2a3e;
+    background: #1c1c2e;
+    color: #9aaccc;
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
@@ -236,12 +255,12 @@ body { background: #f8fafc; color: #1e293b; }
     user-select: none;
 }
 .pill-radio .radio-inline label:hover {
-    border-color: #6366f1;
-    color: #6366f1;
+    border-color: #5383e8;
+    color: #5383e8;
 }
 .pill-radio .radio-inline label.pill-active {
-    background: #6366f1;
-    border-color: #6366f1;
+    background: #5383e8;
+    border-color: #5383e8;
     color: #ffffff;
 }
 .pill-radio input[type='radio'] {
@@ -253,9 +272,9 @@ body { background: #f8fafc; color: #1e293b; }
 
 /* ── Tune metric mini-cards ──────────────────────────────── */
 .tune-info-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    background: #1c1c2e;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
     padding: 14px 16px;
     margin-bottom: 10px;
 }
@@ -264,12 +283,12 @@ body { background: #f8fafc; color: #1e293b; }
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.7px;
-    color: #94a3b8;
+    color: #6a7590;
     margin: 0 0 8px 0;
 }
 .tune-info-card p {
     font-size: 13px;
-    color: #475569;
+    color: #9aaccc;
     margin: 0;
     line-height: 1.5;
 }
@@ -280,8 +299,8 @@ body { background: #f8fafc; color: #1e293b; }
 }
 .tune-metric-box {
     flex: 1;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: #13131e;
+    border: 1px solid #2a2a3e;
     border-radius: 8px;
     padding: 8px 10px;
     text-align: center;
@@ -289,7 +308,7 @@ body { background: #f8fafc; color: #1e293b; }
 .tune-metric-box-label {
     font-size: 10px;
     font-weight: 600;
-    color: #94a3b8;
+    color: #6a7590;
     text-transform: uppercase;
     letter-spacing: 0.4px;
     margin-bottom: 2px;
@@ -297,13 +316,13 @@ body { background: #f8fafc; color: #1e293b; }
 .tune-metric-box-value {
     font-size: 18px;
     font-weight: 700;
-    color: #1e293b;
+    color: #c8d0e0;
     line-height: 1;
 }
 .best-badge {
     display: inline-block;
-    background: #eef2ff;
-    color: #6366f1;
+    background: #1e3a6a;
+    color: #5383e8;
     border-radius: 6px;
     padding: 4px 10px;
     font-size: 13px;
@@ -315,52 +334,65 @@ body { background: #f8fafc; color: #1e293b; }
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #94a3b8;
+    color: #6a7590;
     margin-bottom: 4px;
 }
 
 /* Inputs */
 .form-control {
-    border: 1px solid #e2e8f0 !important;
+    border: 1px solid #2a2a3e !important;
     border-radius: 8px !important;
     font-size: 14px !important;
-    color: #1e293b !important;
-    background: #f8fafc !important;
+    color: #c8d0e0 !important;
+    background: #0e0e1a !important;
 }
 .form-control:focus {
-    border-color: #6366f1 !important;
-    box-shadow: 0 0 0 3px rgba(99,102,241,0.1) !important;
-    background: #ffffff !important;
+    border-color: #5383e8 !important;
+    box-shadow: 0 0 0 3px rgba(83,131,232,0.15) !important;
+    background: #13131e !important;
 }
 .selectize-input {
-    border: 1px solid #e2e8f0 !important;
+    border: 1px solid #2a2a3e !important;
     border-radius: 8px !important;
     font-size: 13px !important;
+    background: #0e0e1a !important;
+    color: #c8d0e0 !important;
 }
+.selectize-dropdown {
+    background: #1c1c2e !important;
+    border: 1px solid #2a2a3e !important;
+    color: #c8d0e0 !important;
+}
+.selectize-dropdown .option { color: #c8d0e0 !important; }
+.selectize-dropdown .option:hover,
+.selectize-dropdown .option.active { background: #2a2a3e !important; }
 
 /* Slider */
-.irs--shiny .irs-bar { background: #6366f1; }
-.irs--shiny .irs-handle { background: #6366f1; border-color: #6366f1; }
-.irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single {
-    background: #6366f1;
-}
+.irs--shiny .irs-bar { background: #5383e8; }
+.irs--shiny .irs-handle { background: #5383e8; border-color: #5383e8; }
+.irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single { background: #5383e8; }
+.irs--shiny .irs-line { background: #2a2a3e; }
+.irs--shiny .irs-grid-text { color: #6a7590; }
+.irs--shiny .irs-min, .irs--shiny .irs-max { color: #6a7590; }
 
 /* Button */
 .btn-primary {
-    background: #6366f1 !important;
-    border-color: #6366f1 !important;
+    background: #5383e8 !important;
+    border-color: #5383e8 !important;
     border-radius: 8px !important;
     font-weight: 600 !important;
     font-size: 14px !important;
+    color: #ffffff !important;
     padding: 10px 20px !important;
-    box-shadow: 0 1px 3px rgba(99,102,241,0.3) !important;
+    box-shadow: none !important;
     transition: all 0.2s !important;
 }
 .btn-primary:hover {
-    background: #6366f1 !important;
-    border-color: #6366f1 !important;
-    box-shadow: 0 4px 12px rgba(99,102,241,0.4) !important;
+    background: #3f6bd4 !important;
+    border-color: #3f6bd4 !important;
+    color: #ffffff !important;
     transform: translateY(-1px);
+    box-shadow: 0 0 18px rgba(83, 131, 232, 0.5) !important;
 }
 
 /* ── Model nav (vertical sidebar) ───────────────────────── */
@@ -375,21 +407,21 @@ body { background: #f8fafc; color: #1e293b; }
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
-    color: #64748b;
+    color: #9aaccc;
     border-left: 3px solid transparent;
     transition: all 0.15s;
     margin: 0;
     width: 100%;
 }
 .model-nav .radio label:hover {
-    background: #f8fafc;
-    color: #475569;
-    border-left-color: #cbd5e1;
+    background: #13131e;
+    color: #c8d0e0;
+    border-left-color: #2a2a3e;
 }
 .model-nav .radio label.model-nav-active {
-    background: #eef2ff;
-    color: #6366f1;
-    border-left-color: #6366f1;
+    background: #1e3a6a;
+    color: #5383e8;
+    border-left-color: #5383e8;
     font-weight: 600;
 }
 .model-nav input[type='radio'] {
@@ -411,53 +443,56 @@ body { background: #f8fafc; color: #1e293b; }
     padding: 4px 10px !important;
     font-size: 11px !important;
     font-weight: 600 !important;
-    color: #6366f1 !important;
-    background: #eef2ff !important;
-    border: 1px solid #c7d2fe !important;
+    color: #ffffff !important;
+    background: #1e3a6a !important;
+    border: 1px solid #2e3a5e !important;
     border-radius: 6px !important;
     box-shadow: none !important;
-    transition: background 0.15s !important;
+    transition: all 0.2s !important;
 }
 .btn-reset-best:hover {
-    background: #e0e7ff !important;
+    background: #253260 !important;
+    color: #ffffff !important;
     transform: none !important;
-    box-shadow: none !important;
+    box-shadow: 0 0 14px rgba(83, 131, 232, 0.4) !important;
 }
 
 /* Game banner */
 .game-banner {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    background: #1c1c2e;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
     padding: 16px 20px;
     margin-bottom: 16px;
 }
-.banner-teams { font-size: 18px; font-weight: 700; color: #1e293b; }
-.banner-meta  { font-size: 13px; color: #94a3b8; margin-top: 2px; }
-.badge-win  { background: #dcfce7; color: #16a34a; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
-.badge-loss { background: #fee2e2; color: #dc2626; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
-.badge-correct { background: #dbeafe; color: #2563eb; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; margin-left: 8px; }
-.badge-wrong   { background: #fef3c7; color: #d97706; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; margin-left: 8px; }
+.banner-teams { font-size: 18px; font-weight: 700; color: #ffffff; }
+.banner-meta  { font-size: 13px; color: #6a7590; margin-top: 2px; }
+.badge-win  { background: #0f3a28; color: #27ae60; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+.badge-loss { background: #3a1020; color: #e84057; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+.badge-correct { background: #1e3a6a; color: #5383e8; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; margin-left: 8px; }
+.badge-wrong   { background: #3a2e10; color: #e8a838; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; margin-left: 8px; }
 
 /* Tabs */
-.nav-tabs { border-bottom: 1px solid #e2e8f0; }
+.nav-tabs { border-bottom: 1px solid #2a2a3e; }
 .nav-tabs > li > a {
-    font-size: 13px; font-weight: 500; color: #64748b;
+    font-size: 13px; font-weight: 500; color: #6a7590;
     border: none !important; border-radius: 0 !important; padding: 10px 16px;
+    background: transparent !important;
 }
+.nav-tabs > li > a:hover { color: #c8d0e0 !important; background: transparent !important; }
 .nav-tabs > li.active > a {
-    color: #6366f1 !important;
-    border-bottom: 2px solid #6366f1 !important;
+    color: #ffffff !important;
+    border-bottom: 2px solid #5383e8 !important;
     background: transparent !important;
 }
 
 /* Page padding */
-.tab-content { padding-top: 20px; }
+.tab-content { padding-top: 8px; }
 .container-fluid { padding: 0 24px; }
 
-h4 { font-weight: 700; font-size: 18px; color: #1e293b; letter-spacing: -0.3px; }
-h5 { font-weight: 600; font-size: 14px; color: #1e293b; }
-h6 { font-weight: 700; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+h4 { font-weight: 700; font-size: 18px; color: #ffffff; letter-spacing: -0.3px; }
+h5 { font-weight: 600; font-size: 14px; color: #c8d0e0; }
+h6 { font-weight: 700; font-size: 11px; color: #6a7590; text-transform: uppercase; letter-spacing: 0.6px; }
 
 /* ── Data tab fixed layout ───────────────────────────────── */
 .data-fixed-layout {
@@ -475,7 +510,7 @@ h6 { font-weight: 700; font-size: 11px; color: #94a3b8; text-transform: uppercas
 }
 .kpi-card {
     flex: 1;
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 12px 16px;
     min-width: 0;
     border-width: 1px;
@@ -486,7 +521,7 @@ h6 { font-weight: 700; font-size: 11px; color: #94a3b8; text-transform: uppercas
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.6px;
-    color: #94a3b8;
+    color: #6a7590;
     margin-bottom: 6px;
 }
 .kpi-card-value {
@@ -500,10 +535,10 @@ h6 { font-weight: 700; font-size: 11px; color: #94a3b8; text-transform: uppercas
     display: flex;
     flex-direction: column;
     min-height: 0;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    background: #1c1c2e;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
+    box-shadow: none;
     padding: 20px;
     margin-bottom: 0;
 }
@@ -515,106 +550,170 @@ h6 { font-weight: 700; font-size: 11px; color: #94a3b8; text-transform: uppercas
 .data-fill-area .shiny-plot-output { height: 100% !important; }
 
 /* View toggle */
-.view-toggle { display:inline-flex; background:#f1f5f9; border-radius:8px; padding:3px; gap:2px; }
+.view-toggle { display:inline-flex; background:#13131e; border-radius:8px; padding:3px; gap:2px; border:1px solid #2a2a3e; }
 .view-toggle .radio-inline { margin:0; padding:0; }
 .view-toggle .radio-inline label {
     display:inline-block; padding:5px 14px; border-radius:6px;
-    font-size:12px; font-weight:500; color:#64748b;
+    font-size:12px; font-weight:500; color:#9aaccc;
     cursor:pointer; margin:0; transition:all 0.15s; user-select:none; white-space:nowrap;
 }
 .view-toggle .radio-inline label.vt-active {
-    background:#ffffff; color:#6366f1; font-weight:600;
-    box-shadow:0 1px 3px rgba(0,0,0,0.1);
+    background:#1c1c2e; color:#5383e8; font-weight:600;
+    box-shadow:0 1px 3px rgba(0,0,0,0.4);
 }
 .view-toggle input[type='radio'] { position:absolute; opacity:0; width:0; height:0; }
 
-/* Data tab — segmented control tabs */
+/* Data tab — real tab bar */
 .data-view .nav-tabs {
-    border-bottom: none !important;
-    background: #f1f5f9;
-    border-radius: 8px;
-    display: inline-flex;
-    padding: 3px;
-    gap: 2px;
-    margin-bottom: 20px;
+    border-bottom: 2px solid #2a2a3e !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    margin-bottom: 0 !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
 }
 .data-view .nav-tabs > li { margin: 0 !important; }
 .data-view .nav-tabs > li > a {
-    border-radius: 6px !important;
-    padding: 6px 20px !important;
+    border-radius: 0 !important;
+    padding: 10px 24px !important;
     border: none !important;
-    color: #64748b !important;
+    border-bottom: 2px solid transparent !important;
+    margin-bottom: -2px !important;
+    color: #6a7590 !important;
     font-size: 13px !important;
     font-weight: 500 !important;
     background: transparent !important;
-    margin: 0 !important;
+    margin-right: 0 !important;
     line-height: 1.5 !important;
+    transition: color 0.15s !important;
 }
 .data-view .nav-tabs > li.active > a,
 .data-view .nav-tabs > li.active > a:hover,
 .data-view .nav-tabs > li.active > a:focus {
-    background: #ffffff !important;
-    color: #6366f1 !important;
-    font-weight: 600 !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-    border-bottom: none !important;
+    background: transparent !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #5383e8 !important;
+    box-shadow: none !important;
 }
 .data-view .nav-tabs > li > a:hover {
-    background: rgba(255,255,255,0.55) !important;
-    color: #475569 !important;
+    background: transparent !important;
+    color: #c8d0e0 !important;
 }
-.data-view .tab-content { padding-top: 20px !important; }
+.data-view .tab-content { padding-top: 12px !important; }
 
 /* DT table */
-.dataTables_wrapper { font-size: 13px; }
+.dataTables_wrapper { font-size: 13px; color: #c8d0e0; }
 table.dataTable thead th {
     font-size: 11px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.5px;
-    color: #94a3b8; border-bottom: 1px solid #e2e8f0 !important;
+    color: #6a7590; border-bottom: 1px solid #2a2a3e !important;
+    background: #1c1c2e !important;
 }
-table.dataTable tbody tr:hover { background: #f8fafc !important; }
-table.dataTable tbody tr.selected td { background: #eef2ff !important; }
+table.dataTable tbody tr { background: #1c1c2e !important; color: #c8d0e0; }
+table.dataTable tbody tr:hover { background: #22223a !important; }
+table.dataTable tbody tr:nth-child(even) { background: #1a1a2e !important; }
+table.dataTable tbody tr.selected td { background: #1e3a6a !important; }
+table.dataTable tbody td {
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dataTables_filter input,
+.dataTables_length select {
+    background: #0e0e1a !important;
+    border: 1px solid #2a2a3e !important;
+    color: #c8d0e0 !important;
+    border-radius: 6px !important;
+}
+.dataTables_info {
+    color: #6a7590 !important;
+    float: left !important;
+    padding-top: 7px !important;
+    font-size: 12px !important;
+}
+.dataTables_paginate {
+    color: #6a7590 !important;
+    float: right !important;
+}
+.paginate_button { color: #9aaccc !important; }
+.paginate_button.current { background: #1e3a6a !important; color: #5383e8 !important; border-color: #2e3a5e !important; }
+.paginate_button:hover { background: #2a2a3e !important; color: #c8d0e0 !important; border-color: #2a2a3e !important; }
 
 /* ── Data Explorer: fileInput styling ──────────────────── */
+.input-group {
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    border: 1px solid #2a2a3e !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+.input-group:hover {
+    border-color: #5383e8 !important;
+    box-shadow: 0 0 14px rgba(83, 131, 232, 0.3) !important;
+}
 .input-group .btn-file {
-    background: #6366f1 !important;
-    border-color: #6366f1 !important;
+    background: #5383e8 !important;
+    border: none !important;
     color: #ffffff !important;
     font-size: 13px !important;
-    font-weight: 600 !important;
-    border-radius: 0 8px 8px 0 !important;
+    font-weight: 700 !important;
+    padding: 8px 18px !important;
+    border-radius: 0 !important;
+    letter-spacing: 0.3px !important;
+    transition: background 0.2s !important;
+}
+.input-group .btn-file:hover {
+    background: #3f6bd4 !important;
 }
 .input-group .form-control[readonly] {
     font-size: 13px !important;
-    color: #64748b !important;
-    border-radius: 8px 0 0 8px !important;
+    color: #6a7590 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #0e0e1a !important;
 }
+
 /* ── Data Explorer sidebar ──────────────────────────────── */
 .data-or-divider {
     display: flex; align-items: center; gap: 10px;
-    margin: 10px 0; color: #94a3b8;
+    margin: 10px 0; color: #6a7590;
     font-size: 11px; font-weight: 600;
 }
 .data-or-divider::before, .data-or-divider::after {
-    content: ''; flex: 1; border-top: 1px solid #e2e8f0;
+    content: ''; flex: 1; border-top: 1px solid #2a2a3e;
 }
 .data-stat-row {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 9px 0; border-bottom: 1px solid #f1f5f9;
+    padding: 9px 0; border-bottom: 1px solid #2a2a3e;
 }
 .data-stat-row:last-child { border-bottom: none; }
-.data-stat-label { font-size: 12px; color: #64748b; font-weight: 500; }
+.data-stat-label { font-size: 12px; color: #9aaccc; font-weight: 500; }
 .data-stat-value { font-size: 15px; font-weight: 700; }
 .data-main-area {
     min-height: calc(100vh - 130px);
     display: flex;
     flex-direction: column;
-    padding-top: 16px;
+    padding-top: 0;
 }
 .data-no-data-hint {
     display: flex; align-items: center; justify-content: center;
     padding: 80px 0; flex-direction: column; text-align: center;
 }
+
+/* ── Feature collapse toggle ─────────────────────────── */
+.features-toggle { cursor: pointer; }
+.features-toggle:hover span { color: #c8d0e0 !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #13131e; }
+::-webkit-scrollbar-thumb { background: #2e3250; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #5383e8; }
 "
 
 # ── JS for pill active state ───────────────────────────────────────────────────
@@ -642,12 +741,46 @@ $(document).on('shiny:connected', function() {
     $(document).on('change', 'input[name=data_view]', syncViewToggle);
     setTimeout(syncViewToggle, 300);
 });
+
+// Feature section collapse
+function toggleFeatureSection() {
+    var c = $('#features_content');
+    var ic = $('#features_toggle_icon');
+    if (c.is(':visible')) {
+        c.slideUp(200);
+        ic.text('▸');
+    } else {
+        c.slideDown(200);
+        ic.text('▾');
+    }
+}
+
+// Detect manual slider/checkbox/radio interactions (mouse only, not server-side updates)
+var userInteractingWithSlider = false;
+$(document).on('mousedown touchstart', '.predictor-sidebar .irs', function() {
+    userInteractingWithSlider = true;
+});
+$(document).on('mouseup touchend', function() {
+    setTimeout(function() { userInteractingWithSlider = false; }, 200);
+});
+$(document).on('change', '#golddiffat15, #xpdiffat15, #csdiffat15, #grub_diff, #wr_diff', function() {
+    if (userInteractingWithSlider && window.Shiny)
+        Shiny.setInputValue('user_tweaked_feature', Date.now(), {priority: 'event'});
+});
+$(document).on('click', '#firstblood, #firstdragon, #firstherald, #firsttower, input[name=side]', function() {
+    if (window.Shiny) Shiny.setInputValue('user_tweaked_feature', Date.now(), {priority: 'event'});
+});
 "
 
 # ── UI ─────────────────────────────────────────────────────────────────────────
 ui <- navbarPage(
     title = "LoL Early-Game Predictor",
-    theme = bslib::bs_theme(bootswatch = "flatly"),
+    theme = bslib::bs_theme(
+        bg      = "#13131e",
+        fg      = "#c8d0e0",
+        primary = "#5383e8",
+        base_font = bslib::font_google("Inter")
+    ),
     header = tags$head(
         tags$style(HTML(nuxt_css)),
         tags$script(HTML(pill_js))
@@ -671,43 +804,59 @@ ui <- navbarPage(
                             DTOutput("game_table")
                         )
                     ),
-                    div(class = "section-divider",
-                        tags$hr(), span("Features"), tags$hr()
-                    ),
-                    div(class = "sidebar-section",
-                        p(class = "sidebar-section-title", "Map Side"),
-                        radioButtons("side", NULL,
-                            choices  = c("Blue Side" = 1, "Red Side" = 0),
-                            selected = 1, inline = TRUE)
-                    ),
-                    div(class = "sidebar-section",
-                        p(class = "sidebar-section-title", "Economic Advantage @ 15 min"),
-                        sliderInput("golddiffat15", "Gold Diff",
-                            min = -10000, max = 10000, value = 0, step = 100, width = "100%"),
-                        sliderInput("xpdiffat15", "XP Diff",
-                            min = -6000, max = 6000, value = 0, step = 100, width = "100%"),
-                        sliderInput("csdiffat15", "CS Diff",
-                            min = -80, max = 80, value = 0, step = 1, width = "100%")
-                    ),
-                    div(class = "sidebar-section",
-                        p(class = "sidebar-section-title", "Objectives"),
-                        fluidRow(
-                            column(6, checkboxInput("firstblood",  "First Blood",  FALSE)),
-                            column(6, checkboxInput("firstdragon", "First Dragon", FALSE))
+                    div(class = "section-divider features-toggle",
+                        onclick = "toggleFeatureSection()",
+                        tags$hr(),
+                        span(style = "display:flex; align-items:center; gap:6px; white-space:nowrap;",
+                            "Features",
+                            tags$span(id = "features_toggle_icon",
+                                style = "font-size:12px; color:#6a7590;", "▾")
                         ),
-                        fluidRow(
-                            column(6, checkboxInput("firstherald", "First Herald", FALSE)),
-                            column(6, checkboxInput("firsttower",  "First Tower",  FALSE))
-                        ),
-                        sliderInput("grub_diff", "Void Grub Advantage",
-                            min = -6, max = 6, value = 0, step = 1, width = "100%")
+                        tags$hr()
                     ),
-                    div(class = "sidebar-section",
-                        p(class = "sidebar-section-title", "Pre-game Strength"),
-                        sliderInput("wr_diff", "Win Rate Advantage (%)",
-                            min = -50, max = 50, value = 0, step = 1, width = "100%"),
-                        div(class = "wr-labels",
-                            span("Opponent stronger"), span("Team stronger"))
+                    div(id = "features_content",
+                        div(class = "sidebar-section",
+                            p(class = "sidebar-section-title", "Preset"),
+                            selectInput("feature_preset", NULL,
+                                choices  = c("Custom" = "__custom__"),
+                                selected = "__custom__",
+                                width    = "100%")
+                        ),
+                        div(class = "sidebar-section",
+                            p(class = "sidebar-section-title", "Map Side"),
+                            radioButtons("side", NULL,
+                                choices  = c("Blue Side" = 1, "Red Side" = 0),
+                                selected = 1, inline = TRUE)
+                        ),
+                        div(class = "sidebar-section",
+                            p(class = "sidebar-section-title", "Economic Advantage @ 15 min"),
+                            sliderInput("golddiffat15", "Gold Diff",
+                                min = -10000, max = 10000, value = 1500, step = 100, width = "100%"),
+                            sliderInput("xpdiffat15", "XP Diff",
+                                min = -6000, max = 6000, value = 800, step = 100, width = "100%"),
+                            sliderInput("csdiffat15", "CS Diff",
+                                min = -80, max = 80, value = 12, step = 1, width = "100%")
+                        ),
+                        div(class = "sidebar-section",
+                            p(class = "sidebar-section-title", "Objectives"),
+                            fluidRow(
+                                column(6, checkboxInput("firstblood",  "First Blood",  TRUE)),
+                                column(6, checkboxInput("firstdragon", "First Dragon", TRUE))
+                            ),
+                            fluidRow(
+                                column(6, checkboxInput("firstherald", "First Herald", FALSE)),
+                                column(6, checkboxInput("firsttower",  "First Tower",  FALSE))
+                            ),
+                            sliderInput("grub_diff", "Void Grub Advantage",
+                                min = -6, max = 6, value = 2, step = 1, width = "100%")
+                        ),
+                        div(class = "sidebar-section",
+                            p(class = "sidebar-section-title", "Pre-game Strength"),
+                            sliderInput("wr_diff", "Win Rate Advantage (%)",
+                                min = -50, max = 50, value = 10, step = 1, width = "100%"),
+                            div(class = "wr-labels",
+                                span("Opponent stronger"), span("Team stronger"))
+                        )
                     ),
                     actionButton("predict_btn", "Predict Win Probability",
                         class = "btn-primary btn-lg",
@@ -720,30 +869,30 @@ ui <- navbarPage(
                 fluidRow(
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "Logistic Regression"),
-                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_lr"))
+                        div(class = "prob-value", style = "color:#c8d0e0", textOutput("prob_lr"))
                     )),
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "Random Forest"),
-                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_rf"))
+                        div(class = "prob-value", style = "color:#c8d0e0", textOutput("prob_rf"))
                     )),
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "Naive Bayes"),
-                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_nb"))
+                        div(class = "prob-value", style = "color:#c8d0e0", textOutput("prob_nb"))
                     ))
                 ),
                 fluidRow(
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "KNN"),
-                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_knn"))
+                        div(class = "prob-value", style = "color:#c8d0e0", textOutput("prob_knn"))
                     )),
                     column(4, div(class = "prob-box",
                         div(class = "prob-label", "CART"),
-                        div(class = "prob-value", style = "color:#1e293b", textOutput("prob_cart"))
+                        div(class = "prob-value", style = "color:#c8d0e0", textOutput("prob_cart"))
                     )),
                     column(4, div(class = "prob-box",
-                        style = "border-color:#6366f1;",
-                        div(class = "prob-label", style = "color:#6366f1;", "Average"),
-                        div(class = "prob-value", style = "color:#6366f1", textOutput("prob_avg"))
+                        style = "border-color:#5383e8;",
+                        div(class = "prob-label", style = "color:#5383e8;", "Average"),
+                        div(class = "prob-value", style = "color:#5383e8", textOutput("prob_avg"))
                     ))
                 ),
                 plotOutput("prob_bar", height = "200px")
@@ -873,17 +1022,14 @@ ui <- navbarPage(
                     uiOutput("data_no_data_hint"),
                     tabsetPanel(id = "data_inner_tabs",
                         tabPanel("Table",
-                            div(style = "padding-top:16px;",
-                                DTOutput("data_table_full"))
+                            DTOutput("data_table_full")
                         ),
                         tabPanel("Summary",
-                            div(style = "padding-top:16px;",
-                                DTOutput("data_summary_table"))
+                            DTOutput("data_summary_table")
                         ),
                         tabPanel("Distribution",
-                            div(style = "padding-top:16px;",
-                                uiOutput("data_dist_controls"),
-                                plotOutput("data_dist_plot", height = "400px"))
+                            uiOutput("data_dist_controls"),
+                            plotOutput("data_dist_plot", height = "400px")
                         )
                     )
                 )
@@ -896,7 +1042,7 @@ ui <- navbarPage(
 # ── Server ─────────────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
 
-    rv <- reactiveValues(input_row = NULL, game_info = NULL)
+    rv <- reactiveValues(input_row = NULL, game_info = NULL, last_selected_game = NULL)
 
     # ── Match Predictor: Browse ─────────────────────────────────────────────────
     observe({
@@ -940,17 +1086,18 @@ server <- function(input, output, session) {
             datatable(selection = "single", rownames = FALSE,
                 options = list(dom = "tp", pageLength = 6, scrollY = "260px")) %>%
             formatStyle("Result",
-                color = styleEqual(c("WIN","LOSS"), c("#27ae60","#e74c3c")),
+                color = styleEqual(c("WIN","LOSS"), c("#27ae60","#e84057")),
                 fontWeight = "bold") %>%
             formatStyle("Gold @15",
-                color = styleInterval(c(-1,0), c("#e74c3c","black","#27ae60")))
+                color = styleInterval(c(-1,0), c("#e84057","#c8d0e0","#27ae60")))
     })
 
     observeEvent(input$game_table_rows_selected, {
         idx <- input$game_table_rows_selected
         req(length(idx) > 0)
-        selected     <- browse_games_full()[idx, ]
-        rv$game_info <- selected
+        selected              <- browse_games_full()[idx, ]
+        rv$game_info          <- selected
+        rv$last_selected_game <- selected
         rv$input_row <- selected %>%
             rename(side = side_encoded) %>%
             select(all_of(feature_names)) %>%
@@ -965,6 +1112,12 @@ server <- function(input, output, session) {
         updateCheckboxInput(session, "firsttower",  value = as.logical(selected$firsttower))
         updateSliderInput(session, "grub_diff", value = as.integer(selected$grub_diff))
         updateSliderInput(session, "wr_diff",   value = round(selected$winrate_diff * 100, 1))
+        game_label <- sprintf("%s vs %s · %s",
+            selected$teamname, selected$opp_teamname,
+            format(as.Date(selected$date), "%Y-%m-%d"))
+        updateSelectInput(session, "feature_preset",
+            choices  = c(setNames(game_label, game_label), "Custom" = "__custom__"),
+            selected = game_label)
     })
 
     observeEvent(input$predict_btn, {
@@ -982,6 +1135,33 @@ server <- function(input, output, session) {
         rv$input_row     <- row
         rv$game_info     <- NULL
     })
+
+    # Reset preset to Custom when user manually tweaks a feature
+    observeEvent(input$user_tweaked_feature, {
+        updateSelectInput(session, "feature_preset", selected = "__custom__")
+    })
+
+    # Re-apply game features when user picks the game preset from dropdown
+    observeEvent(input$feature_preset, {
+        req(input$feature_preset != "__custom__")
+        gi <- rv$last_selected_game
+        req(!is.null(gi))
+        updateRadioButtons(session, "side",        selected = as.character(gi$side_encoded))
+        updateSliderInput(session, "golddiffat15", value = round(gi$golddiffat15))
+        updateSliderInput(session, "xpdiffat15",   value = round(gi$xpdiffat15))
+        updateSliderInput(session, "csdiffat15",   value = round(gi$csdiffat15))
+        updateCheckboxInput(session, "firstblood",  value = as.logical(gi$firstblood))
+        updateCheckboxInput(session, "firstdragon", value = as.logical(gi$firstdragon))
+        updateCheckboxInput(session, "firstherald", value = as.logical(gi$firstherald))
+        updateCheckboxInput(session, "firsttower",  value = as.logical(gi$firsttower))
+        updateSliderInput(session, "grub_diff", value = as.integer(gi$grub_diff))
+        updateSliderInput(session, "wr_diff",   value = round(gi$winrate_diff * 100, 1))
+        rv$game_info <- gi
+        rv$input_row <- gi %>%
+            rename(side = side_encoded) %>%
+            select(all_of(feature_names)) %>%
+            as.data.frame()
+    }, ignoreInit = TRUE)
 
     # ── Prediction ──────────────────────────────────────────────────────────────
     probs <- reactive({
@@ -1024,30 +1204,27 @@ server <- function(input, output, session) {
         )
     })
 
-    output$prob_bar <- renderPlot({
+    output$prob_bar <- renderPlot(bg = "#1c1c2e", {
         req(rv$input_row)
         p <- probs()
-        avg_p <- round(mean(unlist(p)), 1)
         tibble(
             Model = c("LR","RF","NB","KNN","CART"),
             Prob  = c(p$lr, p$rf, p$nb, p$knn, p$cart)
         ) %>%
-            mutate(Model = reorder(Model, Prob),
-                   is_avg = FALSE) %>%
+            mutate(Model = reorder(Model, Prob)) %>%
             ggplot(aes(x = Prob, y = Model)) +
-            geom_col(width = 0.5, fill = "#e0e7ff") +
-            geom_col(aes(x = pmin(Prob, Prob)), width = 0.5, fill = "#6366f1") +
+            geom_col(width = 0.5, fill = "#1e3a6a") +
+            geom_col(aes(x = pmin(Prob, Prob)), width = 0.5, fill = ACCENT) +
             geom_text(aes(label = paste0(Prob, "%")), hjust = -0.2, size = 3.8,
-                      color = "#475569", fontface = "bold") +
-            geom_vline(xintercept = 50, linetype = "dashed", color = "#94a3b8", linewidth = 0.8) +
-            annotate("text", x = 50.5, y = 0.5, label = "50%", color = "#94a3b8",
+                      color = "#9aaccc", fontface = "bold") +
+            geom_vline(xintercept = 50, linetype = "dashed", color = "#2a2a3e", linewidth = 0.8) +
+            annotate("text", x = 50.5, y = 0.5, label = "50%", color = "#6a7590",
                      size = 3, hjust = 0) +
             scale_x_continuous(limits = c(0, 115), expand = c(0, 0)) +
             labs(x = "Win Probability (%)", y = NULL) +
-            theme_minimal(base_size = 12) +
-            theme(panel.grid.minor   = element_blank(),
-                  panel.grid.major.y = element_blank(),
-                  axis.text.y        = element_text(color = "#475569", face = "bold"))
+            dark_theme() +
+            theme(panel.grid.major.y = element_blank(),
+                  axis.text.y        = element_text(color = "#9aaccc", face = "bold"))
     })
 
     # ── Hyperparameter Tuning tab ───────────────────────────────────────────────
@@ -1071,9 +1248,9 @@ server <- function(input, output, session) {
         meta <- model_meta[[input$tune_model]]
         tagList(
             p(meta$name,
-              style = "font-size:14px; font-weight:600; color:#1e293b; margin:0 0 4px 0;"),
+              style = "font-size:14px; font-weight:600; color:#ffffff; margin:0 0 4px 0;"),
             p(meta$desc,
-              style = "font-size:12px; color:#64748b; margin:0; line-height:1.5;")
+              style = "font-size:12px; color:#9aaccc; margin:0; line-height:1.5;")
         )
     })
 
@@ -1083,14 +1260,14 @@ server <- function(input, output, session) {
         col <- model_meta[[m]]$color
 
         best_line <- function(label, value) {
-            div(style = "display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f1f5f9;",
-                span(style = "font-size:12px; color:#94a3b8; font-weight:500;", label),
+            div(style = "display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #2a2a3e;",
+                span(style = "font-size:12px; color:#6a7590; font-weight:500;", label),
                 span(style = paste0("font-size:13px; font-weight:700; color:", col), value)
             )
         }
 
         if (m == "LR") return(
-            div(style = "font-size:12px; color:#64748b;",
+            div(style = "font-size:12px; color:#9aaccc;",
                 "Standard GLM — no hyperparameter search performed.")
         )
         if (m == "RF")   return(best_line("mtry", rf_model$bestTune$mtry))
@@ -1114,7 +1291,7 @@ server <- function(input, output, session) {
         )
 
         if (m == "LR") {
-            return(div(style = "color:#94a3b8; font-size:13px; font-style:italic; padding:4px 0;",
+            return(div(style = "color:#6a7590; font-size:13px; font-style:italic; padding:4px 0;",
                 "Standard GLM — no hyperparameter to tune. Showing model coefficients below."))
         }
 
@@ -1127,7 +1304,7 @@ server <- function(input, output, session) {
             tagList(
                 tags$style(slider_css), reset_btn,
                 div(style = "display:flex; justify-content:space-between; align-items:baseline;",
-                    tags$label(style = "font-size:12px; color:#475569; font-weight:500;",
+                    tags$label(style = "font-size:12px; color:#9aaccc; font-weight:500;",
                                "mtry — features per split"),
                     span(style = paste0("font-size:13px; font-weight:700; color:", col),
                          textOutput("rf_mtry_label", inline = TRUE))
@@ -1135,7 +1312,7 @@ server <- function(input, output, session) {
                 sliderInput("rf_mtry", NULL,
                     min = min(tested), max = max(tested),
                     value = rf_model$bestTune$mtry, step = 1, width = "100%"),
-                div(style = "font-size:11px; color:#94a3b8; margin-top:-4px;",
+                div(style = "font-size:11px; color:#6a7590; margin-top:-4px;",
                     paste("Tested:", paste(tested, collapse = ", ")))
             )
         } else if (m == "KNN") {
@@ -1143,7 +1320,7 @@ server <- function(input, output, session) {
             tagList(
                 tags$style(slider_css), reset_btn,
                 div(style = "display:flex; justify-content:space-between; align-items:baseline;",
-                    tags$label(style = "font-size:12px; color:#475569; font-weight:500;",
+                    tags$label(style = "font-size:12px; color:#9aaccc; font-weight:500;",
                                "k — number of neighbors"),
                     span(style = paste0("font-size:13px; font-weight:700; color:", col),
                          textOutput("knn_k_label", inline = TRUE))
@@ -1151,7 +1328,7 @@ server <- function(input, output, session) {
                 sliderInput("knn_k", NULL,
                     min = min(tested), max = max(tested),
                     value = knn_model$bestTune$k, step = 2, width = "100%"),
-                div(style = "font-size:11px; color:#94a3b8; margin-top:-4px;",
+                div(style = "font-size:11px; color:#6a7590; margin-top:-4px;",
                     paste("Tested:", paste(tested, collapse = ", ")))
             )
         } else if (m == "CART") {
@@ -1159,19 +1336,19 @@ server <- function(input, output, session) {
             choices <- setNames(as.character(tested), formatC(tested, format = "g", digits = 2))
             tagList(
                 reset_btn,
-                tags$label(style = "font-size:12px; color:#475569; font-weight:500;",
+                tags$label(style = "font-size:12px; color:#9aaccc; font-weight:500;",
                            "cp — complexity parameter"),
                 selectInput("cart_cp", NULL,
                     choices  = choices,
                     selected = as.character(cart_model$bestTune$cp),
                     width    = "100%"),
-                div(style = "font-size:11px; color:#94a3b8; margin-top:2px;",
+                div(style = "font-size:11px; color:#6a7590; margin-top:2px;",
                     "Smaller = deeper tree · Larger = more pruning")
             )
         } else if (m == "NB") {
             tagList(
                 tags$style(slider_css), reset_btn,
-                tags$label(style = "font-size:12px; color:#475569; font-weight:500; margin-bottom:4px; display:block;",
+                tags$label(style = "font-size:12px; color:#9aaccc; font-weight:500; margin-bottom:4px; display:block;",
                            "Density estimation"),
                 radioButtons("nb_kernel", NULL,
                     choices  = c("Gaussian (parametric)" = "FALSE",
@@ -1179,7 +1356,7 @@ server <- function(input, output, session) {
                     selected = as.character(nb_model$bestTune$usekernel),
                     inline   = FALSE),
                 div(style = "display:flex; justify-content:space-between; align-items:baseline; margin-top:10px;",
-                    tags$label(style = "font-size:12px; color:#475569; font-weight:500;",
+                    tags$label(style = "font-size:12px; color:#9aaccc; font-weight:500;",
                                "Bandwidth adjust"),
                     span(style = paste0("font-size:13px; font-weight:700; color:", col),
                          textOutput("nb_adj_label", inline = TRUE))
@@ -1237,36 +1414,26 @@ server <- function(input, output, session) {
         sr  <- selected_row()
         if (is.null(sr) || nrow(sr) == 0) return(NULL)
 
-        is_best <- switch(m,
-            LR   = TRUE,
-            RF   = !is.null(input$rf_mtry) && snap_to(input$rf_mtry, rf_model$results$mtry) == rf_model$bestTune$mtry,
-            KNN  = !is.null(input$knn_k)   && snap_to(input$knn_k, knn_model$results$k)     == knn_model$bestTune$k,
-            CART = !is.null(input$cart_cp) && abs(as.numeric(input$cart_cp) - cart_model$bestTune$cp) < 1e-10,
-            NB   = !is.null(input$nb_kernel) && !is.null(input$nb_adjust) &&
-                   as.logical(input$nb_kernel) == nb_model$bestTune$usekernel &&
-                   abs(as.numeric(input$nb_adjust) - nb_model$bestTune$adjust) < 0.01
-        )
-
         fluidRow(style = "margin-bottom:16px;",
             column(4, style = "padding-right:6px;",
-                div(style = paste0("background:#ffffff; border:1px solid #e2e8f0; border-top:3px solid ", col,
+                div(style = paste0("background:#1c1c2e; border:1px solid #2a2a3e; border-top:3px solid ", col,
                                    "; border-radius:10px; padding:14px 18px;"),
-                    div(style = "font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#94a3b8; margin-bottom:4px;", "AUC-ROC"),
+                    div(style = "font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#6a7590; margin-bottom:4px;", "AUC-ROC"),
                     div(style = paste0("font-size:28px; font-weight:700; color:", col, "; letter-spacing:-0.5px;"),
                         sprintf("%.2f%%", sr$ROC[1] * 100))
                 )
             ),
             column(4, style = "padding:0 3px;",
-                div(style = "background:#ffffff; border:1px solid #e2e8f0; border-top:3px solid #e2e8f0; border-radius:10px; padding:14px 18px;",
-                    div(style = "font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#94a3b8; margin-bottom:4px;", "Sensitivity"),
-                    div(style = "font-size:28px; font-weight:700; color:#1e293b; letter-spacing:-0.5px;",
+                div(style = "background:#1c1c2e; border:1px solid #2a2a3e; border-top:3px solid #2a2a3e; border-radius:10px; padding:14px 18px;",
+                    div(style = "font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#6a7590; margin-bottom:4px;", "Sensitivity"),
+                    div(style = "font-size:28px; font-weight:700; color:#c8d0e0; letter-spacing:-0.5px;",
                         sprintf("%.1f%%", sr$Sens[1] * 100))
                 )
             ),
             column(4, style = "padding-left:6px;",
-                div(style = "background:#ffffff; border:1px solid #e2e8f0; border-top:3px solid #e2e8f0; border-radius:10px; padding:14px 18px;",
-                    div(style = "font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#94a3b8; margin-bottom:4px;", "Specificity"),
-                    div(style = "font-size:28px; font-weight:700; color:#1e293b; letter-spacing:-0.5px;",
+                div(style = "background:#1c1c2e; border:1px solid #2a2a3e; border-top:3px solid #2a2a3e; border-radius:10px; padding:14px 18px;",
+                    div(style = "font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#6a7590; margin-bottom:4px;", "Specificity"),
+                    div(style = "font-size:28px; font-weight:700; color:#c8d0e0; letter-spacing:-0.5px;",
                         sprintf("%.1f%%", sr$Spec[1] * 100))
                 )
             )
@@ -1274,13 +1441,12 @@ server <- function(input, output, session) {
     })
 
     # ── Tuning curve with moveable selected point ────────────────────────────────
-    output$tune_plot <- renderPlot({
+    output$tune_plot <- renderPlot(bg = "#1c1c2e", {
         m   <- input$tune_model
         col <- model_meta[[m]]$color
         sr  <- selected_row()
 
         if (m == "LR") {
-            # Odds Ratio forest plot with 95% CI
             sm   <- summary(lr_model$finalModel)$coefficients
             or_df <- data.frame(
                 feature  = rownames(sm),
@@ -1301,14 +1467,14 @@ server <- function(input, output, session) {
 
             return(
                 ggplot(or_df, aes(x = OR, y = reorder(feature, OR), color = sig)) +
-                geom_vline(xintercept = 1, linetype = "dashed", color = "#94a3b8", linewidth = 0.8) +
+                geom_vline(xintercept = 1, linetype = "dashed", color = "#2a2a3e", linewidth = 0.8) +
                 geom_errorbarh(aes(xmin = CI_low, xmax = CI_high),
                                height = 0.35, linewidth = 0.7) +
                 geom_point(size = 3.5) +
                 scale_x_log10(labels = function(x) sprintf("%.1fx", x)) +
                 scale_color_manual(
-                    values = c("FALSE" = "#cbd5e1", "TRUE" = ACCENT),
-                    labels = c("FALSE" = "p ≥ 0.05  (not significant)",
+                    values = c("FALSE" = "#2e3a5e", "TRUE" = ACCENT),
+                    labels = c("FALSE" = "p >= 0.05  (not significant)",
                                "TRUE"  = "p < 0.05  (significant)"),
                     name = NULL
                 ) +
@@ -1317,10 +1483,9 @@ server <- function(input, output, session) {
                     subtitle = "Each point = how much the feature multiplies the odds of winning · bars = 95% CI · log scale",
                     x = "Odds Ratio (log scale)", y = NULL
                 ) +
-                theme_minimal(base_size = 13) +
-                theme(legend.position  = "top",
-                      panel.grid.minor = element_blank(),
-                      panel.grid.major.y = element_line(color = "#f1f5f9"))
+                dark_theme() +
+                theme(legend.position    = "top",
+                      panel.grid.major.y = element_line(color = "#2a2a3e"))
             )
         }
 
@@ -1343,12 +1508,12 @@ server <- function(input, output, session) {
                 geom_point(data = . %>% filter(is_sel),
                            size = 10, shape = 21, fill = col, color = "white", stroke = 2) +
                 geom_point(data = . %>% filter(is_best & !is_sel),
-                           size = 10, shape = 21, fill = "white", color = "#f59e0b", stroke = 2) +
-                scale_color_manual(values = c("Gaussian" = col, "Kernel density" = "#f59e0b"), name = NULL) +
+                           size = 10, shape = 21, fill = "white", color = "#e8a838", stroke = 2) +
+                scale_color_manual(values = c("Gaussian" = col, "Kernel density" = "#e8a838"), name = NULL) +
                 labs(title = "Naive Bayes — CV AUC-ROC",
                      subtitle = "Filled = selected · Gold ring = CV best",
                      x = "Bandwidth adjust", y = "CV AUC-ROC (%)") +
-                theme_minimal(base_size = 13) +
+                dark_theme() +
                 theme(legend.position = "top")
             )
         }
@@ -1380,22 +1545,21 @@ server <- function(input, output, session) {
                       vjust = -1.6, fontface = "bold", color = col, size = 4,
                       inherit.aes = FALSE)
 
-        # If best != selected, add gold ring for best
         if (nrow(best_row) > 0 && abs(best_row$param[1] - sel_param) > 1e-10) {
             p <- p +
                 geom_point(data = best_row, aes(x = param, y = ROC * 100),
                            size = 11, shape = 21, fill = "white",
-                           color = "#f59e0b", stroke = 2.5, inherit.aes = FALSE) +
+                           color = "#e8a838", stroke = 2.5, inherit.aes = FALSE) +
                 annotate("text", x = best_row$param[1],
                          y = best_row$ROC[1] * 100 - diff(range(d$ROC * 100)) * 0.18,
-                         label = "★ best", color = "#f59e0b", size = 3.2, fontface = "bold")
+                         label = "* best", color = "#e8a838", size = 3.2, fontface = "bold")
         }
 
         p <- p +
             labs(title    = titles[m],
                  subtitle = "Filled circle = selected · Gold ring = CV best (if different)",
                  x = x_labels[m], y = "CV AUC-ROC (%)") +
-            theme_minimal(base_size = 13)
+            dark_theme()
 
         if (m == "CART") p <- p + scale_x_log10()
         p
@@ -1452,8 +1616,8 @@ server <- function(input, output, session) {
             options = list(dom = "t", ordering = FALSE, pageLength = 20))
         if ("Selected" %in% names(tbl)) {
             dt <- dt %>%
-                formatStyle("Selected", color = col,     fontWeight = "bold", fontSize = "14px", textAlign = "center") %>%
-                formatStyle("Best",     color = "#f59e0b", fontWeight = "bold", fontSize = "16px", textAlign = "center")
+                formatStyle("Selected", color = col,      fontWeight = "bold", fontSize = "14px", textAlign = "center") %>%
+                formatStyle("Best",     color = "#e8a838", fontWeight = "bold", fontSize = "16px", textAlign = "center")
         }
         dt
     })
@@ -1464,7 +1628,7 @@ server <- function(input, output, session) {
         if (missing) {
             return(div(class = "card", style = "padding:20px;",
                 p("Re-run analysis.Rmd to generate lr_cm.rds and lr_test_df.rds",
-                  style = "color:#94a3b8; font-size:13px;")))
+                  style = "color:#6a7590; font-size:13px;")))
         }
         fluidRow(
             column(6,
@@ -1484,7 +1648,7 @@ server <- function(input, output, session) {
         )
     })
 
-    output$lr_confmat <- renderPlot({
+    output$lr_confmat <- renderPlot(bg = "#1c1c2e", {
         req(!is.null(lr_cm_obj))
         cm_tbl <- as.data.frame(lr_cm_obj$table) %>%
             mutate(
@@ -1496,33 +1660,32 @@ server <- function(input, output, session) {
         spec <- sprintf("%.1f%%", lr_cm_obj$byClass["Specificity"] * 100)
 
         ggplot(cm_tbl, aes(x = Reference, y = Prediction, fill = Freq)) +
-            geom_tile(color = "white", linewidth = 1.5) +
+            geom_tile(color = "#13131e", linewidth = 1.5) +
             geom_text(aes(label = Freq), size = 9, fontface = "bold",
                       color = "white") +
-            scale_fill_gradient(low = "#c7d2fe", high = ACCENT) +
+            scale_fill_gradient(low = "#1e3a6a", high = ACCENT) +
             labs(
                 subtitle = sprintf("Accuracy %s  ·  Sensitivity %s  ·  Specificity %s",
                                    acc, sens, spec),
                 x = "Actual", y = "Predicted"
             ) +
-            theme_minimal(base_size = 13) +
+            dark_theme() +
             theme(panel.grid     = element_blank(),
                   legend.position = "none",
-                  axis.text       = element_text(size = 12, face = "bold"),
-                  plot.subtitle   = element_text(color = "#64748b", size = 11))
+                  axis.text       = element_text(size = 12, face = "bold"))
     })
 
-    output$lr_prob_dist <- renderPlot({
+    output$lr_prob_dist <- renderPlot(bg = "#1c1c2e", {
         req(!is.null(lr_test_df))
         ggplot(lr_test_df, aes(x = prob_win, fill = actual, color = actual)) +
             geom_density(alpha = 0.30, linewidth = 1.1) +
             geom_vline(xintercept = 0.5, linetype = "dashed",
-                       color = "#94a3b8", linewidth = 0.8) +
+                       color = "#2a2a3e", linewidth = 0.8) +
             annotate("text", x = 0.52, y = Inf, label = "threshold",
-                     color = "#94a3b8", size = 3.2, hjust = 0, vjust = 1.8) +
-            scale_fill_manual(values  = c("Win" = ACCENT, "Loss" = "#cbd5e1"),
+                     color = "#6a7590", size = 3.2, hjust = 0, vjust = 1.8) +
+            scale_fill_manual(values  = c("Win" = ACCENT, "Loss" = "#2e3a5e"),
                               name = NULL) +
-            scale_color_manual(values = c("Win" = ACCENT, "Loss" = "#94a3b8"),
+            scale_color_manual(values = c("Win" = ACCENT, "Loss" = "#6a7590"),
                                name = NULL) +
             scale_x_continuous(limits = c(0, 1),
                                labels = function(x) paste0(round(x * 100), "%")) +
@@ -1530,10 +1693,9 @@ server <- function(input, output, session) {
                 subtitle = "Model confidence by actual outcome — good separation = well-calibrated",
                 x = "Predicted Win Probability", y = "Density"
             ) +
-            theme_minimal(base_size = 13) +
-            theme(legend.position   = "top",
-                  panel.grid.minor  = element_blank(),
-                  plot.subtitle     = element_text(color = "#64748b", size = 11))
+            dark_theme() +
+            theme(legend.position  = "top",
+                  panel.grid.minor = element_blank())
     })
 
     # ── Model Comparison tab ────────────────────────────────────────────────────
@@ -1546,38 +1708,42 @@ server <- function(input, output, session) {
             datatable(rownames = FALSE,
                       options  = list(dom = "t", ordering = TRUE)) %>%
             formatStyle("AUC-ROC (%)",
-                background = styleColorBar(c(80, 86), "#2ecc71"),
+                background = styleColorBar(c(80, 86), "#5383e8"),
                 backgroundSize = "100% 80%", backgroundRepeat = "no-repeat",
                 backgroundPosition = "center")
     })
 
-    output$roc_plot <- renderPlot({
+    output$roc_plot <- renderPlot(bg = "#1c1c2e", {
         roc_path <- "models/roc_list.rds"
         if (!file.exists(roc_path)) {
+            par(bg = "#1c1c2e", col.main = "#ffffff", col.axis = "#9aaccc",
+                col.lab = "#9aaccc", fg = "#2a2a3e")
             plot(1, type = "n", xlim = c(1,0), ylim = c(0,1),
                  xlab = "1 - Specificity", ylab = "Sensitivity",
                  main = "ROC Curves — re-run analysis.Rmd to generate")
-            abline(a = 1, b = -1, lty = 2, col = "grey80")
+            abline(a = 1, b = -1, lty = 2, col = "#2a2a3e")
             return(invisible(NULL))
         }
         rocs <- readRDS(roc_path)
 
         models <- list(
-            list(roc = rocs$lr,   label = "Logistic Regression", lty = 1,  lwd = 2.2, col = "#1e293b"),
-            list(roc = rocs$rf,   label = "Random Forest",        lty = 1,  lwd = 2.2, col = "#64748b"),
-            list(roc = rocs$nb,   label = "Naive Bayes",          lty = 2,  lwd = 1.8, col = "#1e293b"),
-            list(roc = rocs$knn,  label = "KNN",                  lty = 2,  lwd = 1.8, col = "#64748b"),
-            list(roc = rocs$cart, label = "CART",                 lty = 3,  lwd = 1.6, col = "#94a3b8")
+            list(roc = rocs$lr,   label = "Logistic Regression", lty = 1,  lwd = 2.2, col = "#ffffff"),
+            list(roc = rocs$rf,   label = "Random Forest",        lty = 1,  lwd = 2.2, col = "#9aaccc"),
+            list(roc = rocs$nb,   label = "Naive Bayes",          lty = 2,  lwd = 1.8, col = ACCENT),
+            list(roc = rocs$knn,  label = "KNN",                  lty = 2,  lwd = 1.8, col = "#e8a838"),
+            list(roc = rocs$cart, label = "CART",                 lty = 3,  lwd = 1.6, col = "#e84057")
         )
 
-        par(mar = c(5, 5, 4, 2), family = "sans", bg = "white")
+        par(mar = c(5, 5, 4, 2), family = "sans", bg = "#1c1c2e",
+            col.main = "#ffffff", col.axis = "#9aaccc", col.lab = "#9aaccc",
+            fg = "#2a2a3e")
         plot(0, type = "n", xlim = c(1, 0), ylim = c(0, 1),
              xlab = "1 - Specificity (False Positive Rate)",
              ylab = "Sensitivity (True Positive Rate)",
              main = "ROC Curves — All Models",
              cex.main = 1.3, cex.lab = 1.05,
              las = 1, bty = "l")
-        abline(a = 1, b = -1, lty = 3, col = "grey80", lwd = 1.2)
+        abline(a = 1, b = -1, lty = 3, col = "#2a2a3e", lwd = 1.2)
 
         for (m in models) {
             lines(1 - m$roc$specificities, m$roc$sensitivities,
@@ -1590,35 +1756,35 @@ server <- function(input, output, session) {
                col    = sapply(models, `[[`, "col"),
                lty    = sapply(models, `[[`, "lty"),
                lwd    = sapply(models, `[[`, "lwd"),
-               bty    = "n", cex = 0.92, pt.cex = 1)
+               bty    = "n", cex = 0.92, pt.cex = 1,
+               text.col = "#9aaccc", bg = "#1c1c2e")
     })
 
     # ── Feature Selection tab ───────────────────────────────────────────────────
-    output$lollipop_plot <- renderPlot({
+    output$lollipop_plot <- renderPlot(bg = "#1c1c2e", {
         baseline_auc <- perf_summary$AUC_ROC[perf_summary$Method == "LR_all"]
-        n_all        <- max(perf_summary$n_features)
         perf_summary %>%
             filter(Method != "LR_all") %>%
             mutate(Method = reorder(Method, AUC_ROC)) %>%
             ggplot(aes(x = AUC_ROC, y = Method)) +
             geom_segment(aes(x = baseline_auc - 1.5, xend = AUC_ROC, yend = Method),
-                         color = "grey75", linewidth = 1) +
-            geom_point(size = 5, color = "#2ecc71") +
+                         color = "#2a2a3e", linewidth = 1) +
+            geom_point(size = 5, color = "#27ae60") +
             geom_text(aes(label = sprintf("%d features", n_features)),
-                      nudge_x = 0.15, hjust = 0, size = 3.5, color = "grey30") +
+                      nudge_x = 0.15, hjust = 0, size = 3.5, color = "#9aaccc") +
             geom_vline(xintercept = baseline_auc, linetype = "dashed",
-                       color = "#e74c3c", linewidth = 0.8) +
+                       color = "#e84057", linewidth = 0.8) +
             annotate("text", x = baseline_auc + 0.05, y = 0.6,
-                     label = sprintf("Baseline\n(%d feat.)", n_all),
-                     color = "#e74c3c", size = 3, hjust = 0) +
+                     label = sprintf("Baseline\n(%d feat.)", max(perf_summary$n_features)),
+                     color = "#e84057", size = 3, hjust = 0) +
             scale_x_continuous(limits = c(baseline_auc - 1.5, baseline_auc + 1.5)) +
             labs(title    = "Feature Selection: AUC-ROC vs. Method",
                  subtitle = "Red dashed = LR on all features  ·  Labels = features retained",
                  x = "AUC-ROC (%)", y = NULL) +
-            theme_minimal()
+            dark_theme()
     })
 
-    output$heatmap_plot <- renderPlot({
+    output$heatmap_plot <- renderPlot(bg = "#1c1c2e", {
         overlap_df %>%
             filter(n_methods > 0) %>%
             pivot_longer(c(RFE, Forward, LASSO, ElasticNet, RF_Imp),
@@ -1630,13 +1796,13 @@ server <- function(input, output, session) {
                     levels = c("RFE","Forward","LASSO","ElasticNet","RF_Imp"))
             ) %>%
             ggplot(aes(x = method, y = feature_label, fill = selected)) +
-            geom_tile(color = "grey85", linewidth = 0.5) +
-            scale_fill_manual(values = c("TRUE" = "#27ae60", "FALSE" = "white"),
+            geom_tile(color = "#13131e", linewidth = 0.5) +
+            scale_fill_manual(values = c("TRUE" = "#27ae60", "FALSE" = "#22223a"),
                               guide = "none") +
             labs(title    = "Feature Selection Overlap Across All Methods",
                  subtitle = "Green = selected  ·  (x/5) = how many methods selected this feature",
                  x = NULL, y = NULL) +
-            theme_minimal() +
+            dark_theme() +
             theme(panel.grid  = element_blank(),
                   axis.text.x = element_text(face = "bold", size = 10),
                   axis.text.y = element_text(size = 8))
@@ -1673,7 +1839,7 @@ server <- function(input, output, session) {
         n_teams   <- if ("teamname" %in% names(df))
             as.character(length(unique(df$teamname))) else "N/A"
 
-        stat_row <- function(lbl, val, col = "#1e293b") {
+        stat_row <- function(lbl, val, col = "#c8d0e0") {
             div(class = "data-stat-row",
                 span(class = "data-stat-label", lbl),
                 span(class = "data-stat-value", style = paste0("color:", col), val)
@@ -1683,19 +1849,19 @@ server <- function(input, output, session) {
         tagList(
             div(class = "sidebar-section",
                 div(style = "display:flex; align-items:center; gap:8px; margin-bottom:8px;",
-                    div(style = "width:8px; height:8px; border-radius:50%; background:#22c55e; flex-shrink:0;"),
-                    span(style = "font-size:13px; font-weight:600; color:#475569;", label)
+                    div(style = "width:8px; height:8px; border-radius:50%; background:#27ae60; flex-shrink:0;"),
+                    span(style = "font-size:13px; font-weight:600; color:#c8d0e0;", label)
                 ),
-                div(style = "font-size:12px; color:#94a3b8;",
+                div(style = "font-size:12px; color:#6a7590;",
                     sprintf("%s rows × %s cols",
                             format(nrow(df), big.mark = ","), ncol(df)))
             ),
             div(class = "sidebar-section",
                 p(class = "sidebar-section-title", "Dataset Statistics"),
-                stat_row("Total Games", format(nrow(df), big.mark = ","), "#1d4ed8"),
-                stat_row("Win Rate",    win_rate,                          "#15803d"),
-                stat_row("Leagues",     n_leagues,                         "#7e22ce"),
-                stat_row("Teams",       n_teams,                           "#c2410c")
+                stat_row("Total Games", format(nrow(df), big.mark = ","), ACCENT),
+                stat_row("Win Rate",    win_rate,                          "#27ae60"),
+                stat_row("Leagues",     n_leagues,                         "#9b59b6"),
+                stat_row("Teams",       n_teams,                           "#e84057")
             )
         )
     })
@@ -1703,9 +1869,9 @@ server <- function(input, output, session) {
     output$data_no_data_hint <- renderUI({
         if (!is.null(rv_data$df)) return(NULL)
         div(class = "data-no-data-hint",
-            div(style = "font-size:15px; font-weight:600; color:#475569; margin-bottom:6px;",
+            div(style = "font-size:15px; font-weight:600; color:#9aaccc; margin-bottom:6px;",
                 "No dataset loaded"),
-            div(style = "font-size:13px; color:#94a3b8;",
+            div(style = "font-size:13px; color:#6a7590;",
                 'Upload a CSV or click "Use Built-in Dataset" in the sidebar')
         )
     })
@@ -1714,7 +1880,7 @@ server <- function(input, output, session) {
         req(!is.null(rv_data$df))
         num_cols <- names(rv_data$df)[sapply(rv_data$df, is.numeric)]
         if (length(num_cols) == 0) {
-            return(div(style = "color:#94a3b8; font-size:13px; padding:10px 0;",
+            return(div(style = "color:#6a7590; font-size:13px; padding:10px 0;",
                        "No numeric columns found."))
         }
         div(style = "max-width:300px; margin-bottom:20px;",
@@ -1728,7 +1894,12 @@ server <- function(input, output, session) {
     output$data_table_full <- renderDT({
         req(!is.null(rv_data$df))
         datatable(rv_data$df, rownames = FALSE, filter = "top",
-            options = list(pageLength = 15, scrollX = TRUE, dom = "lrtip", autoWidth = TRUE)
+            options = list(
+                scrollX    = TRUE,
+                dom        = "rtip",
+                autoWidth  = TRUE,
+                pageLength = 18
+            )
         )
     })
 
@@ -1757,7 +1928,7 @@ server <- function(input, output, session) {
             options = list(dom = "lrtip", pageLength = 25, scrollX = TRUE))
     })
 
-    output$data_dist_plot <- renderPlot({
+    output$data_dist_plot <- renderPlot(bg = "#1c1c2e", {
         req(!is.null(rv_data$df), !is.null(input$data_dist_col))
         df  <- rv_data$df
         col <- input$data_dist_col
@@ -1777,11 +1948,11 @@ server <- function(input, output, session) {
             )
             p <- ggplot(plot_df, aes(x = x, fill = Outcome, color = Outcome)) +
                 geom_density(alpha = 0.22, linewidth = 1.1) +
-                scale_fill_manual(values  = c("Win" = "#6366f1", "Loss" = "#94a3b8"), name = NULL) +
-                scale_color_manual(values = c("Win" = "#6366f1", "Loss" = "#94a3b8"), name = NULL)
+                scale_fill_manual(values  = c("Win" = ACCENT, "Loss" = "#2e3a5e"), name = NULL) +
+                scale_color_manual(values = c("Win" = ACCENT, "Loss" = "#6a7590"), name = NULL)
         } else {
             p <- ggplot(plot_df, aes(x = x)) +
-                geom_density(fill = "#6366f1", color = "#6366f1", alpha = 0.22, linewidth = 1.1)
+                geom_density(fill = ACCENT, color = ACCENT, alpha = 0.22, linewidth = 1.1)
         }
 
         p +
@@ -1792,10 +1963,9 @@ server <- function(input, output, session) {
                                    mean(x), sd(x), min(x), max(x)),
                 x = col, y = "Density"
             ) +
-            theme_minimal(base_size = 14) +
+            dark_theme(base_size = 14) +
             theme(
                 panel.grid.minor = element_blank(),
-                plot.subtitle    = element_text(color = "#64748b", size = 12),
                 legend.position  = if (has_result) "top" else "none"
             )
     })
