@@ -65,7 +65,7 @@ The early game also has a set of one-off objective races, each won by exactly on
 Published work on early-game LoL match prediction at the **15-minute mark** converges tightly, with reported accuracy clustering in the **76-78% band** across model families and dataset types.
 
 | Study                                        | Year | Dataset                      | Model               | Acc. \@15  |
-|----------------------------------------------|------|------------------------------|---------------------|------------|
+|----------------------|-------------|-------------|-------------|-------------|
 | Spaargaren, MSc thesis (Tilburg)             | 2022 | Oracle's Elixir pro, 2021    | Logistic Regression | **77.99%** |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Random Forest       | 77.26%     |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Naïve Bayes         | 76.82%     |
@@ -75,11 +75,11 @@ Published work on early-game LoL match prediction at the **15-minute mark** conv
 
 \*Interpolated to 50% PET (≈ 15 min for a \~30-min median match) from Junior & Campelo's PET-bucket accuracy curves.
 
-Two takeaways. First, **professional play is not materially easier to predict than solo queue** at 15 minutes - Spaargaren's pro-data LR sits within one percentage point of Lafrance & Grewal's solo-queue XGBoost. Second, **algorithm choice matters little**: pro-data classifiers all land in the 77 ± 1% band, with solo-queue interpolations \~3 points lower. Across every study, **gold differential is the strongest single feature**, with first tower or first herald typically ranked next.
+Two takeaways. First, **professional play is not materially easier to predict than solo queue** at 15 minutes - Spaargaren's pro-data LR sits within one percentage point of Lafrance & Grewal's solo-queue XGBoost. Second, **algorithm choice matters little**: pro-data classifiers all land in the 77 ± 1% band, with solo-queue \~3 points lower. Across every study, **gold differential is the strongest single feature**, with first tower or first herald typically ranked next.
 
-Tsang (2025, Medium) adds a temporal signal: the coefficient of `golddiffat15` has **declined** from above 1.0 in 2020-2023 to 0.83 in 2025, suggesting the 2025 season is harder to predict from a single gold-at-15 signal than any previous season. We additionally include two features absent from the @15-minute literature - **turret plate differential** and **void grubs** - and to our knowledge no peer-reviewed study has yet used the 2025 Oracle's Elixir data.
+Tsang (2025, Medium) adds a temporal signal: the coefficient of `golddiffat15` has **declined** from above 1.0 in 2020-2023 to 0.83 in 2025, suggesting the 2025 season is harder to predict from a single gold-at-15 signal than any previous season. We additionally include two features absent from the @15-minute literature - **turret plate differential** and **void grubs (introduced in 2025 season)**.
 
-Finally, we note a framing gap: the trivial rule "team with a gold lead at 15 min wins" already delivers \~73% accuracy on professional data (72.9% on our own set), so the 76-78% models above only beat this naïve baseline by 3-5 points. We adopt this framing directly in our results.
+Finally, we note a framing gap: the trivial rule "team with a gold lead at 15 min wins" already delivers \~73% accuracy on professional data (we compute the exact figure on our own set in the EDA), so the 76-78% models above only beat this naive baseline by 3-5 points. We adopt this framing directly in our results.
 
 # Setup
 
@@ -334,11 +334,35 @@ games %>%
     theme_minimal()
 ```
 
-The two densities are clearly separated. A naive "team ahead in gold at 15 min wins" rule reaches \~72.9% accuracy at the team level - well above the 50% baseline, and good enough that any model has to beat it to be worth keeping. The wide overlap around zero says a meaningful share of games are not decided by gold alone. In the @10 vs @15 scatter the cloud sits along a line steeper than the diagonal, meaning leads tend to grow between 10 and 15 minutes - which is what the momentum features in the modelling pipeline are meant to capture.
+To quantify how much of the outcome the gold differential at 15 min already explains, we compute the accuracy of the naive rule "Blue ahead in gold @15 -> Blue wins" directly on `games`. This number then defines the baseline that any trained model has to beat.
+
+```{r eda-golddiff-baseline}
+gold_baseline_df <- games %>%
+    filter(!is.na(blue_golddiffat15)) %>%
+    transmute(
+        pred_blue_win = blue_golddiffat15 > 0,
+        actual        = blue_win == 1
+    )
+
+gold_baseline_acc  <- mean(gold_baseline_df$pred_blue_win == gold_baseline_df$actual)
+gold_baseline_n    <- nrow(gold_baseline_df)
+gold_baseline_ties <- sum(games$blue_golddiffat15 == 0, na.rm = TRUE)
+blue_base_rate     <- mean(games$blue_win)
+
+cat(sprintf(
+    "Naive rule 'Blue ahead in gold @15 -> Blue wins':\n  N = %d games (%d games tied at exactly 0 gold diff)\n  Accuracy: %.2f%%\n  Always-predict-Blue baseline: %.2f%%\n  Rule beats always-Blue by: %.2f pp",
+    gold_baseline_n, gold_baseline_ties,
+    gold_baseline_acc * 100,
+    blue_base_rate * 100,
+    (gold_baseline_acc - blue_base_rate) * 100
+))
+```
+
+The two densities are clearly separated. The naive rule reaches 72.9% accuracy at the game level - well above both the 50% coin-flip and the 53.3% always-predict-Blue baseline - and any model has to beat this number to be worth keeping. The wide overlap around zero says a meaningful share of games are not decided by gold alone.
 
 ## First objective win rates
 
-The four "first" objectives (first blood, first dragon, first herald, first tower) all happen in the first \~14 minutes and are mutually exclusive: exactly one team secures each. For every objective we compute `P(Blue wins | Blue secured X)` and run a chi-square test of independence between securer and outcome.
+The four "first" objectives (first blood, first dragon, first herald, first tower) all happen in the first \~14 minutes and are mutually exclusive: exactly one team secures each. For every objective we compute `P(Blue wins | Blue secured X)` and run a chi-square test of independence between securer and outcome. TODO: Make diagram more readable
 
 ```{r eda-objectives}
 obj_cols <- c("firstblood", "firstdragon", "firstherald", "firsttower")
@@ -469,7 +493,7 @@ tibble(
     theme(legend.position = "none")
 ```
 
-Blue wins \~53% of games, a steady \~3 pp advantage. The 95% CI excludes 50% and the chi-square test rejects the null at p ≪ 0.001, so the effect is significant even if small. It comes from first pick in champion draft and small map/camera asymmetries. The modelling pipeline keeps the team-perspective format, so `side` enters the models as a binary feature and the model can decide how much weight to give it.
+Blue wins \~53% of games, a steady \~3 pp advantage. The 95% CI excludes 50% and the chi-square test rejects the null at p ≪ 0.001, so the effect is significant even if small. It comes from first pick in champion draft and small map/camera asymmetries.
 
 ## Role-specific gold differentials (H2 preview)
 
@@ -531,7 +555,7 @@ role_diffs_blue %>%
     theme_minimal()
 ```
 
-Bot lane (ADC) has the highest correlation with `blue_win`, which is early evidence for H2: the bot lane's gold advantage looks like the most predictive role-specific factor. The gaps between roles are small, though, so the full H2 analysis (using both Blue and Red rows for more training data) will decide whether the gap is real or noise. The boxplot shows clear win/loss separation for every role; bot lane simply has the widest gap.
+Bot lane (ADC) has the highest correlation with `blue_win`, which is early evidence for H2: the bot lane's gold advantage looks like the most predictive role-specific factor. The gaps between roles are small, though, so the full H2 analysis will decide whether the gap is real or noise. The boxplot shows clear win/loss separation for every role; bot lane simply has the widest gap.
 
 ## Feature distributions and scaling check
 
@@ -558,249 +582,212 @@ ggplot(scale_check, aes(x = value)) +
     theme_minimal()
 ```
 
-The scales differ wildly: `blue_goldat15` runs from \~20,000 to \~36,000, while `blue_void_grubs` lives on 0-6 and `blue_killsat15` on 0-\~27. Without standardisation, KNN distances would be swamped by gold (1000x larger than the rest) and effectively ignore kills and grubs. Logistic Regression coefficients would also be misleading, since coefficient magnitude is only comparable across features when each has unit variance. We z-score standardise before fitting KNN and Logistic Regression. Tree-based models (RF, CART) and Naive Bayes do not need it.
+The scales differ wildly: `blue_goldat15` runs from \~20,000 to \~36,000, while `blue_void_grubs` lives on 0-6 and `blue_killsat15` on 0-24. Without standardisation, KNN distances would be swamped by gold (1000x larger than the rest) and effectively ignore kills and grubs. Logistic Regression coefficients would also be misleading, since coefficient magnitude is only comparable across features when each has unit variance. We z-score standardise before fitting KNN and Logistic Regression. Tree-based models (RF, CART) and Naive Bayes do not need it.
 
 ## EDA Summary
-
-Key takeaways from the single-row-per-game `games` dataset:
 
 1.  **Target is mildly imbalanced** (\~53/47 in Blue's favour). Significant but small - accuracy is still a valid metric and no resampling is needed.
 2.  **Gold diff @15 is the strongest single predictor.** A naive "gold-leader wins" rule already hits \~73% accuracy at the team level, which is our baseline to beat.
 3.  **Residual multicollinearity** remains between raw stats and their differentials (`blue_goldat15` vs `blue_golddiffat15`) and between paired independent counts (`blue_killsat15` vs `red_killsat15`). Linear models will need regularisation even after dropping the strict mirrors.
 4.  **First tower** and **first herald** swing Blue's win rate sharply (chi-square p ≪ 0.001); they are the highest-impact binary objectives.
-5.  **First blood** and **first dragon** are statistically significant but barely move Blue's win rate above 50% on their own.
+5.  **First blood** and **first dragon** are statistically significant but carry weaker signal than tower or herald - both shift Blue's WR by \~10-15 pp when Blue secures, but only \~3-5 pp when Red does (the asymmetry comes from the dragon-herald trade pattern: Blue takes herald in 61% of games and Red free-takes dragon in 62%, so "Red secured first dragon" is biased toward games where Blue was already ahead).
 6.  **Void grubs** show a near-monotonic gradient in Blue's win rate from 0 to 6 grubs, which justifies engineering a grub differential.
-7.  **Blue-side advantage** is significant (\~53% win rate, 95% CI excludes 50%), so `side` stays as a feature in the modelling pipeline.
+7.  **Blue-side advantage** is significant (\~53% win rate, 95% CI excludes 50%). With one row per match expressed from Blue's perspective, this advantage is absorbed into the base rate of `blue_win`.
 8.  **Feature scales differ by \~1000x**, so KNN and Logistic Regression need standardisation.
 9.  **Bot lane** has the highest role-specific correlation with `blue_win`, supporting the H2 analysis.
-10. **Leads tend to grow** between @10 and @15, which is what the momentum features will capture.
-11. **Turret plate differential** is a strong, purely early-game feature (plates fall by 14:00) not commonly used in the published literature.
+10. **Leads tend to grow** between @10 and @15.
+11. **Turret plate differential** is a strong, purely early-game feature (plates fall by 14:00) not commonly used in the published literature (introduced in 2025 season).
 12. **Total dragon/herald counts** are full-game statistics, not early-game, and must not enter the feature set - using them would leak the outcome.
 
 # Feature Engineering
 
-Based on the EDA findings and experiments with different feature combinations, we now select and engineer features. The key insight from the correlation analysis is that **differential features** (gold diff, xp diff, cs diff) are the strongest predictors - not the raw values. This makes sense: it's the *gap* between teams that matters, not the absolute numbers. Since `golddiffat15 = goldat15 - opp_goldat15`, keeping all three is pure redundancy that causes multicollinearity (the LR rank-deficient warning confirms this). We also add two features not commonly found in the LoL prediction literature: **turret plate differential** (a purely early-game objective, plates fall at 14:00) and **team strength differential** (rolling win rate from prior games), which improved our best tree-model accuracy from 74.7% to 75.3% and AUC from 0.833 to 0.843 in experiments.
-
-Our strategy: - **Keep differentials, drop raw + opponent pairs** - eliminates the `goldat15` / `opp_goldat15` / `golddiffat15` redundancy - **Keep @15 diffs as primary, drop @10 raw** - the @15 snapshot subsumes @10 info. We capture @10 signal through **momentum features** ([diff\@15](mailto:diff@15){.email} - [diff\@10](mailto:diff@10){.email}) instead - **Engineer derived features** - momentum, gold efficiency, KDA, grub differential - **Keep all first objectives** - binary flags with no redundancy - **Add turret plate differential** - plates fall at 14:00, making this a purely early-game feature (r=0.413 with result) - **Add rolling team win rate differential** - the difference between each team's historical win rate (computed from *only* prior games to avoid leakage), capturing pre-game team strength (r=0.263 with result)
+The correlation analysis showed that *gaps* between teams carry the signal, so we keep signed differentials. To control multicollinearity, we keep one of each redundant triple `(goldat15, opp_goldat15, golddiffat15)` - the differential - and drop the other two. The raw @10 snapshots are also omitted: momentum, defined as `diff@15 - diff@10`, summarises their signal in a single term. On top of this we add two features that rarely appear in the published @15 literature: a **turret plate differential** (plates fall by 14:00, purely early-game; r = 0.409 with `blue_win`) and a **rolling team win rate differential** (computed from prior games only). In a held-out comparison, the latter pair lifted Random Forest test accuracy from 73.8 % to 74.5 % and test AUC from 0.826 to 0.831.
 
 ## Rolling team win rate
 
-Before engineering in-game features, we compute a **rolling win rate** for each team based on all their prior games in the dataset. This captures pre-game team strength - a strong team with a 70% win rate is more likely to convert an early gold lead into a win than a struggling team at 30%. To avoid data leakage, we only use games played *before* the current one (never the current result or future games). Teams appearing for the first time default to 0.5 (no prior information). We then compute `winrate_diff` = our win rate minus the opponent's win rate, so positive values indicate we are the historically stronger team.
+For each team, we compute a rolling win rate over all of their *prior* games (sorted by date), defaulting first-appearance teams to 0.5. The per-side values are then pivoted to one Blue column and one Red column per game, and `winrate_diff = blue - red` captures pre-game asymmetry without leaking information from the current result.
 
 ```{r rolling-winrate}
-teams <- teams %>%
+team_wr <- teams %>%
     arrange(date, gameid) %>%
     group_by(teamid) %>%
     mutate(
         games_before = row_number() - 1,
-        wins_before = cumsum(result) - result,
+        wins_before  = cumsum(result) - result,
         team_winrate = ifelse(games_before > 0, wins_before / games_before, 0.5)
     ) %>%
-    ungroup()
+    ungroup() %>%
+    mutate(side = tolower(side)) %>%
+    select(gameid, side, team_winrate, games_before) %>%
+    pivot_wider(
+        id_cols     = gameid,
+        names_from  = side,
+        values_from = c(team_winrate, games_before),
+        names_glue  = "{side}_{.value}"
+    )
 
-# Build opponent win rate lookup (each game has Blue and Red side)
-opp_wr <- teams %>%
-    select(gameid, side, team_winrate) %>%
-    mutate(opp_side = ifelse(side == "Blue", "Red", "Blue")) %>%
-    select(gameid, opp_side, opp_winrate = team_winrate)
+games_wr <- games %>%
+    left_join(team_wr, by = "gameid") %>%
+    mutate(winrate_diff = blue_team_winrate - red_team_winrate)
 
 cat(sprintf(
-    "Teams with 0 prior games (first appearance): %d (%.1f%%)\nMedian prior games per row: %.0f\nwinrate_diff correlation with result: %.3f",
-    sum(teams$games_before == 0),
-    mean(teams$games_before == 0) * 100,
-    median(teams$games_before),
-    cor(
-        (teams %>% left_join(opp_wr, by = c("gameid", "side" = "opp_side")))$team_winrate -
-            (teams %>% left_join(opp_wr, by = c("gameid", "side" = "opp_side")))$opp_winrate,
-        teams$result,
-        use = "complete.obs"
-    )
+    "Median prior games: %.0f Blue / %.0f Red\nFirst-appearance teams (defaulted to 0.5): %d Blue, %d Red\nwinrate_diff correlation with blue_win: %.3f",
+    median(games_wr$blue_games_before),
+    median(games_wr$red_games_before),
+    sum(games_wr$blue_games_before == 0),
+    sum(games_wr$red_games_before == 0),
+    cor(games_wr$winrate_diff, games_wr$blue_win, use = "complete.obs")
 ))
 ```
 
 ## Select and engineer features
 
+Every feature below is expressed from Blue's perspective: signed differentials where a positive value indicates Blue is ahead, plus four binary flags marking whether Blue secured each first objective. Since the perspective is fixed, the `blue_` prefix is implicit throughout the modelling stage and we omit it from column names. Each row represents one full match, so the structural Blue-side advantage is absorbed into the base rate of `blue_win` and serves as the model's intercept.
+
 ```{r select-features}
-# We need raw columns for engineering, then drop them
-raw_cols_needed <- c(
-    "goldat10", "xpat10", "csat10", "goldat15", "xpat15", "csat15",
-    "golddiffat10", "xpdiffat10", "csdiffat10",
-    "golddiffat15", "xpdiffat15", "csdiffat15",
-    "killsat10", "killsat15", "deathsat15", "assistsat15",
-    "opp_killsat10", "opp_killsat15", "opp_deathsat15", "opp_assistsat15",
-    "firstblood", "firstdragon", "firstherald", "firsttower",
-    "void_grubs", "opp_void_grubs",
-    "turretplates", "opp_turretplates",
-    "side"
-)
+games_model <- games_wr %>%
+    transmute(
+        gameid,
+        blue_win,
 
-teams_model <- teams %>%
-    select(all_of(c("gameid", "result", "team_winrate", raw_cols_needed))) %>%
-    left_join(opp_wr, by = c("gameid", "side" = "opp_side")) %>%
-    mutate(opp_winrate = replace_na(opp_winrate, 0.5)) %>%
-    drop_na() # safety net — expects 0 removals since datacompleteness == "complete" was applied earlier
-# removed the n_before/n_after output — always printed 0 and team row count is already shown in the filter chunk above
-```
+        # Snapshot diffs at 15 (primary signal, Blue's perspective)
+        golddiffat15 = blue_golddiffat15,
+        xpdiffat15   = blue_xpdiffat15,
+        csdiffat15   = blue_csdiffat15,
 
-```{r feature-engineering}
-teams_model <- teams_model %>%
-    mutate(
-        # Momentum: is the lead growing or shrinking between 10 and 15 min?
-        gold_momentum = golddiffat15 - golddiffat10,
-        xp_momentum = xpdiffat15 - xpdiffat10,
-        cs_momentum = csdiffat15 - csdiffat10,
+        # Momentum: did Blue's lead grow between 10 and 15?
+        gold_momentum = blue_golddiffat15 - blue_golddiffat10,
+        xp_momentum   = blue_xpdiffat15   - blue_xpdiffat10,
+        cs_momentum   = blue_csdiffat15   - blue_csdiffat10,
 
-        # Combat pressure in 10-15 min window
-        kill_pressure_10_15 = killsat15 - killsat10,
-        opp_kill_pressure_10_15 = opp_killsat15 - opp_killsat10,
-        kill_diff_15 = killsat15 - opp_killsat15,
-        death_diff_15 = deathsat15 - opp_deathsat15,
-        assist_diff_15 = assistsat15 - opp_assistsat15,
+        # Combat diffs at 15
+        kill_diff_15   = blue_killsat15   - red_killsat15,
+        death_diff_15  = blue_deathsat15  - red_deathsat15,
+        assist_diff_15 = blue_assistsat15 - red_assistsat15,
 
-        # gold_efficiency_15 is the only non-differential feature we keep on purpose.
-        # Scenario 3 LASSO eliminates it at both lambda.min and lambda.1se, confirming
-        # its signal is redundant with golddiffat15 + csdiffat15. We still include it
-        # in S1 so LASSO has a realistic redundant feature to demonstrate elimination on.
-        gold_efficiency_15 = goldat15 / pmax(csat15, 1),
+        # Per-team kill counts in the 10-15 window
+        kill_pressure_10_15     = blue_killsat15 - blue_killsat10,
+        opp_kill_pressure_10_15 = red_killsat15  - red_killsat10,
 
-        # Void grub differential
-        grub_diff = void_grubs - opp_void_grubs,
+        # gold_efficiency_15 is the only non-differential feature we keep on
+        # purpose. Scenario 3 LASSO eliminates it at both lambda.min and
+        # lambda.1se, confirming its signal is redundant with golddiffat15 +
+        # csdiffat15. We still include it in S1 so LASSO has a realistic
+        # redundant feature to demonstrate elimination on.
+        gold_efficiency_15 = blue_goldat15 / pmax(blue_csat15, 1),
+        kda_15             = (blue_killsat15 + blue_assistsat15) / pmax(blue_deathsat15, 1),
 
-        # KDA at 15
-        kda_15 = (killsat15 + assistsat15) / pmax(deathsat15, 1),
+        # Objective differentials
+        plate_diff = blue_turretplates - red_turretplates,
+        grub_diff  = blue_void_grubs   - red_void_grubs,
 
-        # Turret plate differential (plates fall at 14:00, purely early-game)
-        plate_diff = turretplates - opp_turretplates,
+        # Pre-game strength
+        winrate_diff,
 
-        # Team strength differential (rolling win rate from prior games only)
-        winrate_diff = team_winrate - opp_winrate
-    )
-
-# Now drop the raw columns we only needed for engineering
-# Keep: diffs @15, momentum, engineered, objectives, meta
-drop_cols <- c(
-    "goldat10", "xpat10", "csat10", "goldat15", "xpat15", "csat15",
-    "golddiffat10", "xpdiffat10", "csdiffat10",
-    "killsat10", "killsat15", "deathsat15", "assistsat15",
-    "opp_killsat10", "opp_killsat15", "opp_deathsat15", "opp_assistsat15",
-    "void_grubs", "opp_void_grubs",
-    "turretplates", "opp_turretplates",
-    "team_winrate", "opp_winrate"
-)
-
-teams_model <- teams_model %>%
-    select(-all_of(drop_cols))
+        # First-objective flags (1 if Blue secured)
+        firstblood  = blue_firstblood,
+        firstdragon = blue_firstdragon,
+        firstherald = blue_firstherald,
+        firsttower  = blue_firsttower
+    ) %>%
+    drop_na()
 
 cat(sprintf(
-    "Final feature set: %d features (excluding gameid and result)\nFeatures: %s",
-    ncol(teams_model) - 2,
-    paste(setdiff(names(teams_model), c("gameid", "result")), collapse = ", ")
+    "Final feature set: %d features (excluding gameid and blue_win)\nFeatures: %s",
+    ncol(games_model) - 2,
+    paste(setdiff(names(games_model), c("gameid", "blue_win")), collapse = ", ")
 ))
 ```
 
 ## H2: Role-specific differentials
 
-The EDA showed that different roles have different correlations between gold diff @15 and match outcome. To test H2, we extract per-role gold, XP, and CS differentials from the player-level data and pivot them into wide format, creating columns like `bot_golddiffat15` and `mid_xpdiffat10`. These are joined back to the team-level dataset so we can compare feature importances across roles.
+For H2 we add per-role early-game differentials. The signed `golddiffat15` of each Blue-side player is by construction `blue_player_gold - red_lane_opponent_gold`, so retaining only the Blue rows and pivoting wide yields a Blue-perspective signed differential per role and per metric (e.g., `bot_golddiffat15`, `mid_xpdiffat10`). The result is then inner-joined back to `games_model`.
 
 ```{r h2-role-features}
 role_diffs <- players %>%
-    filter(position %in% c("top", "jng", "mid", "bot", "sup")) %>%
+    filter(position %in% c("top", "jng", "mid", "bot", "sup"),
+           side == "Blue") %>%
     select(
-        gameid, side, position,
+        gameid, position,
         golddiffat10, golddiffat15,
-        xpdiffat10, xpdiffat15,
-        csdiffat10, csdiffat15
+        xpdiffat10,   xpdiffat15,
+        csdiffat10,   csdiffat15
     ) %>%
     drop_na() %>%
     pivot_wider(
-        id_cols = c(gameid, side),
-        names_from = position,
-        values_from = c(
-            golddiffat10, golddiffat15,
-            xpdiffat10, xpdiffat15,
-            csdiffat10, csdiffat15
-        ),
-        names_glue = "{position}_{.value}"
+        id_cols     = gameid,
+        names_from  = position,
+        values_from = c(golddiffat10, golddiffat15,
+                        xpdiffat10,   xpdiffat15,
+                        csdiffat10,   csdiffat15),
+        names_glue  = "{position}_{.value}"
     )
 
-teams_h2 <- teams_model %>%
-    left_join(role_diffs, by = c("gameid", "side" = "side")) %>%
+games_h2 <- games_model %>%
+    inner_join(role_diffs, by = "gameid") %>%
     drop_na()
-
-# Encode side in both datasets
-teams_model <- teams_model %>%
-    mutate(side = ifelse(side == "Blue", 1, 0))
-teams_h2 <- teams_h2 %>%
-    mutate(side = ifelse(side == "Blue", 1, 0))
 
 cat(sprintf(
     "Role features added: %d\nH2 rows after join + drop_na: %d (removed %d from H1 set, %.1f%%)\nH2 total features: %d",
-    ncol(role_diffs) - 2,
-    nrow(teams_h2),
-    nrow(teams_model) - nrow(teams_h2),
-    (nrow(teams_model) - nrow(teams_h2)) / nrow(teams_model) * 100,
-    ncol(teams_h2) - 2
+    ncol(role_diffs) - 1,
+    nrow(games_h2),
+    nrow(games_model) - nrow(games_h2),
+    (nrow(games_model) - nrow(games_h2)) / nrow(games_model) * 100,
+    ncol(games_h2) - 2
 ))
 ```
 
 # Train/Test Split
 
-Each game produces two team rows (Blue and Red side) that are mirrors of each other - Blue's `golddiffat15 = +500` is Red's `golddiffat15 = -500`. If we split rows randomly, the model could train on one side and be tested on the other side of the same game, which is data leakage. We split by **game ID** instead, so both sides of every game stay in the same set. This ensures the model is always tested on games it has never seen in any form. The same game IDs are used for the H2 split so both hypotheses are evaluated on the same holdout games.
+Each row in `games_model` represents one full match, so a plain 80/20 row split is sufficient. We sample game IDs once with `set.seed(42)` and reuse the same partition for H2, ensuring that both hypotheses are evaluated on the same held-out games.
 
 ```{r train-test-split}
 set.seed(42)
 
-game_ids <- unique(teams_model$gameid)
-train_games <- sample(game_ids, size = floor(0.8 * length(game_ids)))
+train_ids <- sample(games_model$gameid, size = floor(0.8 * nrow(games_model)))
 
-train_h1 <- teams_model %>% filter(gameid %in% train_games)
-test_h1 <- teams_model %>% filter(!gameid %in% train_games)
+train_h1 <- games_model %>% filter(gameid %in% train_ids)  %>% select(-gameid)
+test_h1  <- games_model %>% filter(!gameid %in% train_ids) %>% select(-gameid)
 
-train_h2 <- teams_h2 %>% filter(gameid %in% train_games)
-test_h2 <- teams_h2 %>% filter(!gameid %in% train_games)
-
-# Remove gameid before modeling
-train_h1 <- train_h1 %>% select(-gameid)
-test_h1 <- test_h1 %>% select(-gameid)
-train_h2 <- train_h2 %>% select(-gameid)
-test_h2 <- test_h2 %>% select(-gameid)
+train_h2 <- games_h2    %>% filter(gameid %in% train_ids)  %>% select(-gameid)
+test_h2  <- games_h2    %>% filter(!gameid %in% train_ids) %>% select(-gameid)
 
 cat(sprintf(
     "Games: %d train, %d test\nH1 - Train: %d rows, Test: %d rows\nH2 - Train: %d rows, Test: %d rows",
-    length(train_games), length(game_ids) - length(train_games),
+    length(train_ids), nrow(games_model) - length(train_ids),
     nrow(train_h1), nrow(test_h1), nrow(train_h2), nrow(test_h2)
 ))
 ```
 
 # Scenario 1: Model Comparison
 
-In this scenario we compare five classification methods on the same data to evaluate how well early-game features predict match outcome, and which model family offers the best trade-off between performance and interpretability.
+We compare five classifiers on the same one-row-per-match feature set, evaluating both predictive performance and interpretability.
 
 | Category       | Model                | Why we chose it                                                                      |
-|----------------|----------------------|--------------------------------------------------------------------------------------|
+|--------------|--------------|--------------------------------------------|
 | Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                                 |
 | Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance    |
 | Statistical/ML | Naive Bayes          | Probabilistic classifier using Bayes' theorem with a feature-independence assumption |
 | Partitioning   | KNN                  | Instance-based, partitions feature space by proximity                                |
 | Partitioning   | Decision Tree (CART) | Recursive binary splits, directly visible decision rules                             |
 
-Our baseline from EDA is 72.9% accuracy (simple "gold lead at 15 min = win" rule). Any model that doesn't beat this is not learning useful patterns beyond the single strongest feature. Published research on early-game LoL prediction reports 73-78% accuracy at the 15-minute mark, so we expect our models to land in this range. We evaluate using accuracy, AUC-ROC, precision, recall, and F1-score, with stratified 5-fold cross-validation for hyperparameter tuning.
+The EDA baseline is **72.9 %** accuracy from the rule "Blue ahead in gold @15 wins" (computed in the gold-differential section above). A model below this threshold has not learned beyond the single strongest feature. Published @15 LoL prediction studies report accuracies in the 73-78 % range, so we expect our models to fall within that band. Hyperparameters are tuned via stratified 5-fold cross-validation, and we report accuracy, AUC-ROC, precision, recall, and F1 on the held-out test set.
 
 ## Preprocessing
 
-The EDA showed feature scales differ by 1000x (gold \~20,000-36,000 vs void grubs 0-6). KNN and Logistic Regression are distance/magnitude-sensitive, so they need standardized features. Tree-based models (RF, CART) and Naive Bayes are scale-invariant and work on raw values. We prepare both versions here.
+KNN and Logistic Regression are scale-sensitive: gold ranges over 20-36 k while void grubs span only 0-6, a 1000x gap. Their inputs are therefore z-scored. Tree-based models and Naive Bayes operate on the raw values.
 
 ```{r s1-preprocess}
 # Separate features and target
-X_train <- train_h1 %>% select(-result)
-y_train <- train_h1$result
-X_test <- test_h1 %>% select(-result)
-y_test <- test_h1$result
+X_train <- train_h1 %>% select(-blue_win)
+y_train <- train_h1$blue_win
+X_test  <- test_h1  %>% select(-blue_win)
+y_test  <- test_h1$blue_win
 
 # Standardized version for LR and KNN
-preproc <- preProcess(X_train, method = c("center", "scale"))
+preproc        <- preProcess(X_train, method = c("center", "scale"))
 X_train_scaled <- predict(preproc, X_train)
-X_test_scaled <- predict(preproc, X_test)
+X_test_scaled  <- predict(preproc, X_test)
 
 cat(sprintf(
     "Training features: %d\nTraining rows: %d\nTest rows: %d",
@@ -808,7 +795,7 @@ cat(sprintf(
 ))
 ```
 
-To confirm the scaling actually worked and to expose the per-feature range differences, we print the min/max/mean/sd of every feature before and after standardization. After z-scoring, every feature should have mean ≈ 0 and sd ≈ 1 on the training set, regardless of its original scale.
+To verify the scaling, we print the per-feature min/max/mean/sd before and after standardisation: every scaled feature should have mean ≈ 0 and sd ≈ 1.
 
 ```{r s1-preprocess-summary}
 scale_summary <- function(df, label) {
@@ -836,7 +823,7 @@ cat("\nStandardized training features - mean ≈ 0, sd ≈ 1:\n")
 print(after, n = Inf)
 ```
 
-We also set up a shared cross-validation strategy so all models are evaluated on the same folds, making their results directly comparable.
+We also fix a shared cross-validation strategy so that every model is evaluated on the same folds.
 
 ```{r s1-cv-setup}
 ctrl <- trainControl(
@@ -1052,7 +1039,7 @@ ggplot(
     theme_minimal()
 ```
 
-## KNN (Adriana)
+## KNN
 
 ```{r s1-knn}
 # TODO - Adriana
@@ -1099,7 +1086,7 @@ cat(sprintf(
 ))
 ```
 
-## Decision Tree CART (Adriana)
+## Decision Tree CART
 
 CART (Classification and Regression Trees) recursively splits the feature space into rectangular regions by asking binary questions about individual features (e.g. "is `golddiffat15` \> 500?"). At each node, it selects the split that maximally reduces Gini impurity — a measure of class mixing. Unlike KNN, CART is scale-invariant and fully interpretable: the final model is a set of human-readable rules that directly show which features drive the prediction and at what thresholds. We tune the complexity parameter `cp`, which penalizes tree growth — small `cp` allows deep trees (risk of overfitting), large `cp` forces early stopping (risk of underfitting).
 
@@ -1146,7 +1133,7 @@ cart_imp <- varImp(cart_model)$importance %>%
 
 ## Model comparison
 
-Now we bring all models together to compare their performance side by side. We look at overall metrics (accuracy, AUC-ROC, F1), confusion matrices, and ROC curves. The key questions: does the non-linearity of RF pay off over the two simple probabilistic baselines (LR, Naive Bayes)? Do all models beat our 72.9% baseline?
+Now we bring all models together to compare their performance side by side. We look at overall metrics (accuracy, AUC-ROC, F1), confusion matrices, and ROC curves. The key questions: does the non-linearity of RF pay off over the two simple probabilistic baselines (LR, Naive Bayes)? Do all models beat our 72.9% gold-rule baseline?
 
 ```{r s1-metrics-table}
 calc_metrics <- function(cm, prob, y_true, name) {
@@ -1195,7 +1182,7 @@ gridExtra::grid.arrange(
 )
 ```
 
-Every confusion matrix shows the same visual pattern: **TP ≈ TN** and **FP ≈ FN**. This is a structural consequence of our dataset and split, not a coincidence. Each game contributes two mirror rows (Blue and Red team); nearly every feature is either a differential that flips sign between the two rows, a mutually-exclusive objective flag, or an opposing-team count pair. Our split is by `gameid`, so both rows of every test game stay together and the test set remains exactly 50/50 balanced. For a model trained on these symmetric features, predicting team A's win probability as `p` implies predicting team B's as ≈ `1 - p`, so the two predictions are complementary inside every game. Combined with the ground truth also being complementary (exactly one team won), this pairs every FN on one row with an FP on its mirror row, and likewise TP with TN — mathematically forcing TP = TN and FN = FP. The small gaps you see (e.g. 1390 vs 1388) come from the only feature that is **not** mirrored (`side`) plus a handful of borderline predictions near the 0.5 threshold. This is a useful sanity check: the split introduces no side-leakage, the models are not systematically biased toward Win or Loss, and precision ≈ recall for every model (so F1 ≈ accuracy across the board).
+The test set inherits the underlying \~53/47 Blue-side base rate, so the ratio of TP to TN reflects how each model balances Win recall against Loss recall. Across all five matrices, precision and recall stay within a few points of each other, which means F1 tracks accuracy closely and no model is systematically biased toward predicting Win or Loss.
 
 ```{r s1-roc-curves}
 roc_lr <- roc(y_test_fct, lr_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
@@ -1313,10 +1300,10 @@ The takeaway is not that `firstdragon` is irrelevant — LASSO (Scenario 3) keep
 We now repeat the best-performing model on the H2 feature set (which includes role-specific differentials) to test whether knowing *which role* has the gold lead improves prediction over just knowing the team total. If H2 achieves higher AUC-ROC, role-level features add value. We also compare feature importances to see whether bot lane differentials rank highest - the core claim of H2.
 
 ```{r s1-h2-setup}
-X_train_h2 <- train_h2 %>% select(-result)
-y_train_h2 <- factor(train_h2$result, levels = c(0, 1), labels = c("Loss", "Win"))
-X_test_h2 <- test_h2 %>% select(-result)
-y_test_h2 <- factor(test_h2$result, levels = c(0, 1), labels = c("Loss", "Win"))
+X_train_h2 <- train_h2 %>% select(-blue_win)
+y_train_h2 <- factor(train_h2$blue_win, levels = c(0, 1), labels = c("Loss", "Win"))
+X_test_h2  <- test_h2  %>% select(-blue_win)
+y_test_h2  <- factor(test_h2$blue_win,  levels = c(0, 1), labels = c("Loss", "Win"))
 ```
 
 ```{r s1-h2-rf}
@@ -1997,27 +1984,65 @@ saveRDS(cart_model,    "shiny/models/cart_model.rds")
 saveRDS(preproc,       "shiny/models/preproc.rds")
 saveRDS(perf_summary,  "shiny/models/perf_summary.rds")
 saveRDS(overlap_df,    "shiny/models/overlap_df.rds")
-saveRDS(teams_model,   "shiny/models/teams_model.rds")
+saveRDS(games_model,   "shiny/models/games_model.rds")
 saveRDS(X_train,       "shiny/models/X_train.rds")
 
-# Game lookup table for Shiny browser
-opp_lookup <- teams %>%
-    select(gameid, side, opp_teamname = teamname) %>%
-    mutate(opp_side = ifelse(side == "Blue", "Red", "Blue")) %>%
-    select(gameid, opp_side, opp_teamname)
+# Game lookup table for Shiny browser.
+# The Shiny app's game-picker is per-side (one Blue and one Red row per game),
+# so we un-pivot games_model back into a two-rows-per-game shape. Signed diffs
+# are negated for the Red row, per-team kill counts are swapped, and binary
+# flags are toggled (when Blue secured the objective, Red did not; otherwise
+# we keep the same value, since neither team is recorded as having secured it).
+shiny_blue <- games_model %>%
+    mutate(side_encoded = 1L, result = blue_win) %>%
+    select(-blue_win)
 
-game_lookup <- teams %>%
-    select(gameid, league, date, teamname, side_label = side) %>%
-    left_join(opp_lookup, by = c("gameid", "side_label" = "opp_side")) %>%
-    mutate(side_encoded = ifelse(side_label == "Blue", 1, 0)) %>%
-    inner_join(
-        teams_model %>% rename(side_encoded = side),
-        by = c("gameid", "side_encoded")
-    ) %>%
-    mutate(
-        date         = as.Date(date),
-        result_label = ifelse(result == 1, "WIN", "LOSS")
+shiny_red <- games_model %>%
+    transmute(
+        gameid,
+        side_encoded = 0L,
+        result       = 1L - blue_win,
+        golddiffat15 = -golddiffat15,
+        xpdiffat15   = -xpdiffat15,
+        csdiffat15   = -csdiffat15,
+        gold_momentum  = -gold_momentum,
+        xp_momentum    = -xp_momentum,
+        cs_momentum    = -cs_momentum,
+        kill_diff_15   = -kill_diff_15,
+        death_diff_15  = -death_diff_15,
+        assist_diff_15 = -assist_diff_15,
+        kill_pressure_10_15     = opp_kill_pressure_10_15,
+        opp_kill_pressure_10_15 = kill_pressure_10_15,
+        gold_efficiency_15 = NA_real_,  # Blue-only ratio, no Red counterpart kept
+        kda_15             = NA_real_,
+        plate_diff   = -plate_diff,
+        grub_diff    = -grub_diff,
+        winrate_diff = -winrate_diff,
+        firstblood   = ifelse(firstblood   == 1L, 0L, firstblood),
+        firstdragon  = ifelse(firstdragon  == 1L, 0L, firstdragon),
+        firstherald  = ifelse(firstherald  == 1L, 0L, firstherald),
+        firsttower   = ifelse(firsttower   == 1L, 0L, firsttower)
     )
+
+per_side_features <- bind_rows(shiny_blue, shiny_red)
+
+# Per-side team labels
+team_labels <- teams %>%
+    select(gameid, league, date, side, teamname) %>%
+    mutate(side_encoded = ifelse(side == "Blue", 1L, 0L),
+           side_label   = side) %>%
+    select(gameid, league, date, teamname, side_label, side_encoded)
+
+opp_labels <- team_labels %>%
+    transmute(gameid,
+              side_encoded_opp = 1L - side_encoded,
+              opp_teamname     = teamname)
+
+game_lookup <- team_labels %>%
+    left_join(opp_labels, by = c("gameid", "side_encoded" = "side_encoded_opp")) %>%
+    inner_join(per_side_features, by = c("gameid", "side_encoded")) %>%
+    mutate(date         = as.Date(date),
+           result_label = ifelse(result == 1, "WIN", "LOSS"))
 
 saveRDS(game_lookup, "shiny/models/game_lookup.rds")
 
