@@ -65,7 +65,7 @@ The early game also has a set of one-off objective races, each won by exactly on
 Published work on early-game LoL match prediction at the **15-minute mark** converges tightly, with reported accuracy clustering in the **76-78% band** across model families and dataset types.
 
 | Study                                        | Year | Dataset                      | Model               | Acc. \@15  |
-|----------------------|-------------|-------------|-------------|-------------|
+|-----------------|--------------|--------------|--------------|--------------|
 | Spaargaren, MSc thesis (Tilburg)             | 2022 | Oracle's Elixir pro, 2021    | Logistic Regression | **77.99%** |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Random Forest       | 77.26%     |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Naïve Bayes         | 76.82%     |
@@ -272,7 +272,8 @@ ggplot(result_cors, aes(
     fill = correlation > 0
 )) +
     geom_col() +
-    coord_flip() +
+    coord_flip(ylim = c(-1, 1)) +
+    scale_y_continuous(breaks = seq(-1, 1, 0.25)) +
     scale_fill_manual(
         values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
         labels = c("Negative", "Positive")
@@ -334,7 +335,7 @@ games %>%
     theme_minimal()
 ```
 
-To quantify how much of the outcome the gold differential at 15 min already explains, we compute the accuracy of the naive rule "Blue ahead in gold @15 -> Blue wins" directly on `games`. This number then defines the baseline that any trained model has to beat.
+To quantify how much of the outcome the gold differential at 15 min already explains, we compute the accuracy of the naive rule "Blue ahead in gold @15 -\> Blue wins" directly on `games`. This number then defines the baseline that any trained model has to beat.
 
 ```{r eda-golddiff-baseline}
 gold_baseline_df <- games %>%
@@ -669,11 +670,6 @@ games_model <- games_wr %>%
         kill_pressure_10_15     = blue_killsat15 - blue_killsat10,
         opp_kill_pressure_10_15 = red_killsat15  - red_killsat10,
 
-        # gold_efficiency_15 is the only non-differential feature we keep on
-        # purpose. Scenario 3 LASSO eliminates it at both lambda.min and
-        # lambda.1se, confirming its signal is redundant with golddiffat15 +
-        # csdiffat15. We still include it in S1 so LASSO has a realistic
-        # redundant feature to demonstrate elimination on.
         gold_efficiency_15 = blue_goldat15 / pmax(blue_csat15, 1),
         kda_15             = (blue_killsat15 + blue_assistsat15) / pmax(blue_deathsat15, 1),
 
@@ -764,7 +760,7 @@ cat(sprintf(
 We compare five classifiers on the same one-row-per-match feature set, evaluating both predictive performance and interpretability.
 
 | Category       | Model                | Why we chose it                                                                      |
-|--------------|--------------|--------------------------------------------|
+|----------------|----------------|----------------------------------------|
 | Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                                 |
 | Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance    |
 | Statistical/ML | Naive Bayes          | Probabilistic classifier using Bayes' theorem with a feature-independence assumption |
@@ -835,9 +831,9 @@ ctrl <- trainControl(
     verboseIter = TRUE
 )
 
-# Convert target to factor for caret
-y_train_fct <- factor(y_train, levels = c(0, 1), labels = c("Loss", "Win"))
-y_test_fct <- factor(y_test, levels = c(0, 1), labels = c("Loss", "Win"))
+# Convert target to factor for caret (Win first so it is the positive class)
+y_train_fct <- factor(y_train, levels = c(1, 0), labels = c("Win", "Loss"))
+y_test_fct <- factor(y_test, levels = c(1, 0), labels = c("Win", "Loss"))
 ```
 
 ## Logistic Regression
@@ -1301,9 +1297,9 @@ We now repeat the best-performing model on the H2 feature set (which includes ro
 
 ```{r s1-h2-setup}
 X_train_h2 <- train_h2 %>% select(-blue_win)
-y_train_h2 <- factor(train_h2$blue_win, levels = c(0, 1), labels = c("Loss", "Win"))
+y_train_h2 <- factor(train_h2$blue_win, levels = c(1, 0), labels = c("Win", "Loss"))
 X_test_h2  <- test_h2  %>% select(-blue_win)
-y_test_h2  <- factor(test_h2$blue_win,  levels = c(0, 1), labels = c("Loss", "Win"))
+y_test_h2  <- factor(test_h2$blue_win,  levels = c(1, 0), labels = c("Win", "Loss"))
 ```
 
 ```{r s1-h2-rf}
@@ -1487,7 +1483,7 @@ fwd_selected <- fwd_selected[fwd_selected != "(Intercept)"]
 
 fwd_pred_prob_raw <- predict(fwd_model, newdata = X_test_scaled, type = "response")
 fwd_pred_class    <- factor(ifelse(fwd_pred_prob_raw > 0.5, "Win", "Loss"),
-                             levels = c("Loss", "Win"))
+                             levels = c("Win", "Loss"))
 fwd_cm  <- confusionMatrix(fwd_pred_class, y_test_fct)
 fwd_roc <- roc(y_test_fct, fwd_pred_prob_raw, levels = c("Loss", "Win"), quiet = TRUE)
 
@@ -1562,7 +1558,7 @@ lasso_pred_prob <- predict(lasso_cv,
     s = "lambda.1se", type = "response"
 )
 lasso_pred_class <- factor(ifelse(lasso_pred_prob > 0.5, "Win", "Loss"),
-    levels = c("Loss", "Win")
+    levels = c("Win", "Loss")
 )
 lasso_cm <- confusionMatrix(lasso_pred_class, y_test_fct)
 lasso_roc <- roc(y_test_fct, as.numeric(lasso_pred_prob),
@@ -1633,7 +1629,7 @@ enet_cv_results <- map_dfr(alpha_grid, function(a) {
     idx_1se    <- which(cv_fit$lambda == cv_fit$lambda.1se)
     pred_prob  <- predict(cv_fit, newx = as.matrix(X_test_scaled),
                           s = "lambda.1se", type = "response")
-    pred_class <- factor(ifelse(pred_prob > 0.5, "Win", "Loss"), levels = c("Loss", "Win"))
+    pred_class <- factor(ifelse(pred_prob > 0.5, "Win", "Loss"), levels = c("Win", "Loss"))
     cm         <- confusionMatrix(pred_class, y_test_fct)
     roc_obj    <- roc(y_test_fct, as.numeric(pred_prob), levels = c("Loss", "Win"), quiet = TRUE)
     n_kept     <- sum(coef(cv_fit, s = "lambda.1se") != 0) - 1
@@ -1684,7 +1680,7 @@ enet_selected    <- enet_selected_df$feature
 enet_pred_prob  <- predict(enet_cv_final, newx = as.matrix(X_test_scaled),
                             s = "lambda.1se", type = "response")
 enet_pred_class <- factor(ifelse(enet_pred_prob > 0.5, "Win", "Loss"),
-                           levels = c("Loss", "Win"))
+                           levels = c("Win", "Loss"))
 enet_cm  <- confusionMatrix(enet_pred_class, y_test_fct)
 enet_roc <- roc(y_test_fct, as.numeric(enet_pred_prob), levels = c("Loss", "Win"), quiet = TRUE)
 
