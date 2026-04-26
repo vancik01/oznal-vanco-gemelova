@@ -4,6 +4,7 @@ library(tidyverse)
 library(caret)
 library(DT)
 library(pROC)
+library(gridExtra)
 
 # ── Load models ────────────────────────────────────────────────────────────────
 lr_model     <- readRDS("models/lr_model.rds")
@@ -594,10 +595,11 @@ h6 { font-weight: 700; font-size: 11px; color: #6a7590; text-transform: uppercas
 .data-view .nav-tabs > li.active > a,
 .data-view .nav-tabs > li.active > a:hover,
 .data-view .nav-tabs > li.active > a:focus {
-    background: transparent !important;
-    color: #ffffff !important;
+    background: rgba(83, 131, 232, 0.12) !important;
+    color: #5383e8 !important;
     font-weight: 700 !important;
-    border-bottom: 2px solid #5383e8 !important;
+    border-bottom: 3px solid #5383e8 !important;
+    border-radius: 6px 6px 0 0 !important;
     box-shadow: none !important;
 }
 .data-view .nav-tabs > li > a:hover {
@@ -705,6 +707,28 @@ table.dataTable tbody td {
     padding: 80px 0; flex-direction: column; text-align: center;
 }
 
+/* ── Game browse table: compact pagination ───────────── */
+#game_table_wrapper {
+    overflow: hidden;
+}
+#game_table_wrapper .dataTables_paginate {
+    float: none !important;
+    clear: both;
+    display: block;
+    text-align: center;
+    padding: 8px 0 0 0;
+}
+#game_table_wrapper .paginate_button {
+    padding: 2px 7px !important;
+    font-size: 11px !important;
+    border-radius: 4px !important;
+    min-width: 0 !important;
+    margin: 0 1px !important;
+}
+#game_table_wrapper table.dataTable {
+    margin-bottom: 0 !important;
+}
+
 /* ── Feature collapse toggle ─────────────────────────── */
 .features-toggle { cursor: pointer; }
 .features-toggle:hover span { color: #c8d0e0 !important; }
@@ -801,7 +825,10 @@ ui <- navbarPage(
                             condition = "input.browse_team !== ''",
                             div(class = "autofill-hint",
                                 "Select a row to auto-fill the features below"),
-                            DTOutput("game_table")
+                            div(style = "overflow: hidden;",
+                                DTOutput("game_table")
+                            ),
+                            div(style = "clear: both;")
                         )
                     ),
                     div(class = "section-divider features-toggle",
@@ -858,13 +885,9 @@ ui <- navbarPage(
                                 span("Opponent stronger"), span("Team stronger"))
                         )
                     ),
-                    actionButton("predict_btn", "Predict Win Probability",
-                        class = "btn-primary btn-lg",
-                        style = "width:100%; margin-top:4px;")
                 )
             ),
             column(8,
-                br(),
                 uiOutput("game_banner"),
                 fluidRow(
                     column(4, div(class = "prob-box",
@@ -1024,8 +1047,11 @@ ui <- navbarPage(
                         tabPanel("Table",
                             DTOutput("data_table_full")
                         ),
-                        tabPanel("Summary",
-                            DTOutput("data_summary_table")
+                        tabPanel("Correlations",
+                            uiOutput("data_corr_plot_ui")
+                        ),
+                        tabPanel("Win Rate",
+                            plotOutput("data_winrate_plot", height = "520px")
                         ),
                         tabPanel("Distribution",
                             uiOutput("data_dist_controls"),
@@ -1084,7 +1110,28 @@ server <- function(input, output, session) {
                 Result   = result_label
             ) %>%
             datatable(selection = "single", rownames = FALSE,
-                options = list(dom = "tp", pageLength = 6, scrollY = "260px")) %>%
+                options = list(
+                    dom        = "tp",
+                    pageLength = 5,
+                    autoWidth  = FALSE,
+                    scrollX    = FALSE,
+                    initComplete = JS("function(settings) {
+                        var w = $(this.api().table().container());
+                        w.find('.row, .row > div').css({
+                            'display': 'block',
+                            'float': 'none',
+                            'width': '100%'
+                        });
+                        w.find('.dataTables_paginate').css({
+                            'float': 'none',
+                            'width': '100%',
+                            'display': 'block',
+                            'clear': 'both',
+                            'text-align': 'center',
+                            'padding-top': '8px'
+                        });
+                    }")
+                )) %>%
             formatStyle("Result",
                 color = styleEqual(c("WIN","LOSS"), c("#27ae60","#e84057")),
                 fontWeight = "bold") %>%
@@ -1120,7 +1167,8 @@ server <- function(input, output, session) {
             selected = game_label)
     })
 
-    observeEvent(input$predict_btn, {
+    # Live prediction — updates automatically whenever any feature input changes
+    observe({
         row <- as.data.frame(t(train_means))
         row$golddiffat15 <- input$golddiffat15
         row$xpdiffat15   <- input$xpdiffat15
@@ -1133,12 +1181,12 @@ server <- function(input, output, session) {
         row$side         <- as.numeric(input$side)
         row$winrate_diff <- input$wr_diff / 100
         rv$input_row     <- row
-        rv$game_info     <- NULL
     })
 
-    # Reset preset to Custom when user manually tweaks a feature
+    # Reset preset to Custom and hide game banner when user manually tweaks a feature
     observeEvent(input$user_tweaked_feature, {
         updateSelectInput(session, "feature_preset", selected = "__custom__")
+        rv$game_info <- NULL
     })
 
     # Re-apply game features when user picks the game preset from dropdown
@@ -1166,7 +1214,7 @@ server <- function(input, output, session) {
     # ── Prediction ──────────────────────────────────────────────────────────────
     probs <- reactive({
         req(rv$input_row)
-        raw    <- rv$input_row
+        raw <- rv$input_row
         scaled <- predict(preproc, raw)
         list(
             lr   = round(predict(lr_model,   scaled, type = "prob")[,"Win"] * 100, 1),
@@ -1177,7 +1225,7 @@ server <- function(input, output, session) {
         )
     })
 
-    fmt <- function(p) if (is.null(rv$input_row)) "—" else paste0(p, "%")
+    fmt <- function(p) paste0(p, "%")
     output$prob_lr   <- renderText({ fmt(probs()$lr)   })
     output$prob_rf   <- renderText({ fmt(probs()$rf)   })
     output$prob_nb   <- renderText({ fmt(probs()$nb)   })
@@ -1903,29 +1951,146 @@ server <- function(input, output, session) {
         )
     })
 
-    output$data_summary_table <- renderDT({
+    output$data_corr_plot_ui <- renderUI({
+        req(!is.null(rv_data$df))
+        num_df <- rv_data$df[, sapply(rv_data$df, is.numeric), drop = FALSE]
+        n  <- max(2, ncol(num_df))
+        px <- max(420, n * 52)
+        plotOutput("data_corr_plot", height = paste0(px, "px"))
+    })
+
+    output$data_corr_plot <- renderPlot(bg = "#1c1c2e", {
         req(!is.null(rv_data$df))
         df     <- rv_data$df
         num_df <- df[, sapply(df, is.numeric), drop = FALSE]
-        if (ncol(num_df) == 0) {
-            return(datatable(data.frame(Message = "No numeric columns found."), rownames = FALSE))
+        num_df <- num_df[, colSums(is.na(num_df)) < nrow(num_df), drop = FALSE]
+        if (ncol(num_df) < 2) {
+            return(ggplot() +
+                annotate("text", x = 0.5, y = 0.5, label = "Need at least 2 numeric columns",
+                         color = "#6a7590", size = 5) +
+                dark_theme() + theme_void())
         }
-        smry <- as.data.frame(t(sapply(num_df, function(x) {
-            c(N       = sum(!is.na(x)),
-              Min     = round(min(x,  na.rm = TRUE), 3),
-              Q1      = round(quantile(x, 0.25, na.rm = TRUE), 3),
-              Median  = round(median(x, na.rm = TRUE), 3),
-              Mean    = round(mean(x,   na.rm = TRUE), 3),
-              Q3      = round(quantile(x, 0.75, na.rm = TRUE), 3),
-              Max     = round(max(x,  na.rm = TRUE), 3),
-              SD      = round(sd(x,   na.rm = TRUE), 3),
-              Missing = sum(is.na(x))
+
+        n       <- ncol(num_df)
+        txt_sz  <- if (n <= 6) 4.2 else if (n <= 10) 3.4 else 2.6
+
+        cor_mat <- cor(num_df, use = "pairwise.complete.obs")
+        cor_df  <- as.data.frame(as.table(cor_mat)) %>%
+            rename(corr = Freq)
+
+        ggplot(cor_df, aes(x = Var1, y = Var2, fill = corr)) +
+            geom_tile(color = "#13131e", linewidth = 0.5) +
+            geom_text(aes(label = ifelse(abs(corr) >= 0.05,
+                                         sprintf("%.2f", corr), "")),
+                      size = txt_sz, color = "white", fontface = "bold") +
+            scale_fill_gradient2(
+                low      = "#e84057",
+                mid      = "#1c1c2e",
+                high     = ACCENT,
+                midpoint = 0,
+                limits   = c(-1, 1),
+                name     = "Pearson r"
+            ) +
+            coord_fixed() +
+            labs(
+                title    = "Feature Correlation Matrix",
+                subtitle = "Red = negative correlation · Blue = positive correlation"
+            ) +
+            dark_theme() +
+            theme(
+                axis.text.x     = element_text(angle = 35, hjust = 1, size = 11),
+                axis.text.y     = element_text(size = 11),
+                axis.title      = element_blank(),
+                panel.grid      = element_blank(),
+                legend.position = "right"
             )
-        })))
-        smry <- cbind(Feature = rownames(smry), smry)
-        rownames(smry) <- NULL
-        datatable(smry, rownames = FALSE,
-            options = list(dom = "lrtip", pageLength = 25, scrollX = TRUE))
+    })
+
+    output$data_winrate_plot <- renderPlot(bg = "#1c1c2e", {
+        req(!is.null(rv_data$df))
+        df <- rv_data$df
+        if (!"result" %in% names(df)) {
+            return(ggplot() +
+                annotate("text", x = 0.5, y = 0.5,
+                         label = "Dataset needs a 'result' column (1 = Win, 0 = Loss)",
+                         color = "#6a7590", size = 5) +
+                dark_theme() + theme_void())
+        }
+
+        obj_cols <- intersect(c("firstblood","firstdragon","firstherald","firsttower"), names(df))
+        cont_cols <- intersect(c("golddiffat15","xpdiffat15","csdiffat15","grub_diff","winrate_diff"), names(df))
+
+        p_list <- list()
+
+        if (length(obj_cols) > 0) {
+            wr_obj <- lapply(obj_cols, function(col) {
+                df %>%
+                    filter(!is.na(.data[[col]])) %>%
+                    group_by(objective = col,
+                             got = factor(ifelse(.data[[col]] == 1, "Got it", "Didn't get it"),
+                                          levels = c("Got it", "Didn't get it"))) %>%
+                    summarise(win_rate = mean(result == 1, na.rm = TRUE) * 100,
+                              n = n(), .groups = "drop")
+            }) %>% bind_rows()
+
+            p_list$obj <- ggplot(wr_obj, aes(x = objective, y = win_rate, fill = got)) +
+                geom_col(position = position_dodge(width = 0.6), width = 0.5) +
+                geom_text(aes(label = sprintf("%.1f%%", win_rate)),
+                          position = position_dodge(width = 0.6),
+                          vjust = -0.5, size = 3.2, color = "#c8d0e0", fontface = "bold") +
+                geom_hline(yintercept = 50, linetype = "dashed", color = "#6a7590", linewidth = 0.7) +
+                scale_fill_manual(values = c("Got it" = ACCENT, "Didn't get it" = "#2e3a5e"),
+                                  name = NULL) +
+                scale_x_discrete(labels = c(firstblood  = "First Blood",
+                                            firstdragon = "First Dragon",
+                                            firstherald = "First Herald",
+                                            firsttower  = "First Tower")) +
+                scale_y_continuous(limits = c(0, 80), expand = c(0, 0),
+                                   labels = function(x) paste0(x, "%")) +
+                labs(title = "Win Rate by Objective",
+                     subtitle = "Dashed line = 50% baseline",
+                     x = NULL, y = "Win Rate (%)") +
+                dark_theme() +
+                theme(legend.position   = "top",
+                      panel.grid.major.x = element_blank())
+        }
+
+        if (length(cont_cols) > 0) {
+            box_df <- df %>%
+                select(result, all_of(cont_cols)) %>%
+                filter(!is.na(result)) %>%
+                mutate(Outcome = factor(ifelse(result == 1, "Win", "Loss"),
+                                        levels = c("Win", "Loss"))) %>%
+                pivot_longer(all_of(cont_cols), names_to = "feature", values_to = "value") %>%
+                mutate(feature = recode(feature,
+                    golddiffat15  = "Gold Diff @15",
+                    xpdiffat15    = "XP Diff @15",
+                    csdiffat15    = "CS Diff @15",
+                    grub_diff     = "Grub Diff",
+                    winrate_diff  = "WR Diff"
+                ))
+
+            p_list$box <- ggplot(box_df, aes(x = Outcome, y = value, fill = Outcome)) +
+                geom_hline(yintercept = 0, linetype = "dashed", color = "#6a7590", linewidth = 0.6) +
+                geom_boxplot(alpha = 0.7, outlier.size = 0.8,
+                             outlier.color = "#6a7590", width = 0.5) +
+                scale_fill_manual(values = c("Win" = ACCENT, "Loss" = "#e84057"),
+                                  guide = "none") +
+                facet_wrap(~feature, scales = "free_y", nrow = 1) +
+                labs(title = "Feature Distribution by Outcome",
+                     subtitle = "Median line inside box · dashed = zero",
+                     x = NULL, y = NULL) +
+                dark_theme() +
+                theme(strip.text         = element_text(size = 9, color = "#9aaccc"),
+                      panel.grid.major.x = element_blank(),
+                      strip.background   = element_rect(fill = "#13131e", color = NA))
+        }
+
+        if (length(p_list) == 2) {
+            gridExtra::grid.arrange(p_list$obj, p_list$box, nrow = 2, heights = c(1.1, 1))
+        } else if (length(p_list) == 1) {
+            print(p_list[[1]])
+        }
     })
 
     output$data_dist_plot <- renderPlot(bg = "#1c1c2e", {
