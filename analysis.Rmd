@@ -871,7 +871,7 @@ Resource diffs at @15 (`golddiffat15`, `xpdiffat15`, `csdiffat15`), `kill_diff_1
 
 ## Random Forest
 
-Non-linear ensemble; immune to the multicollinearity that distorts the LR coefficients. We tune `mtry` over `{5, 7, 10, 15, 20}` with 500 trees fixed.
+Non-linear ensemble; immune to the multicollinearity that distorts the LR coefficients. We tune `mtry` over `{5, 7, 10, 15, 19}` with 500 trees fixed.
 
 ```{r s1-rf}
 cat("Training Random Forest (5 mtry values x 5 folds = 25 fits, 500 trees each)...\n")
@@ -883,7 +883,7 @@ rf_model <- train(
     method = "rf",
     trControl = ctrl,
     metric = "ROC",
-    tuneGrid = expand.grid(mtry = c(5, 7, 10, 15, 20)),
+    tuneGrid = expand.grid(mtry = c(5, 7, 10, 15, 19)),
     ntree = 500
 )
 
@@ -1378,21 +1378,25 @@ RFE repeatedly trains a model, ranks features by importance, removes the weakest
 cat("Running RFE with Logistic Regression estimator (5-fold CV)...\n")
 t0 <- Sys.time()
 
+lrFuncs_roc <- lrFuncs
+lrFuncs_roc$summary <- twoClassSummary
+
 rfe_ctrl <- rfeControl(
-    functions = lrFuncs,
+    functions = lrFuncs_roc,
     method    = "cv",
     number    = 5,
     verbose   = FALSE
 )
 
 n_features   <- ncol(X_train_scaled)
-sizes_to_try <- unique(c(5, 10, 15, 20, 25, 30, n_features))
+sizes_to_try <- unique(c(5, 10, 15, n_features))
 
 rfe_result <- rfe(
     x          = X_train_scaled,
     y          = y_train_fct,
     sizes      = sizes_to_try,
-    rfeControl = rfe_ctrl
+    rfeControl = rfe_ctrl,
+    metric     = "ROC"
 )
 
 rfe_selected <- predictors(rfe_result)
