@@ -26,6 +26,7 @@ renv.lock
 
 # Shiny
 rsconnect/
+shiny/models/
 
 # OS
 .DS_Store

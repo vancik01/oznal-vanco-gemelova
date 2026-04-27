@@ -872,7 +872,7 @@ ui <- navbarPage(
                     fluidRow(
                         column(4,
                             div(class = "prob-box", style = "height:100%;",
-                                img(src = "gold.png", style = "width:100%; border-radius:6px; margin-bottom:8px;"),
+                                img(src = "gold.svg", style = "width:100%; border-radius:6px; margin-bottom:8px;"),
                                 div(class = "prob-label", "Gold & CS"),
                                 p(style = "color:#c8d0e0; font-size:13px; line-height:1.6; margin:6px 0 0 0;",
                                     "Players earn gold by defeating minions (CS) and enemies.",
@@ -882,7 +882,7 @@ ui <- navbarPage(
                         ),
                         column(4,
                             div(class = "prob-box", style = "height:100%;",
-                                img(src = "objectives.png", style = "width:100%; border-radius:6px; margin-bottom:8px;"),
+                                img(src = "objectives.svg", style = "width:100%; border-radius:6px; margin-bottom:8px;"),
                                 div(class = "prob-label", "Objectives"),
                                 p(style = "color:#c8d0e0; font-size:13px; line-height:1.6; margin:6px 0 0 0;",
                                     "Dragons, Heralds, and Towers grant permanent bonuses.",
@@ -892,7 +892,7 @@ ui <- navbarPage(
                         ),
                         column(4,
                             div(class = "prob-box", style = "height:100%;",
-                                img(src = "firstblood.png", style = "width:100%; border-radius:6px; margin-bottom:8px;"),
+                                img(src = "firstblood.svg", style = "width:100%; border-radius:6px; margin-bottom:8px;"),
                                 div(class = "prob-label", "First Blood"),
                                 p(style = "color:#c8d0e0; font-size:13px; line-height:1.6; margin:6px 0 0 0;",
                                     "The first kill of the match. It grants bonus gold and",
@@ -1203,14 +1203,168 @@ ui <- navbarPage(
 
     # ── Tab 4: Feature Selection ────────────────────────────────────────────────
     tabPanel("Feature Selection",
-        fluidRow(column(12,
+        div(style = "padding: 0 24px;",
             br(),
-            h4("Performance vs. Number of Features"),
-            plotOutput("lollipop_plot", height = "340px"),
-            br(),
-            h4("Feature Selection Overlap Across Methods"),
-            plotOutput("heatmap_plot", height = "500px")
-        ))
+
+            # ── Intro ─────────────────────────────────────────────────────────
+            div(class = "card",
+                p(class = "sidebar-section-title", "Scenario 3: Feature Selection"),
+                p(style = "color:#c8d0e0; line-height:1.8; margin-bottom:16px;",
+                    "The EDA revealed high multicollinearity between raw stats and their differentials",
+                    " (e.g. ", tags$code("goldat15"), " vs ", tags$code("golddiffat15"),
+                    ") and between @10 and @15 versions of the same metric. With ~46 candidate features",
+                    " many are redundant — carrying the same signal in different forms.",
+                    " We applied ", tags$b("five feature selection methods"),
+                    " to find the minimal subset that retains full predictive performance."
+                ),
+                fluidRow(
+                    column(3,
+                        div(class = "prob-box",
+                            div(class = "prob-label", "Input features"),
+                            div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "21")
+                        )
+                    ),
+                    column(3,
+                        div(class = "prob-box",
+                            div(class = "prob-label", "Min. features out"),
+                            div(class = "prob-value", style = "color:#27ae60; font-size:26px;", "9")
+                        )
+                    ),
+                    column(3,
+                        div(class = "prob-box",
+                            div(class = "prob-label", "Methods compared"),
+                            div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "5")
+                        )
+                    ),
+                    column(3,
+                        div(class = "prob-box",
+                            div(class = "prob-label", "AUC loss (LASSO vs full)"),
+                            div(class = "prob-value", style = "color:#27ae60; font-size:26px;", "< 0.1%")
+                        )
+                    )
+                )
+            ),
+
+            # ── Method cards ──────────────────────────────────────────────────
+            div(class = "card",
+                p(class = "sidebar-section-title", "Selection Methods"),
+                fluidRow(
+                    column(4,
+                        div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px; margin-bottom:12px;",
+                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "RFE"),
+                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Recursive Feature Elimination"),
+                            p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
+                                "Trains Logistic Regression repeatedly, ranks features by coefficient magnitude,",
+                                " removes the weakest, and repeats. 5-fold CV selects the optimal subset size."
+                            )
+                        ),
+                        div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px;",
+                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "Forward Stepwise"),
+                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "AIC-Based Greedy Selection"),
+                            p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
+                                "Starts with an intercept-only model, greedily adds the feature that most improves",
+                                " AIC at each step. Once added a feature stays — no shrinkage of redundant coefficients."
+                            )
+                        )
+                    ),
+                    column(4,
+                        div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px; margin-bottom:12px;",
+                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "LASSO (L1)"),
+                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Least Absolute Shrinkage and Selection"),
+                            p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
+                                "Logistic Regression with an L1 penalty that shrinks redundant coefficients to exactly zero.",
+                                " From correlated groups, keeps the strongest signal and eliminates the rest.",
+                                " Lambda tuned via 5-fold CV."
+                            )
+                        ),
+                        div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px;",
+                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "Elastic Net (L1+L2)"),
+                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Ridge + LASSO Combined"),
+                            p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
+                                "Combines LASSO (sparsity) and Ridge (coefficient shrinkage). Unlike LASSO, can retain",
+                                " several correlated features at reduced coefficients. Alpha (L1/L2 mix) searched across 0–1."
+                            )
+                        )
+                    ),
+                    column(4,
+                        div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px;",
+                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "RF Importance"),
+                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Random Forest Filter"),
+                            p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
+                                "Uses importance scores from the Scenario 1 Random Forest as a filter — features above the",
+                                " mean importance threshold are retained. No extra training needed.",
+                                " Distributes importance among correlated features rather than zeroing them out (unlike LASSO)."
+                            )
+                        )
+                    )
+                )
+            ),
+
+            # ── Performance comparison ─────────────────────────────────────────
+            div(class = "card",
+                p(class = "sidebar-section-title", "Performance Comparison"),
+                p(style = "color:#9aaccc; font-size:13px; margin-bottom:16px;",
+                    "All five methods achieve nearly the same AUC-ROC as the full-feature baseline despite using only a subset.",
+                    " The lollipop chart shows how many features each method kept (label) and where it lands relative to the LR-all baseline (dashed line)."
+                ),
+                DTOutput("feat_perf_table"),
+                br(),
+                plotOutput("lollipop_plot", height = "340px")
+            ),
+
+            # ── Feature overlap heatmap ────────────────────────────────────────
+            div(class = "card",
+                p(class = "sidebar-section-title", "Feature Selection Overlap"),
+                p(style = "color:#9aaccc; font-size:13px; margin-bottom:4px;",
+                    "Each row is a feature; each column is a selection method.",
+                    " Green = selected by that method, dark = eliminated.",
+                    " The number (x/5) shows how many of the five methods agreed on that feature."
+                ),
+                plotOutput("heatmap_plot", height = "500px")
+            ),
+
+            # ── Key findings ───────────────────────────────────────────────────
+            div(class = "card",
+                p(class = "sidebar-section-title", "Key Findings"),
+                fluidRow(
+                    column(4,
+                        div(style = "background:#13131e; border:1px solid #27ae60; border-radius:8px; padding:16px; min-height:120px;",
+                            div(style = "color:#27ae60; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;",
+                                "Consensus Core — selected by all 5 methods"),
+                            uiOutput("fs_consensus_5")
+                        )
+                    ),
+                    column(4,
+                        div(style = "background:#13131e; border:1px solid #5383e8; border-radius:8px; padding:16px; min-height:120px;",
+                            div(style = "color:#5383e8; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;",
+                                "Near-Consensus — selected by 4 / 5 methods"),
+                            uiOutput("fs_consensus_4")
+                        )
+                    ),
+                    column(4,
+                        div(style = "background:#13131e; border:1px solid #e84057; border-radius:8px; padding:16px; min-height:120px;",
+                            div(style = "color:#e84057; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;",
+                                "Never Selected — eliminated by all 5 methods"),
+                            uiOutput("fs_consensus_0")
+                        )
+                    )
+                ),
+                br(),
+                p(style = "color:#c8d0e0; line-height:1.8; margin-bottom:10px;",
+                    "All five methods converge on the same answer: the predictive signal in this dataset is highly concentrated.",
+                    " Starting from 21 features, every method reduces the set substantially — LASSO and RF Importance down to",
+                    " just 9 — with almost ", tags$b("no loss in AUC-ROC"), " (84.3–84.4% vs. 84.4% full-feature baseline).",
+                    " Roughly half the features are redundant."
+                ),
+                p(style = "color:#9aaccc; line-height:1.8; margin:0;",
+                    tags$b("firstblood"), " was never selected by any method — consistent with published LoL research",
+                    " where first blood has weak win-rate correlation compared to tower or gold leads.",
+                    " Kill pressure metrics similarly add no independent signal once economic and objective features are accounted for."
+                )
+            ),
+
+            br()
+        )
     ),
 
     # ── Tab 5: Data Explorer ────────────────────────────────────────────────────
@@ -2062,6 +2216,42 @@ server <- function(input, output, session) {
     })
 
     # ── Feature Selection tab ───────────────────────────────────────────────────
+    output$feat_perf_table <- DT::renderDT(server = FALSE, {
+        perf_summary %>%
+            arrange(desc(AUC_ROC)) %>%
+            mutate(
+                Accuracy = sprintf("%.1f%%", Accuracy),
+                AUC_ROC  = sprintf("%.1f%%", AUC_ROC)
+            ) %>%
+            rename(`# Features` = n_features, `Accuracy` = Accuracy, `AUC-ROC` = AUC_ROC) %>%
+            datatable(rownames = FALSE,
+                      options  = list(dom = "t", ordering = FALSE, pageLength = 10)) %>%
+            formatStyle("Method", fontWeight = "bold", color = "#5383e8") %>%
+            formatStyle(columns = c("Method", "# Features", "Accuracy", "AUC-ROC"),
+                        color = "#c8d0e0", backgroundColor = "#1c1c2e")
+    })
+
+    output$fs_consensus_5 <- renderUI({
+        feats <- overlap_df %>% filter(n_methods == 5) %>% pull(feature)
+        if (length(feats) == 0) return(p(style = "color:#9aaccc; font-size:13px;", "None"))
+        tags$ul(style = "color:#c8d0e0; font-size:13px; margin:0; padding-left:16px; line-height:1.9;",
+            lapply(feats, tags$li))
+    })
+
+    output$fs_consensus_4 <- renderUI({
+        feats <- overlap_df %>% filter(n_methods == 4) %>% pull(feature)
+        if (length(feats) == 0) return(p(style = "color:#9aaccc; font-size:13px;", "None"))
+        tags$ul(style = "color:#c8d0e0; font-size:13px; margin:0; padding-left:16px; line-height:1.9;",
+            lapply(feats, tags$li))
+    })
+
+    output$fs_consensus_0 <- renderUI({
+        feats <- overlap_df %>% filter(n_methods == 0) %>% pull(feature)
+        if (length(feats) == 0) return(p(style = "color:#9aaccc; font-size:13px;", "None"))
+        tags$ul(style = "color:#c8d0e0; font-size:13px; margin:0; padding-left:16px; line-height:1.9;",
+            lapply(feats, tags$li))
+    })
+
     output$lollipop_plot <- renderPlot(bg = "#1c1c2e", {
         baseline_auc <- perf_summary$AUC_ROC[perf_summary$Method == "LR_all"]
         perf_summary %>%

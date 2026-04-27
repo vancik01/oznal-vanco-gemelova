@@ -1999,6 +1999,7 @@ saveRDS(perf_summary,  "shiny/models/perf_summary.rds")
 saveRDS(overlap_df,    "shiny/models/overlap_df.rds")
 saveRDS(teams_model,   "shiny/models/teams_model.rds")
 saveRDS(X_train,       "shiny/models/X_train.rds")
+saveRDS(games,         "shiny/models/games.rds")
 
 # Game lookup table for Shiny browser
 opp_lookup <- teams %>%
