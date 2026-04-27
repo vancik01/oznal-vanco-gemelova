@@ -4,6 +4,7 @@ library(tidyverse)
 library(caret)
 library(DT)
 library(pROC)
+library(gridExtra)
 
 # ── Load models ────────────────────────────────────────────────────────────────
 lr_model     <- readRDS("models/lr_model.rds")
@@ -19,6 +20,7 @@ X_train      <- readRDS("models/X_train.rds")
 game_lookup  <- readRDS("models/game_lookup.rds")
 lr_test_df   <- tryCatch(readRDS("models/lr_test_df.rds"), error = function(e) NULL)
 lr_cm_obj    <- tryCatch(readRDS("models/lr_cm.rds"),      error = function(e) NULL)
+games_data   <- tryCatch(readRDS("models/games.rds"),      error = function(e) NULL)
 
 feature_names <- names(X_train)
 train_means   <- colMeans(X_train)
@@ -594,10 +596,11 @@ h6 { font-weight: 700; font-size: 11px; color: #6a7590; text-transform: uppercas
 .data-view .nav-tabs > li.active > a,
 .data-view .nav-tabs > li.active > a:hover,
 .data-view .nav-tabs > li.active > a:focus {
-    background: transparent !important;
-    color: #ffffff !important;
+    background: rgba(83, 131, 232, 0.12) !important;
+    color: #5383e8 !important;
     font-weight: 700 !important;
-    border-bottom: 2px solid #5383e8 !important;
+    border-bottom: 3px solid #5383e8 !important;
+    border-radius: 6px 6px 0 0 !important;
     box-shadow: none !important;
 }
 .data-view .nav-tabs > li > a:hover {
@@ -705,6 +708,28 @@ table.dataTable tbody td {
     padding: 80px 0; flex-direction: column; text-align: center;
 }
 
+/* ── Game browse table: compact pagination ───────────── */
+#game_table_wrapper {
+    overflow: hidden;
+}
+#game_table_wrapper .dataTables_paginate {
+    float: none !important;
+    clear: both;
+    display: block;
+    text-align: center;
+    padding: 8px 0 0 0;
+}
+#game_table_wrapper .paginate_button {
+    padding: 2px 7px !important;
+    font-size: 11px !important;
+    border-radius: 4px !important;
+    min-width: 0 !important;
+    margin: 0 1px !important;
+}
+#game_table_wrapper table.dataTable {
+    margin-bottom: 0 !important;
+}
+
 /* ── Feature collapse toggle ─────────────────────────── */
 .features-toggle { cursor: pointer; }
 .features-toggle:hover span { color: #c8d0e0 !important; }
@@ -786,6 +811,206 @@ ui <- navbarPage(
         tags$script(HTML(pill_js))
     ),
 
+    # ── Tab 0: Introduction ────────────────────────────────────────────────────
+    tabPanel("Introduction",
+        fluidRow(
+            column(8, offset = 2,
+                br(),
+
+                # ── Hero ───────────────────────────────────────────────────────
+                div(class = "card", style = "text-align:center; padding:36px 24px 28px;",
+                    h2(style = "color:#ffffff; font-weight:700; margin:0 0 10px 0;",
+                        "LoL Early-Game Predictor"),
+                    p(style = "color:#9aaccc; font-size:15px; max-width:580px; margin:0 auto;",
+                        "Can the first 15 minutes of a professional League of Legends match",
+                        "predict the final winner?",
+                        "We trained five classification models on real competitive match data to find out.")
+                ),
+
+                br(),
+
+                # ── What is LoL ────────────────────────────────────────────────
+                div(class = "card",
+                    p(class = "sidebar-section-title", "What is League of Legends?"),
+
+                    fluidRow(
+                        column(7,
+                            p(style = "color:#c8d0e0; line-height:1.8; margin-bottom:12px;",
+                                tags$b("League of Legends"), " is one of the world's most popular",
+                                "competitive video games with over 150 million registered accounts",
+                                "and a professional esports scene comparable in viewership to traditional sports."),
+                            p(style = "color:#c8d0e0; line-height:1.8; margin-bottom:12px;",
+                                "Two teams of ", tags$b("5 players"), " face off on a map called",
+                                tags$b("Summoner's Rift."), " Each player controls a unique character",
+                                "— called a ", tags$b("champion"), " — with different abilities.",
+                                "The match ends when one team destroys the enemy ", tags$b("Nexus"),
+                                " (the main base structure on the opposite side of the map)."),
+                            p(style = "color:#c8d0e0; line-height:1.8; margin:0;",
+                                "A typical match lasts 30–45 minutes,",
+                                "but the first 15 minutes — the ", tags$b("early game"), " — largely",
+                                "determine who has the upper hand for the rest of the match.")
+                        ),
+                        column(5,
+                            img(src = "map.png", style = "width:100%; border-radius:8px;")
+                        )
+                    ),
+
+                    div(style = "position:relative; padding-top:56.25%; margin-top:16px; border-radius:8px; overflow:hidden;",
+                        tags$iframe(
+                            src = "https://www.youtube.com/embed/StDaM6Rk-wI?start=1205&end=1230",
+                            style = "position:absolute; top:0; left:0; width:100%; height:100%; border:none;",
+                            allowfullscreen = NA
+                        )
+                    )
+                ),
+
+                br(),
+
+                # ── Key concepts ───────────────────────────────────────────────
+                div(class = "card",
+                    p(class = "sidebar-section-title", "Key concepts"),
+                    fluidRow(
+                        column(4,
+                            div(class = "prob-box", style = "height:100%;",
+                                img(src = "gold.png", style = "width:100%; border-radius:6px; margin-bottom:8px;"),
+                                div(class = "prob-label", "Gold & CS"),
+                                p(style = "color:#c8d0e0; font-size:13px; line-height:1.6; margin:6px 0 0 0;",
+                                    "Players earn gold by defeating minions (CS) and enemies.",
+                                    "Gold buys items that make champions stronger.",
+                                    "A gold lead at 15 min is a strong advantage indicator.")
+                            )
+                        ),
+                        column(4,
+                            div(class = "prob-box", style = "height:100%;",
+                                img(src = "objectives.png", style = "width:100%; border-radius:6px; margin-bottom:8px;"),
+                                div(class = "prob-label", "Objectives"),
+                                p(style = "color:#c8d0e0; font-size:13px; line-height:1.6; margin:6px 0 0 0;",
+                                    "Dragons, Heralds, and Towers grant permanent bonuses.",
+                                    "Securing the First Dragon or First Tower gives a measurable,",
+                                    "lasting edge for the rest of the match.")
+                            )
+                        ),
+                        column(4,
+                            div(class = "prob-box", style = "height:100%;",
+                                img(src = "firstblood.png", style = "width:100%; border-radius:6px; margin-bottom:8px;"),
+                                div(class = "prob-label", "First Blood"),
+                                p(style = "color:#c8d0e0; font-size:13px; line-height:1.6; margin:6px 0 0 0;",
+                                    "The first kill of the match. It grants bonus gold and",
+                                    "signals early dominance. A simple binary event —",
+                                    "yes or no — that is surprisingly predictive of the outcome.")
+                            )
+                        )
+                    )
+                ),
+
+                br(),
+
+                # ── Why is this a hard prediction problem ─────────────────────
+                div(class = "card",
+                    p(class = "sidebar-section-title", "Why is this an interesting prediction problem?"),
+                    p(style = "color:#c8d0e0; line-height:1.8;",
+                        "Professional LoL teams are extremely evenly matched — any team can win on a given day.",
+                        "A 15-minute snapshot captures only a ", tags$b("partial picture"),
+                        " of the match: teams can throw a large lead or stage a comeback.",
+                        "This makes early-game prediction genuinely non-trivial and a good classification benchmark."),
+                    p(style = "color:#c8d0e0; line-height:1.8; margin:0;",
+                        "Additionally, Riot Games (the developer) publishes detailed match statistics via a public API,",
+                        "making LoL one of the richest freely available sources of structured, time-series sports data.")
+                ),
+
+                br(),
+
+                # ── Dataset stats ──────────────────────────────────────────────
+                div(class = "card",
+                    p(class = "sidebar-section-title", "The Dataset"),
+                    p(style = "color:#c8d0e0; line-height:1.7; margin-bottom:14px;",
+                        "Professional competitive match data from major regional leagues.",
+                        "Each observation represents one team's perspective at the 15-minute mark."),
+                    fluidRow(
+                        column(3,
+                            div(class = "prob-box",
+                                div(class = "prob-label", "Matches"),
+                                div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "10 862")
+                            )
+                        ),
+                        column(3,
+                            div(class = "prob-box",
+                                div(class = "prob-label", "Features"),
+                                div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "16")
+                            )
+                        ),
+                        column(3,
+                            div(class = "prob-box",
+                                div(class = "prob-label", "Snapshot"),
+                                div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "15 min")
+                            )
+                        ),
+                        column(3,
+                            div(class = "prob-box",
+                                div(class = "prob-label", "Outcome"),
+                                div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "Win / Loss")
+                            )
+                        )
+                    )
+                ),
+
+                br(),
+
+                # ── Navigation guide ───────────────────────────────────────────
+                div(class = "card",
+                    p(class = "sidebar-section-title", "How to use this app"),
+                    tags$table(
+                        style = "width:100%; border-collapse:collapse;",
+                        tags$thead(
+                            tags$tr(
+                                tags$th(style = "color:#6a7590; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:6px 12px 6px 0; border-bottom:1px solid #2a2a3e;", "Tab"),
+                                tags$th(style = "color:#6a7590; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:6px 0; border-bottom:1px solid #2a2a3e;", "What you'll find")
+                            )
+                        ),
+                        tags$tbody(
+                            tags$tr(
+                                tags$td(style = "padding:10px 12px 10px 0; color:#5383e8; font-weight:600; font-size:13px; border-bottom:1px solid #2a2a3e;", "Match Predictor"),
+                                tags$td(style = "padding:10px 0; color:#c8d0e0; font-size:13px; border-bottom:1px solid #2a2a3e;", "Enter early-game stats and get a live win-probability prediction from all five models.")
+                            ),
+                            tags$tr(
+                                tags$td(style = "padding:10px 12px 10px 0; color:#5383e8; font-weight:600; font-size:13px; border-bottom:1px solid #2a2a3e;", "Hyperparameter Tuning"),
+                                tags$td(style = "padding:10px 0; color:#c8d0e0; font-size:13px; border-bottom:1px solid #2a2a3e;", "See how each model's key hyperparameter was optimised and how it affects performance.")
+                            ),
+                            tags$tr(
+                                tags$td(style = "padding:10px 12px 10px 0; color:#5383e8; font-weight:600; font-size:13px; border-bottom:1px solid #2a2a3e;", "Model Comparison"),
+                                tags$td(style = "padding:10px 0; color:#c8d0e0; font-size:13px; border-bottom:1px solid #2a2a3e;", "Compare all five models on accuracy, AUC, precision, recall, and ROC curves.")
+                            ),
+                            tags$tr(
+                                tags$td(style = "padding:10px 12px 10px 0; color:#5383e8; font-weight:600; font-size:13px; border-bottom:1px solid #2a2a3e;", "Feature Selection"),
+                                tags$td(style = "padding:10px 0; color:#c8d0e0; font-size:13px; border-bottom:1px solid #2a2a3e;", "Explore which early-game statistics carry the most predictive signal.")
+                            ),
+                            tags$tr(
+                                tags$td(style = "padding:10px 12px 10px 0; color:#5383e8; font-weight:600; font-size:13px;", "Data Explorer"),
+                                tags$td(style = "padding:10px 0; color:#c8d0e0; font-size:13px;", "Browse the raw dataset — distributions, correlations, and win-rate breakdowns by feature.")
+                            )
+                        )
+                    )
+                ),
+
+                br(),
+
+                # ── Models badge row ───────────────────────────────────────────
+                div(class = "card", style = "text-align:center;",
+                    p(class = "sidebar-section-title", style = "margin-bottom:14px;", "Models trained"),
+                    tags$span(style = "display:inline-flex; gap:10px; flex-wrap:wrap; justify-content:center;",
+                        tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "Logistic Regression"),
+                        tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "Random Forest"),
+                        tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "Naive Bayes"),
+                        tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "K-Nearest Neighbors"),
+                        tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "Decision Tree (CART)")
+                    )
+                ),
+
+                br()
+            )
+        )
+    ),
+
     # ── Tab 1: Match Predictor ──────────────────────────────────────────────────
     tabPanel("Match Predictor",
         fluidRow(
@@ -801,7 +1026,10 @@ ui <- navbarPage(
                             condition = "input.browse_team !== ''",
                             div(class = "autofill-hint",
                                 "Select a row to auto-fill the features below"),
-                            DTOutput("game_table")
+                            div(style = "overflow: hidden;",
+                                DTOutput("game_table")
+                            ),
+                            div(style = "clear: both;")
                         )
                     ),
                     div(class = "section-divider features-toggle",
@@ -858,13 +1086,9 @@ ui <- navbarPage(
                                 span("Opponent stronger"), span("Team stronger"))
                         )
                     ),
-                    actionButton("predict_btn", "Predict Win Probability",
-                        class = "btn-primary btn-lg",
-                        style = "width:100%; margin-top:4px;")
                 )
             ),
             column(8,
-                br(),
                 uiOutput("game_banner"),
                 fluidRow(
                     column(4, div(class = "prob-box",
@@ -1024,8 +1248,12 @@ ui <- navbarPage(
                         tabPanel("Table",
                             DTOutput("data_table_full")
                         ),
-                        tabPanel("Summary",
-                            DTOutput("data_summary_table")
+                        tabPanel("Correlations",
+                            uiOutput("data_corr_plot_ui"),
+                            uiOutput("data_corrbar_plot_ui")
+                        ),
+                        tabPanel("Outcome Analysis",
+                            plotOutput("data_winrate_plot", height = "700px")
                         ),
                         tabPanel("Distribution",
                             uiOutput("data_dist_controls"),
@@ -1042,27 +1270,72 @@ ui <- navbarPage(
 # ── Server ─────────────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
 
-    rv <- reactiveValues(input_row = NULL, game_info = NULL, last_selected_game = NULL)
+    rv <- reactiveValues(input_row = NULL, game_info = NULL,
+                         last_selected_game = NULL, startup_done = FALSE)
 
     # ── Match Predictor: Browse ─────────────────────────────────────────────────
     observe({
         updateSelectInput(session, "browse_league",
-            choices = sort(unique(game_lookup$league)))
+            choices  = sort(unique(game_lookup$league)),
+            selected = "LCK")
     })
 
     observeEvent(input$browse_league, {
         teams_in_league <- game_lookup %>%
             filter(league == input$browse_league) %>%
             pull(teamname) %>% unique() %>% sort()
+        is_startup <- !isolate(rv$startup_done)
         updateSelectInput(session, "browse_team",
-            choices = c("— select team —" = "", teams_in_league))
-        rv$input_row <- NULL
-        rv$game_info <- NULL
+            choices  = c("— select team —" = "", teams_in_league),
+            selected = if (is_startup) "T1" else "")
+        if (!is_startup) {
+            rv$input_row <- NULL
+            rv$game_info <- NULL
+        }
     })
 
+    # Single browse_team observer — handles startup auto-load and user changes
     observeEvent(input$browse_team, {
-        rv$input_row <- NULL
-        rv$game_info <- NULL
+        if (nchar(input$browse_team) == 0) {
+            rv$input_row <- NULL
+            rv$game_info <- NULL
+            return()
+        }
+        if (!isolate(rv$startup_done)) {
+            # First non-empty team = startup: load T1 vs KT Rolster 2025-01-24
+            rv$startup_done <- TRUE
+            demo <- game_lookup %>%
+                filter(teamname == "T1", league == "LCK",
+                       opp_teamname == "KT Rolster",
+                       as.character(date) == "2025-01-24") %>%
+                slice(1)
+            if (nrow(demo) == 0) return()
+            rv$game_info          <- demo
+            rv$last_selected_game <- demo
+            rv$input_row <- demo %>%
+                rename(side = side_encoded) %>%
+                select(all_of(feature_names)) %>%
+                as.data.frame()
+            updateRadioButtons(session, "side",        selected = as.character(demo$side_encoded))
+            updateSliderInput(session, "golddiffat15", value = round(demo$golddiffat15))
+            updateSliderInput(session, "xpdiffat15",   value = round(demo$xpdiffat15))
+            updateSliderInput(session, "csdiffat15",   value = round(demo$csdiffat15))
+            updateCheckboxInput(session, "firstblood",  value = as.logical(demo$firstblood))
+            updateCheckboxInput(session, "firstdragon", value = as.logical(demo$firstdragon))
+            updateCheckboxInput(session, "firstherald", value = as.logical(demo$firstherald))
+            updateCheckboxInput(session, "firsttower",  value = as.logical(demo$firsttower))
+            updateSliderInput(session, "grub_diff", value = as.integer(demo$grub_diff))
+            updateSliderInput(session, "wr_diff",   value = round(demo$winrate_diff * 100, 1))
+            game_label <- sprintf("%s vs %s · %s", demo$teamname, demo$opp_teamname,
+                                  format(as.Date(demo$date), "%Y-%m-%d"))
+            updateSelectInput(session, "feature_preset",
+                choices  = c(setNames(game_label, game_label), "Custom" = "__custom__"),
+                selected = game_label)
+        } else {
+            # User manually changed team — clear state
+            rv$input_row <- NULL
+            rv$game_info <- NULL
+        }
     })
 
     browse_games_full <- reactive({
@@ -1084,7 +1357,28 @@ server <- function(input, output, session) {
                 Result   = result_label
             ) %>%
             datatable(selection = "single", rownames = FALSE,
-                options = list(dom = "tp", pageLength = 6, scrollY = "260px")) %>%
+                options = list(
+                    dom        = "tp",
+                    pageLength = 5,
+                    autoWidth  = FALSE,
+                    scrollX    = FALSE,
+                    initComplete = JS("function(settings) {
+                        var w = $(this.api().table().container());
+                        w.find('.row, .row > div').css({
+                            'display': 'block',
+                            'float': 'none',
+                            'width': '100%'
+                        });
+                        w.find('.dataTables_paginate').css({
+                            'float': 'none',
+                            'width': '100%',
+                            'display': 'block',
+                            'clear': 'both',
+                            'text-align': 'center',
+                            'padding-top': '8px'
+                        });
+                    }")
+                )) %>%
             formatStyle("Result",
                 color = styleEqual(c("WIN","LOSS"), c("#27ae60","#e84057")),
                 fontWeight = "bold") %>%
@@ -1120,7 +1414,8 @@ server <- function(input, output, session) {
             selected = game_label)
     })
 
-    observeEvent(input$predict_btn, {
+    # Live prediction — updates automatically whenever any feature input changes
+    observe({
         row <- as.data.frame(t(train_means))
         row$golddiffat15 <- input$golddiffat15
         row$xpdiffat15   <- input$xpdiffat15
@@ -1133,12 +1428,12 @@ server <- function(input, output, session) {
         row$side         <- as.numeric(input$side)
         row$winrate_diff <- input$wr_diff / 100
         rv$input_row     <- row
-        rv$game_info     <- NULL
     })
 
-    # Reset preset to Custom when user manually tweaks a feature
+    # Reset preset to Custom and hide game banner when user manually tweaks a feature
     observeEvent(input$user_tweaked_feature, {
         updateSelectInput(session, "feature_preset", selected = "__custom__")
+        rv$game_info <- NULL
     })
 
     # Re-apply game features when user picks the game preset from dropdown
@@ -1166,7 +1461,7 @@ server <- function(input, output, session) {
     # ── Prediction ──────────────────────────────────────────────────────────────
     probs <- reactive({
         req(rv$input_row)
-        raw    <- rv$input_row
+        raw <- rv$input_row
         scaled <- predict(preproc, raw)
         list(
             lr   = round(predict(lr_model,   scaled, type = "prob")[,"Win"] * 100, 1),
@@ -1177,7 +1472,7 @@ server <- function(input, output, session) {
         )
     })
 
-    fmt <- function(p) if (is.null(rv$input_row)) "—" else paste0(p, "%")
+    fmt <- function(p) paste0(p, "%")
     output$prob_lr   <- renderText({ fmt(probs()$lr)   })
     output$prob_rf   <- renderText({ fmt(probs()$rf)   })
     output$prob_nb   <- renderText({ fmt(probs()$nb)   })
@@ -1186,7 +1481,13 @@ server <- function(input, output, session) {
     output$prob_avg  <- renderText({ fmt(round(mean(unlist(probs())), 1)) })
 
     output$game_banner <- renderUI({
-        if (is.null(rv$game_info)) return(NULL)
+        if (is.null(rv$game_info)) {
+            return(div(class = "game-banner",
+                div(class = "banner-teams", "Custom Scenario"),
+                div(class = "banner-meta",
+                    "Manually configured — no real match selected")
+            ))
+        }
         g       <- rv$game_info
         correct <- (g$result == 1 && probs()$lr >= 50) ||
                    (g$result == 0 && probs()$lr <  50)
@@ -1812,7 +2113,8 @@ server <- function(input, output, session) {
     rv_data <- reactiveValues(df = NULL, source = "none")
 
     observeEvent(input$data_use_example, {
-        rv_data$df     <- as.data.frame(game_lookup)
+        req(!is.null(games_data))
+        rv_data$df     <- as.data.frame(games_data)
         rv_data$source <- "example"
     })
 
@@ -1830,19 +2132,34 @@ server <- function(input, output, session) {
     output$data_sidebar_stats <- renderUI({
         if (is.null(rv_data$df)) return(NULL)
         df    <- rv_data$df
-        label <- if (rv_data$source == "example") "Built-in game data" else rv_data$source
+        label <- if (rv_data$source == "example") "Built-in dataset (games)" else rv_data$source
 
-        win_rate  <- if ("result"   %in% names(df))
-            sprintf("%.1f%%", mean(df$result == 1, na.rm = TRUE) * 100) else "N/A"
-        n_leagues <- if ("league"   %in% names(df))
-            as.character(length(unique(df$league)))   else "N/A"
-        n_teams   <- if ("teamname" %in% names(df))
-            as.character(length(unique(df$teamname))) else "N/A"
+        is_games_fmt <- "blue_win" %in% names(df)
+
+        win_rate <- if (is_games_fmt)
+            sprintf("%.1f%%", mean(df$blue_win == 1, na.rm = TRUE) * 100)
+        else if ("result" %in% names(df))
+            sprintf("%.1f%%", mean(df$result == 1, na.rm = TRUE) * 100)
+        else "N/A"
+
+        win_label <- if (is_games_fmt) "Blue Win Rate" else "Win Rate"
 
         stat_row <- function(lbl, val, col = "#c8d0e0") {
             div(class = "data-stat-row",
                 span(class = "data-stat-label", lbl),
                 span(class = "data-stat-value", style = paste0("color:", col), val)
+            )
+        }
+
+        extra_stats <- if (is_games_fmt) {
+            n_features <- sum(grepl("^blue_", names(df))) - 1  # minus blue_win
+            list(stat_row("Features", as.character(n_features), "#9b59b6"))
+        } else {
+            n_leagues <- if ("league"   %in% names(df)) as.character(length(unique(df$league)))   else "N/A"
+            n_teams   <- if ("teamname" %in% names(df)) as.character(length(unique(df$teamname))) else "N/A"
+            list(
+                stat_row("Leagues", n_leagues, "#9b59b6"),
+                stat_row("Teams",   n_teams,   "#e84057")
             )
         }
 
@@ -1853,15 +2170,15 @@ server <- function(input, output, session) {
                     span(style = "font-size:13px; font-weight:600; color:#c8d0e0;", label)
                 ),
                 div(style = "font-size:12px; color:#6a7590;",
-                    sprintf("%s rows × %s cols",
-                            format(nrow(df), big.mark = ","), ncol(df)))
+                    sprintf("%s rows × %s cols", format(nrow(df), big.mark = ","), ncol(df))),
+                if (is_games_fmt)
+                    div(style = "font-size:11px; color:#5383e8; margin-top:4px;", "1 row per game · blue_* / red_* columns")
             ),
             div(class = "sidebar-section",
                 p(class = "sidebar-section-title", "Dataset Statistics"),
                 stat_row("Total Games", format(nrow(df), big.mark = ","), ACCENT),
-                stat_row("Win Rate",    win_rate,                          "#27ae60"),
-                stat_row("Leagues",     n_leagues,                         "#9b59b6"),
-                stat_row("Teams",       n_teams,                           "#e84057")
+                stat_row(win_label,     win_rate,                          "#27ae60"),
+                tagList(extra_stats)
             )
         )
     })
@@ -1886,7 +2203,9 @@ server <- function(input, output, session) {
         div(style = "max-width:300px; margin-bottom:20px;",
             selectInput("data_dist_col", "Variable",
                 choices  = num_cols,
-                selected = if ("golddiffat15" %in% num_cols) "golddiffat15" else num_cols[1],
+                selected = if      ("blue_golddiffat15" %in% num_cols) "blue_golddiffat15"
+                           else if ("golddiffat15"      %in% num_cols) "golddiffat15"
+                           else num_cols[1],
                 width    = "100%")
         )
     })
@@ -1903,29 +2222,312 @@ server <- function(input, output, session) {
         )
     })
 
-    output$data_summary_table <- renderDT({
+    # Same column set as EDA correlation chunk (Blue's perspective only)
+    eda_early_cols <- c(
+        "blue_goldat10",     "blue_xpat10",     "blue_csat10",
+        "blue_golddiffat10", "blue_xpdiffat10",  "blue_csdiffat10",
+        "blue_killsat10",    "blue_deathsat10",  "blue_assistsat10",
+        "blue_goldat15",     "blue_xpat15",     "blue_csat15",
+        "blue_golddiffat15", "blue_xpdiffat15",  "blue_csdiffat15",
+        "blue_killsat15",    "blue_deathsat15",  "blue_assistsat15",
+        "blue_firstblood",   "blue_firstdragon", "blue_firstherald", "blue_firsttower",
+        "blue_void_grubs",   "red_void_grubs",
+        "blue_win"
+    )
+
+    corr_cols_for <- function(df) {
+        if ("blue_win" %in% names(df))
+            intersect(eda_early_cols, names(df))
+        else
+            names(df)[sapply(df, is.numeric)]
+    }
+
+    output$data_corr_plot_ui <- renderUI({
+        req(!is.null(rv_data$df))
+        cols <- corr_cols_for(rv_data$df)
+        n    <- max(2, length(cols))
+        px   <- max(420, n * 52)
+        plotOutput("data_corr_plot", height = paste0(px, "px"))
+    })
+
+    output$data_corr_plot <- renderPlot(bg = "#1c1c2e", {
         req(!is.null(rv_data$df))
         df     <- rv_data$df
-        num_df <- df[, sapply(df, is.numeric), drop = FALSE]
-        if (ncol(num_df) == 0) {
-            return(datatable(data.frame(Message = "No numeric columns found."), rownames = FALSE))
+        is_eda <- "blue_win" %in% names(df)
+        cols   <- corr_cols_for(df)
+        num_df <- df[, cols, drop = FALSE]
+        num_df <- num_df[, colSums(is.na(num_df)) < nrow(num_df), drop = FALSE]
+        if (ncol(num_df) < 2) {
+            return(ggplot() +
+                annotate("text", x = 0.5, y = 0.5, label = "Need at least 2 numeric columns",
+                         color = "#6a7590", size = 5) +
+                dark_theme() + theme_void())
         }
-        smry <- as.data.frame(t(sapply(num_df, function(x) {
-            c(N       = sum(!is.na(x)),
-              Min     = round(min(x,  na.rm = TRUE), 3),
-              Q1      = round(quantile(x, 0.25, na.rm = TRUE), 3),
-              Median  = round(median(x, na.rm = TRUE), 3),
-              Mean    = round(mean(x,   na.rm = TRUE), 3),
-              Q3      = round(quantile(x, 0.75, na.rm = TRUE), 3),
-              Max     = round(max(x,  na.rm = TRUE), 3),
-              SD      = round(sd(x,   na.rm = TRUE), 3),
-              Missing = sum(is.na(x))
+
+        n      <- ncol(num_df)
+        txt_sz <- if (n <= 6) 4.2 else if (n <= 10) 3.4 else 2.6
+
+        cor_mat <- cor(num_df, use = "pairwise.complete.obs")
+        cor_df  <- as.data.frame(as.table(cor_mat)) %>%
+            rename(corr = Freq)
+
+        ggplot(cor_df, aes(x = Var1, y = Var2, fill = corr)) +
+            geom_tile(color = "#13131e", linewidth = 0.5) +
+            geom_text(aes(label = ifelse(abs(corr) >= 0.05,
+                                         sprintf("%.2f", corr), "")),
+                      size = txt_sz, color = "white", fontface = "bold") +
+            scale_fill_gradient2(
+                low      = "#e84057",
+                mid      = "#1c1c2e",
+                high     = ACCENT,
+                midpoint = 0,
+                limits   = c(-1, 1),
+                name     = "Pearson r"
+            ) +
+            coord_fixed() +
+            labs(
+                title    = "Feature Correlation Matrix",
+                subtitle = if (is_eda)
+                    "Early-game features · Blue's perspective · Red = negative, Blue = positive"
+                else
+                    "Red = negative correlation · Blue = positive correlation"
+            ) +
+            dark_theme() +
+            theme(
+                axis.text.x     = element_text(angle = 35, hjust = 1, size = 11),
+                axis.text.y     = element_text(size = 11),
+                axis.title      = element_blank(),
+                panel.grid      = element_blank(),
+                legend.position = "right"
             )
-        })))
-        smry <- cbind(Feature = rownames(smry), smry)
-        rownames(smry) <- NULL
-        datatable(smry, rownames = FALSE,
-            options = list(dom = "lrtip", pageLength = 25, scrollX = TRUE))
+    })
+
+    output$data_corrbar_plot_ui <- renderUI({
+        req(!is.null(rv_data$df))
+        plotOutput("data_corrbar_plot", height = "380px")
+    })
+
+    output$data_corrbar_plot <- renderPlot(bg = "#1c1c2e", {
+        req(!is.null(rv_data$df))
+        df     <- rv_data$df
+        is_eda <- "blue_win" %in% names(df)
+
+        target_col <- if (is_eda) "blue_win"
+                      else if ("result" %in% names(df)) "result"
+                      else return(NULL)
+
+        candidate_cols <- if (is_eda) eda_early_cols
+                          else names(df)[sapply(df, is.numeric)]
+        feat_cols <- setdiff(intersect(candidate_cols, names(df)), target_col)
+        feat_cols <- feat_cols[colSums(is.na(df[, feat_cols, drop = FALSE])) < nrow(df)]
+        if (length(feat_cols) < 1) return(NULL)
+
+        target_vec <- df[[target_col]]
+        cors <- sapply(feat_cols, function(col) {
+            cor(df[[col]], target_vec, use = "pairwise.complete.obs")
+        })
+
+        cor_df <- data.frame(feature = names(cors), correlation = unname(cors)) %>%
+            filter(!is.na(correlation)) %>%
+            arrange(desc(abs(correlation))) %>%
+            slice_head(n = 10) %>%
+            mutate(
+                feature   = factor(feature, levels = rev(feature)),
+                direction = ifelse(correlation > 0, "positive", "negative")
+            )
+
+        lim <- max(abs(cor_df$correlation)) * 1.3
+
+        ggplot(cor_df, aes(x = feature, y = correlation, fill = direction)) +
+            geom_col(width = 0.65) +
+            geom_text(aes(
+                label = sprintf("%.3f", correlation),
+                hjust = ifelse(correlation >= 0, -0.1, 1.1)
+            ), size = 3.5, color = "#c8d0e0") +
+            coord_flip() +
+            geom_hline(yintercept = 0, color = "#6a7590", linewidth = 0.5) +
+            scale_fill_manual(values = c(positive = ACCENT, negative = "#e84057"), guide = "none") +
+            scale_y_continuous(limits = c(-lim, lim)) +
+            labs(
+                title    = sprintf("Top 10 Features Correlated with %s", target_col),
+                subtitle = "All features · sorted by |r|",
+                x = NULL, y = "Pearson r"
+            ) +
+            dark_theme() +
+            theme(
+                axis.text.y        = element_text(size = 11),
+                panel.grid.major.y = element_blank()
+            )
+    })
+
+    output$data_winrate_plot <- renderPlot(bg = "#1c1c2e", {
+        req(!is.null(rv_data$df))
+        df <- rv_data$df
+
+        is_games_fmt <- "blue_win"  %in% names(df)
+        is_old_fmt   <- "result"    %in% names(df)
+
+        if (!is_games_fmt && !is_old_fmt) {
+            return(ggplot() +
+                annotate("text", x = 0.5, y = 0.5,
+                         label = "Dataset needs a 'blue_win' or 'result' column",
+                         color = "#6a7590", size = 5) +
+                dark_theme() + theme_void())
+        }
+
+        # ── Normalise to a common interface ──────────────────────────────────────
+        if (is_games_fmt) {
+            target_col  <- "blue_win"
+            win_label   <- "Blue won"
+            loss_label  <- "Red won"
+            win_col     <- "#3498db"
+            loss_col    <- "#e84057"
+            obj_cols    <- intersect(
+                c("blue_firstblood","blue_firstdragon","blue_firstherald","blue_firsttower"),
+                names(df))
+            obj_labels  <- c(blue_firstblood  = "First Blood",
+                             blue_firstdragon = "First Dragon",
+                             blue_firstherald = "First Herald",
+                             blue_firsttower  = "First Tower")
+            cont_cols   <- intersect(
+                c("blue_golddiffat15","blue_xpdiffat15","blue_csdiffat15"),
+                names(df))
+            cont_labels <- c(blue_golddiffat15 = "Gold Diff @15",
+                             blue_xpdiffat15   = "XP Diff @15",
+                             blue_csdiffat15   = "CS Diff @15")
+        } else {
+            target_col  <- "result"
+            win_label   <- "Win"
+            loss_label  <- "Loss"
+            win_col     <- ACCENT
+            loss_col    <- "#e84057"
+            obj_cols    <- intersect(
+                c("firstblood","firstdragon","firstherald","firsttower"),
+                names(df))
+            obj_labels  <- c(firstblood  = "First Blood",  firstdragon = "First Dragon",
+                             firstherald = "First Herald", firsttower  = "First Tower")
+            cont_cols   <- intersect(
+                c("golddiffat15","xpdiffat15","csdiffat15","grub_diff","winrate_diff"),
+                names(df))
+            cont_labels <- c(golddiffat15 = "Gold Diff @15", xpdiffat15   = "XP Diff @15",
+                             csdiffat15   = "CS Diff @15",   grub_diff    = "Grub Diff",
+                             winrate_diff = "WR Diff")
+        }
+
+        target_vals <- df[[target_col]]
+        n_win       <- sum(target_vals == 1, na.rm = TRUE)
+        n_loss      <- sum(target_vals == 0, na.rm = TRUE)
+        n_total     <- n_win + n_loss
+
+        # ── Panel A: target distribution ─────────────────────────────────────────
+        dist_df <- data.frame(
+            Outcome = factor(c(win_label, loss_label), levels = c(win_label, loss_label)),
+            n       = c(n_win, n_loss)
+        )
+        p_dist <- ggplot(dist_df, aes(x = Outcome, y = n, fill = Outcome)) +
+            geom_col(width = 0.5) +
+            geom_text(aes(label = sprintf("%s\n%.1f%%",
+                                          format(n, big.mark = ","), n / n_total * 100)),
+                      vjust = -0.35, size = 4, color = "#c8d0e0", fontface = "bold") +
+            geom_hline(yintercept = n_total / 2,
+                       linetype = "dashed", color = "#6a7590", linewidth = 0.7) +
+            scale_fill_manual(values = setNames(c(win_col, loss_col),
+                                                c(win_label, loss_label))) +
+            scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
+            labs(title    = "Target Distribution",
+                 subtitle = if (is_games_fmt)
+                     sprintf("Blue WR = %.1f%%  ·  p ≪ 0.001 vs 50%%  ·  n = %s games",
+                             n_win / n_total * 100, format(n_total, big.mark = ","))
+                 else
+                     sprintf("Win rate = %.1f%%  ·  n = %s rows",
+                             n_win / n_total * 100, format(n_total, big.mark = ",")),
+                 x = NULL, y = "Count") +
+            dark_theme() +
+            theme(legend.position    = "none",
+                  panel.grid.major.x = element_blank())
+
+        p_list <- list(dist = p_dist)
+
+        # ── Panel B: objective win rates ─────────────────────────────────────────
+        if (length(obj_cols) > 0) {
+            wr_obj <- lapply(obj_cols, function(col) {
+                df %>%
+                    filter(!is.na(.data[[col]]), !is.na(.data[[target_col]])) %>%
+                    group_by(got = factor(
+                        ifelse(.data[[col]] == 1, "Got it", "Didn't get it"),
+                        levels = c("Got it", "Didn't get it"))) %>%
+                    summarise(
+                        win_rate = mean(.data[[target_col]] == 1, na.rm = TRUE) * 100,
+                        n        = n(), .groups = "drop") %>%
+                    mutate(objective = obj_labels[col])
+            }) %>% bind_rows()
+
+            p_list$obj <- ggplot(wr_obj, aes(x = objective, y = win_rate, fill = got)) +
+                geom_col(position = position_dodge(width = 0.6), width = 0.5) +
+                geom_text(aes(label = sprintf("%.1f%%", win_rate)),
+                          position = position_dodge(width = 0.6),
+                          vjust = -0.5, size = 3.2, color = "#c8d0e0", fontface = "bold") +
+                geom_hline(yintercept = 50,
+                           linetype = "dashed", color = "#6a7590", linewidth = 0.7) +
+                scale_fill_manual(
+                    values = c("Got it" = ACCENT, "Didn't get it" = "#2e3a5e"),
+                    name = NULL) +
+                scale_y_continuous(limits = c(0, 80), expand = c(0, 0),
+                                   labels = function(x) paste0(x, "%")) +
+                labs(title    = if (is_games_fmt) "Blue Win Rate by Objective"
+                               else "Win Rate by Objective",
+                     subtitle = "Dashed line = 50% baseline",
+                     x = NULL,
+                     y = if (is_games_fmt) "Blue Win Rate (%)" else "Win Rate (%)") +
+                dark_theme() +
+                theme(legend.position    = "top",
+                      panel.grid.major.x = element_blank())
+        }
+
+        # ── Panel C: key differentials by outcome ─────────────────────────────────
+        if (length(cont_cols) > 0) {
+            box_df <- df %>%
+                select(all_of(c(target_col, cont_cols))) %>%
+                filter(!is.na(.data[[target_col]])) %>%
+                mutate(Outcome = factor(
+                    ifelse(.data[[target_col]] == 1, win_label, loss_label),
+                    levels = c(win_label, loss_label))) %>%
+                pivot_longer(all_of(cont_cols),
+                             names_to = "feature", values_to = "value") %>%
+                mutate(feature = recode(feature, !!!cont_labels))
+
+            p_list$box <- ggplot(box_df, aes(x = Outcome, y = value, fill = Outcome)) +
+                geom_hline(yintercept = 0,
+                           linetype = "dashed", color = "#6a7590", linewidth = 0.6) +
+                geom_boxplot(alpha = 0.7, outlier.size = 0.8,
+                             outlier.color = "#6a7590", width = 0.5) +
+                scale_fill_manual(
+                    values = setNames(c(win_col, loss_col), c(win_label, loss_label)),
+                    guide  = "none") +
+                facet_wrap(~feature, scales = "free_y", nrow = 1) +
+                labs(title    = "Feature Distribution by Outcome",
+                     subtitle = "Median line inside box  ·  dashed = zero",
+                     x = NULL, y = NULL) +
+                dark_theme() +
+                theme(strip.text         = element_text(size = 9, color = "#9aaccc"),
+                      panel.grid.major.x = element_blank(),
+                      strip.background   = element_rect(fill = "#13131e", color = NA))
+        }
+
+        # ── Arrange panels ────────────────────────────────────────────────────────
+        if (!is.null(p_list$obj) && !is.null(p_list$box)) {
+            gridExtra::grid.arrange(
+                p_list$dist,
+                gridExtra::arrangeGrob(p_list$obj, p_list$box, ncol = 2),
+                nrow = 2, heights = c(1, 1.4)
+            )
+        } else if (!is.null(p_list$obj)) {
+            gridExtra::grid.arrange(p_list$dist, p_list$obj, nrow = 2, heights = c(1, 1.4))
+        } else if (!is.null(p_list$box)) {
+            gridExtra::grid.arrange(p_list$dist, p_list$box, nrow = 2, heights = c(1, 1.4))
+        } else {
+            print(p_list$dist)
+        }
     })
 
     output$data_dist_plot <- renderPlot(bg = "#1c1c2e", {
@@ -1938,10 +2540,21 @@ server <- function(input, output, session) {
         x     <- vals[valid]
         if (length(x) < 2) return(NULL)
 
-        has_result <- "result" %in% names(df)
-        plot_df    <- data.frame(x = x)
+        is_games_fmt <- "blue_win" %in% names(df)
+        is_old_fmt   <- "result"   %in% names(df)
+        is_diff_col  <- grepl("diff", col, ignore.case = TRUE)
+        plot_df      <- data.frame(x = x)
 
-        if (has_result) {
+        if (is_games_fmt) {
+            plot_df$Outcome <- factor(
+                ifelse(df$blue_win[valid] == 1, "Blue won", "Red won"),
+                levels = c("Blue won", "Red won")
+            )
+            p <- ggplot(plot_df, aes(x = x, fill = Outcome, color = Outcome)) +
+                geom_density(alpha = 0.22, linewidth = 1.1) +
+                scale_fill_manual(values  = c("Blue won" = "#3498db", "Red won" = "#e84057"), name = NULL) +
+                scale_color_manual(values = c("Blue won" = "#3498db", "Red won" = "#e84057"), name = NULL)
+        } else if (is_old_fmt) {
             plot_df$Outcome <- factor(
                 ifelse(df$result[valid] == 1, "Win", "Loss"),
                 levels = c("Win", "Loss")
@@ -1955,10 +2568,15 @@ server <- function(input, output, session) {
                 geom_density(fill = ACCENT, color = ACCENT, alpha = 0.22, linewidth = 1.1)
         }
 
+        if (is_diff_col) {
+            p <- p + geom_vline(xintercept = 0,
+                                linetype = "dashed", color = "#6a7590", linewidth = 0.8)
+        }
+
         p +
             labs(
                 title    = col,
-                subtitle = sprintf("n = %s  ·  mean = %.3f  ·  sd = %.3f  ·  range [%.3f, %.3f]",
+                subtitle = sprintf("n = %s  ·  mean = %.1f  ·  sd = %.1f  ·  range [%.1f, %.1f]",
                                    format(length(x), big.mark = ","),
                                    mean(x), sd(x), min(x), max(x)),
                 x = col, y = "Density"
@@ -1966,7 +2584,7 @@ server <- function(input, output, session) {
             dark_theme(base_size = 14) +
             theme(
                 panel.grid.minor = element_blank(),
-                legend.position  = if (has_result) "top" else "none"
+                legend.position  = if (is_games_fmt || is_old_fmt) "top" else "none"
             )
     })
 
