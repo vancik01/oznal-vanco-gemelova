@@ -1372,7 +1372,7 @@ The S1 VIF flagged a tight collinear cluster around resource diffs and momentum 
 
 ## RFE (Recursive Feature Elimination)
 
-RFE repeatedly trains a model, ranks features by importance, removes the weakest, and repeats - narrowing the feature set until performance stops improving. We use Logistic Regression as the base estimator so importance is defined by coefficient magnitude on standardized features. Subset sizes from 5 to the full feature set are tested; 5-fold cross-validation picks the size that maximises accuracy. After RFE identifies the optimal subset, a fresh LR is trained on only those features and evaluated on the held-out test set for a clean performance estimate.
+RFE iteratively removes the least important feature and re-trains until cross-validated AUC stops improving. We use Logistic Regression as the base estimator because standardised coefficients give a natural importance ranking that ties directly back to the interpretable LR baseline from S1. The core question for our dataset is whether the signal plateaus well before all 19 features — given the collinear resource-diff cluster flagged by VIF, we expect the elbow to appear early.
 
 ```{r s3-rfe}
 cat("Running RFE with Logistic Regression estimator (5-fold CV)...\n")
@@ -1448,11 +1448,11 @@ ggplot(rfe_coef_df,
     theme_minimal()
 ```
 
-The first plot shows the accuracy-vs-size curve: the elbow marks the optimal subset. Adding more features beyond this point brings diminishing or negative returns. The coefficient plot ranks the selected features by their absolute contribution in the final LR model.
+The accuracy-vs-size curve shows exactly where adding more features stops helping. If the curve flattens well before 19, that confirms the momentum/diff cluster is carrying duplicate signal. The coefficient plot shows which features the final LR kept and in which direction — `golddiffat15` is expected to dominate, with remaining features ordered by how much independent signal they contribute beyond the gold lead alone.
 
 ## Forward Stepwise Selection
 
-Forward Stepwise starts with an intercept-only model and greedily adds the feature that most improves AIC at each step, stopping when no addition helps. AIC balances model fit against complexity by penalising extra parameters, so the algorithm naturally limits how many features get added without any manual threshold. Unlike RFE - which re-evaluates all sizes via cross-validation - stepwise selection is a single greedy pass and is therefore much faster. A key difference from LASSO: once a feature is added it stays; there is no shrinkage of redundant coefficients.
+Forward Stepwise greedily adds the single feature that most reduces AIC at each step, stopping when no addition helps. Its value here is as a cross-check against RFE: RFE uses cross-validated accuracy, Forward uses an information-theoretic criterion (AIC). If both methods converge on the same core features despite using completely different criteria, that agreement is strong evidence those features carry genuine signal rather than selection-method artefacts.
 
 ```{r s3-forward}
 cat("Running Forward Stepwise Selection (AIC criterion)...\n")
@@ -1511,11 +1511,11 @@ ggplot(fwd_coef_df,
     theme_minimal()
 ```
 
-Because features are standardized, coefficient magnitudes are directly comparable - the AIC criterion selects the same high-signal features we expect from the correlation heatmap.
+The selected features and coefficient directions can be compared directly to the RFE result above. Agreement between the two methods — on which features appear and which direction they push win probability — increases confidence that the finding is not an artefact of how one particular algorithm searches the feature space.
 
 ## LASSO (L1)
 
-LASSO (Least Absolute Shrinkage and Selection Operator) is logistic regression with an added penalty for large coefficients. Unlike standard logistic regression, which keeps all features, LASSO can shrink individual coefficients all the way to exactly zero - effectively removing those features from the model. This makes it both a classifier and a feature selector in one step. It is particularly useful here because our features have high multicollinearity: when two features carry the same signal (e.g. `golddiffat15` and `gold_momentum`), LASSO tends to keep the stronger one and zero out the weaker. We tune `lambda` - the penalty strength - via cross-validation: too low and nothing gets eliminated, too high and useful features get removed.
+LASSO adds an L1 penalty to logistic regression that shrinks coefficients to exactly zero, making it both a classifier and a feature selector in one step. It is directly motivated by our VIF findings: `golddiffat15` and `gold_momentum` share a large fraction of their signal (momentum is literally the @15 minus @10 diff), and LASSO is the natural tool to resolve that redundancy — it retains the stronger signal and zeros out the weaker one automatically. The penalty strength `lambda` is tuned via 5-fold CV; we use `lambda.1se` rather than `lambda.min`, deliberately accepting a sparser model in exchange for a negligible increase in deviance.
 
 ```{r s3-lasso}
 cat("Running LASSO with 5-fold CV to find optimal lambda...\n")
@@ -1593,11 +1593,11 @@ lasso_selected %>%
     theme_minimal()
 ```
 
-The CV plot shows how model error changes as lambda increases (fewer features). The left dashed line marks `lambda.min` (lowest error), the right marks `lambda.1se` (our chosen lambda - slightly sparser, nearly as accurate). The coefficient plot shows which features survived and in which direction: green bars increase win probability, red bars decrease it.
+The gap between the two dashed lines shows how much sparsity we gain by moving from `lambda.min` to `lambda.1se` — if the deviance barely rises, the eliminated features were genuinely redundant. The coefficient plot is the key interpretive output: every feature LASSO zeroed out was redundant given the rest of the model, while surviving features (green = positive effect on Blue win probability, red = negative) form the minimal set that retains the full predictive signal.
 
 ## Elastic Net (L1 + L2)
 
-Elastic Net combines L1 (LASSO) and L2 (Ridge) penalties in a single term. The mix is controlled by `alpha`: `alpha = 1` is pure LASSO, `alpha = 0` is pure Ridge, values in between give Elastic Net. Where LASSO tends to pick one feature from a correlated group and zero out the rest, Elastic Net can keep several features from the same group at reduced coefficients - potentially more stable when features are strongly correlated, as ours are (e.g. `goldat15` and `golddiffat15`). We search the full alpha range from 0 (Ridge) to 1 (LASSO) in 0.05 steps, and for each find the optimal lambda via 5-fold CV. For every alpha we also record the CV binomial deviance at `lambda.1se` and its standard error, so we can judge whether the "best" alpha is meaningfully better than its neighbours or the curve is flat within 1 SE.
+Elastic Net mixes L1 (LASSO) and L2 (Ridge) penalties, with `alpha` controlling the blend. It addresses a known limitation of pure LASSO: when several features are correlated — as `golddiffat15`, `xpdiffat15`, and `csdiffat15` are — LASSO arbitrarily picks one and zeros the rest, which can make the selected set unstable across re-samples. Elastic Net can retain all three at reduced weights, potentially giving a more stable picture of which resource dimensions matter. We search the full alpha range in 0.05 steps; if the CV deviance curve is flat (many alphas within 1 SE of the minimum), the data cannot distinguish LASSO from Ridge at this sample size and the L1/L2 mix is effectively underdetermined.
 
 ```{r s3-elasticnet}
 cat("Running Elastic Net - searching alpha grid (0 to 1, step 0.05)...\n")
@@ -1713,11 +1713,11 @@ enet_selected_df %>%
     theme_minimal()
 ```
 
-The alpha search plot shows the 5-fold CV deviance at `lambda.1se` across the full 0-1 range, with the shaded band covering ±1 SE and the dashed line marking `best + 1 SE`. Every alpha whose point sits on or below that line is statistically indistinguishable from the best - so if many points fall below it, the L1/L2 mix is effectively underdetermined by this data and the "best alpha" is a tiebreak rather than a real optimum. A sharp U- or V-shape, by contrast, would indicate the data genuinely benefits from a specific mix. The coefficient plot mirrors the LASSO plot above; differences between the two reveal which features LASSO eliminated but Elastic Net retained due to correlated grouping.
+A flat deviance curve (many alphas below the dashed 1-SE line) means the L1/L2 mix does not matter for prediction quality — any blend works equally well, and the "best alpha" is a tiebreak rather than a meaningful optimum. A U- or V-shape would mean the data genuinely benefits from a specific mix of sparsity and shrinkage. The coefficient plot is the key comparison against LASSO: any feature that LASSO zeroed out but Elastic Net retained carries secondary signal that only becomes visible when correlated features are allowed to share a group penalty rather than compete for a single non-zero slot.
 
 ## Random Forest Importance
 
-The Random Forest trained in S1 generates feature importance scores as a by-product of training - no additional computation is needed. We use these scores as a filter: features with importance above the mean are retained, the rest discarded. This is the fastest and least tuning-intensive selection method: it piggybacks on the RF already trained for S1, requires no new cross-validation, and handles correlated features gracefully - RF distributes importance among correlated features rather than zeroing all but one like LASSO. To get a comparable performance estimate, we train a simple LR on the selected subset and evaluate it on the held-out test set.
+RF importance is a non-parametric selection criterion that reuses the model already trained in S1 — no additional computation required. Unlike LASSO, which resolves correlated groups by zeroing all but one feature, RF distributes importance across correlated features in proportion to their marginal contribution after accounting for the others. This gives us a complementary view: where LASSO saw `golddiffat15` absorb the entire resource-diff signal, RF may still assign meaningful importance to `xpdiffat15` or `csdiffat15` because it measures each feature's contribution to splits independently. Features above mean importance are retained; we then train an LR on that subset to produce a test-set accuracy estimate comparable to the other methods.
 
 ```{r s3-rf-importance}
 rf_importance_threshold <- mean(rf_imp$Overall)
@@ -1769,7 +1769,7 @@ rf_imp %>%
     theme(axis.text.y = element_text(size = 7))
 ```
 
-The dashed red line marks the mean importance threshold. Features above it (green) are retained; those below (grey) are discarded. Note that RF distributes importance among correlated features - so unlike LASSO, several correlated gold metrics may all survive with reduced but non-zero importance.
+A steep drop-off in the importance bars — where a small number of features sit far above the threshold and the rest cluster near zero — would confirm that the signal is dominated by a small core. A flatter distribution would suggest many features contribute roughly equally and the mean threshold is somewhat arbitrary. Comparing the selected set to LASSO's output shows which features each approach treats as redundant and which it considers independently informative.
 
 ```{r s3-best-hyperparams}
 s3_best_hyperparams <- tibble(
@@ -1945,7 +1945,7 @@ perf_summary %>%
     theme(panel.grid.minor = element_blank())
 ```
 
-Každý riadok = jedna metóda. Dĺžka stĺpca = AUC-ROC, číslo v texte hovorí koľko features použila. Prerušovaná čiara = baseline (všetky features). LASSO a RFE sú tesne pod čiarou s 9 features - prakticky rovnaký výkon pri polovici features.
+Each row is one selection method; the dot position shows AUC-ROC on the test set and the label shows how many features were kept. The red dashed line is the full-feature LR baseline. Methods clustered near the baseline with substantially fewer features demonstrate that the same predictive power is achievable with a smaller, more interpretable set — confirming that much of the original 19-feature set was carrying redundant signal.
 
 ## S3 findings
 
