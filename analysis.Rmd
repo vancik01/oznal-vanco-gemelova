@@ -28,7 +28,7 @@ League of Legends is the most-played and most-watched esport in the world. Predi
 The analysis runs two scenarios on the same data:
 
 -   **Scenario 1 - Model Comparison.** We train and tune five classifiers (Logistic Regression, Random Forest, Naive Bayes, KNN, CART) on the engineered early-game feature set and compare them on accuracy, AUC-ROC, precision, recall, and F1. The goal is to see whether any model can extract signal beyond the trivial "team with the gold lead at 15 min wins" baseline (\~73% accuracy), and whether different model families agree on what matters.
--   **Scenario 3 - Feature Selection.** With \~46 candidate features carrying a lot of redundancy, we apply RFE, LASSO, and Elastic Net to find the minimal subset that retains predictive performance. This both improves interpretability and stress-tests which features are genuinely informative versus carrying duplicate signal.
+-   **Scenario 3 - Feature Selection.** With 19 engineered candidate features carrying meaningful redundancy, we apply RFE, LASSO, and Elastic Net to find the minimal subset that retains predictive performance. This both improves interpretability and stress-tests which features are genuinely informative versus carrying duplicate signal.
 
 ## Hypotheses
 
@@ -186,7 +186,7 @@ cat(sprintf(
 cat("\nDropped features (recoverable as -blue_X or 1-blue_X):\n  ",
     paste(redundant_mirrors, collapse = ", "), "\n")
 
-# Statistical test for side imbalance — hypotheses should be evaluated with
+# Statistical test for side imbalance - hypotheses should be evaluated with
 # significance tests, not just point estimates.
 side_test <- prop.test(sum(games$blue_win), nrow(games), p = 0.5)
 cat(sprintf(
@@ -215,7 +215,6 @@ games %>%
     geom_hline(yintercept = nrow(games) / 2, linetype = "dashed", color = "gray40") +
     labs(
         title    = "Target Variable Distribution (blue_win)",
-        subtitle = "Dashed line = perfect 50/50",
         x = "Outcome", y = "Count"
     ) +
     theme_minimal() +
@@ -278,7 +277,6 @@ ggplot(result_cors, aes(
     ) +
     labs(
         title    = "Feature Correlation with blue_win",
-        subtitle = "All features oriented from Blue's perspective",
         x = NULL, y = "Pearson Correlation", fill = "Direction"
     ) +
     theme_minimal()
@@ -310,7 +308,6 @@ games %>%
     geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
     labs(
         title    = "Gold Differential at 15 Minutes - Blue's Perspective",
-        subtitle = "One row per game: positive = Blue ahead, negative = Red ahead",
         x = "blue_golddiffat15", y = "Density", fill = "Outcome"
     ) +
     theme_minimal()
@@ -327,7 +324,6 @@ games %>%
     geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
     labs(
         title    = "Blue Gold Diff @10 vs @15 - Do Leads Grow?",
-        subtitle = "Points far from the diagonal indicate momentum shifts between 10 and 15 min",
         x = "blue_golddiffat10", y = "blue_golddiffat15", color = "Outcome"
     ) +
     theme_minimal()
@@ -405,7 +401,6 @@ ggplot(
     geom_hline(yintercept = 50, linetype = "dashed", color = "gray40") +
     labs(
         title    = "P(Blue wins) by Who Secured the First Objective",
-        subtitle = "Dashed line = 50% baseline (no advantage)",
         x = NULL, y = "Blue Win Rate (%)", fill = NULL
     ) +
     theme_minimal()
@@ -445,7 +440,6 @@ games %>%
     geom_hline(yintercept = 50, linetype = "dashed", color = "gray40") +
     labs(
         title    = "Blue Win Rate by Number of Void Grubs Blue Secured",
-        subtitle = "Pit max = 6 grubs total, shared between Blue and Red",
         x = "blue_void_grubs", y = "P(Blue wins) (%)"
     ) +
     theme_minimal() +
@@ -485,7 +479,6 @@ tibble(
     scale_y_continuous(limits = c(0, 70)) +
     labs(
         title    = "Blue-Side Advantage (one row per game)",
-        subtitle = "Dashed line = 50% null hypothesis  ·  error bar = 95% CI",
         x = NULL, y = "P(Blue wins) (%)"
     ) +
     theme_minimal() +
@@ -529,7 +522,6 @@ ggplot(role_cors, aes(
     scale_fill_gradient(low = "#f39c12", high = "#2ecc71") +
     labs(
         title    = "Correlation: Role Gold Diff @15 (Blue side) vs blue_win",
-        subtitle = "Which role's early-game gold advantage best predicts winning?",
         x = NULL, y = "Pearson Correlation with blue_win"
     ) +
     theme_minimal() +
@@ -575,7 +567,6 @@ ggplot(scale_check, aes(x = value)) +
     facet_wrap(~feature, scales = "free", ncol = 4) +
     labs(
         title    = "Feature Distributions - Scale Check (Blue's perspective)",
-        subtitle = "Different scales across features → standardisation needed for KNN and Logistic Regression",
         x = "Value", y = "Count"
     ) +
     theme_minimal()
@@ -600,7 +591,7 @@ The scales differ wildly: `blue_goldat15` runs from \~20,000 to \~36,000, while 
 
 # Feature Engineering
 
-The correlation analysis showed that *gaps* between teams carry the signal, so we keep signed differentials. To control multicollinearity, we keep one of each redundant triple `(goldat15, opp_goldat15, golddiffat15)` - the differential - and drop the other two. The raw @10 snapshots are also omitted: momentum, defined as `diff@15 - diff@10`, summarises their signal in a single term. On top of this we add two features that rarely appear in the published @15 literature: a **turret plate differential** (plates fall by 14:00, purely early-game; r = 0.409 with `blue_win`) and a **rolling team win rate differential** (computed from prior games only). In a held-out comparison, the latter pair lifted Random Forest test accuracy from 73.8 % to 74.5 % and test AUC from 0.826 to 0.831.
+The correlation analysis showed that *gaps* between teams carry the signal, so we keep signed differentials. To control multicollinearity, we keep one of each redundant triple `(goldat15, opp_goldat15, golddiffat15)` - the differential - and drop the other two. The raw @10 snapshots are also omitted: momentum, defined as `diff@15 - diff@10`, summarises their signal in a single term. On top of this we add two features that rarely appear in the published @15 literature: a **turret plate differential** (plates fall by 14:00, purely early-game; r = 0.409 with `blue_win`) and a **rolling team win rate differential** (computed from prior games only).
 
 ## Rolling team win rate
 
@@ -659,9 +650,8 @@ games_model <- games_wr %>%
         xp_momentum   = blue_xpdiffat15   - blue_xpdiffat10,
         cs_momentum   = blue_csdiffat15   - blue_csdiffat10,
 
-        # Combat diffs at 15
+        # Combat diffs at 15 (death_diff omitted: near-perfect mirror of -kill_diff, see VIF)
         kill_diff_15   = blue_killsat15   - red_killsat15,
-        death_diff_15  = blue_deathsat15  - red_deathsat15,
         assist_diff_15 = blue_assistsat15 - red_assistsat15,
 
         # Per-team kill counts in the 10-15 window
@@ -755,69 +745,51 @@ cat(sprintf(
 
 # Scenario 1: Model Comparison
 
-We compare five classifiers on the same one-row-per-match feature set, evaluating both predictive performance and interpretability.
+Five classifiers on the same H1 feature set, judged on accuracy, AUC-ROC, precision, recall, and F1. Hyperparameters are tuned with shared 5-fold CV (`metric = "ROC"`); the test set is held out for the final report.
 
-| Category       | Model                | Why we chose it                                                                      |
-|-----------------|-----------------|--------------------------------------|
-| Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                                 |
-| Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance    |
-| Statistical/ML | Naive Bayes          | Probabilistic classifier using Bayes' theorem with a feature-independence assumption |
-| Partitioning   | KNN                  | Instance-based, partitions feature space by proximity                                |
-| Partitioning   | Decision Tree (CART) | Recursive binary splits, directly visible decision rules                             |
+| Category       | Model                | Role in the comparison                                     |
+|-----------------|-----------------|---------------------------------------|
+| Statistical/ML | Logistic Regression  | Interpretable linear baseline; standardised coefficients   |
+| Statistical/ML | Random Forest        | Non-linear ensemble; agreement check on what matters       |
+| Statistical/ML | Naive Bayes          | Bayes-rule baseline assuming feature independence          |
+| Partitioning   | KNN                  | Distance-based; sensitive to scale and correlated features |
+| Partitioning   | Decision Tree (CART) | Single-tree analogue of RF for the consensus comparison    |
 
-The EDA baseline is **72.9 %** accuracy from the rule "Blue ahead in gold @15 wins" (computed in the gold-differential section above). A model below this threshold has not learned beyond the single strongest feature. Published @15 LoL prediction studies report accuracies in the 73-78 % range, so we expect our models to fall within that band. Hyperparameters are tuned via stratified 5-fold cross-validation, and we report accuracy, AUC-ROC, precision, recall, and F1 on the held-out test set.
+The bar to beat is the EDA baseline: **72.9 %** from "Blue ahead in gold @15 wins". Published @15 LoL studies report 73-78 %, so a 75 %-band result is consistent with the literature.
 
-## Preprocessing
+## Multicollinearity check (VIF)
 
-KNN and Logistic Regression are scale-sensitive: gold ranges over 20-36 k while void grubs span only 0-6, a 1000x gap. Their inputs are therefore z-scored. Tree-based models and Naive Bayes operate on the raw values.
+Logistic Regression, Naive Bayes, and KNN are sensitive to correlated inputs: LR coefficient signs and standard errors degrade under collinearity, NB's independence assumption is directly violated, and KNN distances over-weight correlated dimensions. Random Forest and CART are immune (univariate splits). Per the consultation, S1 keeps every feature and uses VIF only as a diagnostic - high-VIF features remain in the model and motivate the regularised selection in S3.
 
 ```{r s1-preprocess}
-# Separate features and target
 X_train <- train_h1 %>% select(-blue_win)
 y_train <- train_h1$blue_win
 X_test  <- test_h1  %>% select(-blue_win)
 y_test  <- test_h1$blue_win
 
-# Standardized version for LR and KNN
 preproc        <- preProcess(X_train, method = c("center", "scale"))
 X_train_scaled <- predict(preproc, X_train)
 X_test_scaled  <- predict(preproc, X_test)
 
-cat(sprintf(
-    "Training features: %d\nTraining rows: %d\nTest rows: %d",
-    ncol(X_train), nrow(X_train), nrow(X_test)
-))
+cat(sprintf("Training features: %d   Training rows: %d   Test rows: %d\n",
+            ncol(X_train), nrow(X_train), nrow(X_test)))
 ```
 
-To verify the scaling, we print the per-feature min/max/mean/sd before and after standardisation: every scaled feature should have mean ≈ 0 and sd ≈ 1.
+```{r s1-vif}
+vif_df <- tibble(
+    feature = names(X_train_scaled),
+    VIF     = diag(solve(cor(X_train_scaled)))
+) %>% arrange(desc(VIF))
 
-```{r s1-preprocess-summary}
-scale_summary <- function(df, label) {
-    df %>%
-        summarise(across(everything(),
-                         list(min  = ~min(.),
-                              max  = ~max(.),
-                              mean = ~mean(.),
-                              sd   = ~sd(.)))) %>%
-        pivot_longer(everything(),
-                     names_to  = c("feature", ".value"),
-                     names_pattern = "^(.*)_(min|max|mean|sd)$") %>%
-        mutate(across(where(is.numeric), ~round(., 3)),
-               dataset = label) %>%
-        select(dataset, feature, min, max, mean, sd)
-}
-
-before <- scale_summary(X_train,        "raw")
-after  <- scale_summary(X_train_scaled, "scaled")
-
-cat("Raw training features - note the 1000x scale gap:\n")
-print(before, n = Inf)
-
-cat("\nStandardized training features - mean ≈ 0, sd ≈ 1:\n")
-print(after, n = Inf)
+knitr::kable(vif_df, digits = 2,
+             caption = "VIF on H1 training features (diagnostic only - no features dropped in S1).")
 ```
 
-We also fix a shared cross-validation strategy so that every model is evaluated on the same folds.
+Resource diffs and momentum form the dominant collinear group (`golddiffat15` ↔ `gold_momentum`, etc.) because momentum is constructed from the @15 diff and the @10 diff. The KDA features (`kill_diff_15`, `kda_15`, `assist_diff_15`) carry mid-range VIF from sharing the same combat signal. Binary objective flags and `winrate_diff` are clean. We expect to see the consequences in the LR coefficient table - collinear features may carry inflated SEs and signs that flip relative to the marginal direction.
+
+## CV setup
+
+Shared `trainControl` so every model is tuned on the same folds.
 
 ```{r s1-cv-setup}
 ctrl <- trainControl(
@@ -829,14 +801,15 @@ ctrl <- trainControl(
     verboseIter = TRUE
 )
 
-# Convert target to factor for caret (Win first so it is the positive class)
-y_train_fct <- factor(y_train, levels = c(1, 0), labels = c("Win", "Loss"))
-y_test_fct <- factor(y_test, levels = c(1, 0), labels = c("Win", "Loss"))
+# Target factor: Loss first, Win last so glm() models P(Win) directly
+# (positive = "Win" is passed to every confusionMatrix to keep Sens = Win recall)
+y_train_fct <- factor(y_train, levels = c(0, 1), labels = c("Loss", "Win"))
+y_test_fct  <- factor(y_test,  levels = c(0, 1), labels = c("Loss", "Win"))
 ```
 
 ## Logistic Regression
 
-Logistic Regression is our interpretable baseline. It assumes a linear relationship between features and the log-odds of winning. The EDA showed clear linear separation in gold diff distributions, so we expect it to perform reasonably. Its key advantage is that every coefficient directly tells us how much a one-unit increase in a feature changes the win probability - making it the most explainable model in our comparison. We use the standardized features so coefficients are comparable across features.
+Linear baseline trained on the standardised feature matrix so coefficients are directly comparable. With Win as the last factor level, `glm` models log-odds of Win - a positive coefficient indicates the feature pushes towards Blue winning, a negative one pushes against.
 
 ```{r s1-logistic}
 cat("Training Logistic Regression...\n")
@@ -853,7 +826,7 @@ lr_model <- train(
 
 lr_pred <- predict(lr_model, X_test_scaled)
 lr_prob <- predict(lr_model, X_test_scaled, type = "prob")
-lr_cm <- confusionMatrix(lr_pred, y_test_fct)
+lr_cm <- confusionMatrix(lr_pred, y_test_fct, positive = "Win")
 
 cat(sprintf(
     "\nLogistic Regression Results (trained in %.1fs):\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nCV AUC-ROC: %.3f",
@@ -889,17 +862,16 @@ ggplot(
     ) +
     labs(
         title = "Logistic Regression - Top 20 Coefficients",
-        subtitle = "Standardized coefficients - comparable across features",
         x = NULL, y = "Coefficient", fill = "Direction"
     ) +
     theme_minimal()
 ```
 
-The coefficients reveal which features the linear model relies on most. Since features are standardized, larger absolute coefficients indicate stronger influence on the prediction. Features with positive coefficients increase win probability; negative ones decrease it.
+Resource diffs at @15 (`golddiffat15`, `xpdiffat15`, `csdiffat15`), `kill_diff_15`, `winrate_diff`, and the first-objective flags all carry positive coefficients - directionally as the EDA predicted. `gold_momentum` flips sign relative to its univariate correlation. This is the symptom flagged by VIF: when two features are near-perfect linear combinations, the LR can split their effect arbitrarily and the *individual* coefficient sign is no longer meaningful, even though the joint prediction is still correct. S3's regularised methods address this directly.
 
 ## Random Forest
 
-Random Forest builds an ensemble of decision trees, each trained on a random subset of the data and features. Unlike Logistic Regression, it can capture non-linear relationships and feature interactions (e.g. "first tower + gold lead \> 1000 = very likely win" patterns that LR would miss). The EDA showed non-linear patterns in void grubs (the dip at 4 grubs) and potential interactions between objectives and economy, which RF should handle. We tune `mtry` (number of features considered at each split) via cross-validation.
+Non-linear ensemble; immune to the multicollinearity that distorts the LR coefficients. We tune `mtry` over `{5, 7, 10, 15, 20}` with 500 trees fixed.
 
 ```{r s1-rf}
 cat("Training Random Forest (5 mtry values x 5 folds = 25 fits, 500 trees each)...\n")
@@ -917,7 +889,7 @@ rf_model <- train(
 
 rf_pred <- predict(rf_model, X_test)
 rf_prob <- predict(rf_model, X_test, type = "prob")
-rf_cm <- confusionMatrix(rf_pred, y_test_fct)
+rf_cm <- confusionMatrix(rf_pred, y_test_fct, positive = "Win")
 
 cat(sprintf(
     "\nRandom Forest Results (trained in %.1fs):\nAccuracy: %.1f%%\nSensitivity: %.1f%%\nSpecificity: %.1f%%\nBest mtry: %d\nCV AUC-ROC: %.3f",
@@ -947,17 +919,14 @@ ggplot(
     coord_flip() +
     labs(
         title = "Random Forest - Top 20 Feature Importances",
-        subtitle = "Mean decrease in Gini impurity",
         x = NULL, y = "Importance"
     ) +
     theme_minimal()
 ```
 
-We compare the RF importance ranking with the LR coefficients to see whether both models agree on what matters. Agreement across different model families strengthens our confidence in which features are genuinely informative vs. artifacts of a particular method.
-
 ## Naive Bayes
 
-Naive Bayes applies Bayes' theorem under the *naive* assumption that all features are conditionally independent given the class. For a new game, it computes P(Win \| features) ∝ P(Win) · ∏ P(feature_i \| Win) and compares it against the same quantity for Loss — the class with the higher posterior wins. Each numeric feature is modelled with a Gaussian per class, or optionally a kernel density estimate. The independence assumption is clearly violated here (gold, XP, and CS move together), but in practice Naive Bayes can still classify well, because correct classification only requires the *right class* to have the higher posterior, not perfectly calibrated probabilities. We tune whether to use Gaussian vs kernel density (`usekernel`) and the KDE bandwidth multiplier (`adjust`).
+The independence assumption is directly violated by the VIF result above; we still fit it to see how much accuracy that costs. We tune `usekernel` (Gaussian vs KDE) and the KDE bandwidth multiplier `adjust`.
 
 ```{r s1-nb}
 cat("Training Naive Bayes...\n")
@@ -980,7 +949,7 @@ nb_model <- train(
 
 nb_pred <- predict(nb_model, X_test)
 nb_prob <- predict(nb_model, X_test, type = "prob")
-nb_cm <- confusionMatrix(nb_pred, y_test_fct)
+nb_cm <- confusionMatrix(nb_pred, y_test_fct, positive = "Win")
 
 cat(sprintf(
     "\nNaive Bayes Results (trained in %.1fs):\nAccuracy: %.1f%%\nSensitivity: %.1f%%\nSpecificity: %.1f%%\nBest: usekernel=%s, adjust=%.1f\nCV AUC-ROC: %.3f",
@@ -1027,7 +996,6 @@ ggplot(
     coord_flip() +
     labs(
         title = "Naive Bayes - Top 20 Feature Importances",
-        subtitle = "Filter-based importance: per-feature ROC-AUC against the target",
         x = NULL, y = "Importance (AUC)"
     ) +
     theme_minimal()
@@ -1035,21 +1003,17 @@ ggplot(
 
 ## KNN
 
-```{r s1-knn}
-# TODO - Adriana
-# Use X_train_scaled / X_test_scaled (standardized)
-# Tune k with ctrl cross-validation
+Distance-based; runs on the standardised matrix. Multicollinearity inflates correlated dimensions in the Euclidean metric, so we expect KNN to lose ground to RF/CART here.
 
+```{r s1-knn}
 cat("Training KNN...\n")
 t0 <- Sys.time()
 
-# Principled K grid: sqrt(n) is the textbook starting point for KNN (Hassanat et al. 2014).
-# We log-space the grid from k=5 up to ~4*sqrt(n) so 5-fold CV can find the true optimum
-# without us hand-picking values. Forcing odd k avoids 50/50 voting ties in binary classification.
+# k grid log-spaced from 5 to ~4*sqrt(n), forced odd to avoid 50/50 ties.
 n_train <- nrow(X_train_scaled)
-k_theo <- round(sqrt(n_train))
-k_grid <- unique(round(exp(seq(log(5), log(k_theo * 4), length.out = 12))))
-k_grid <- ifelse(k_grid %% 2 == 0, k_grid + 1, k_grid)
+k_theo  <- round(sqrt(n_train))
+k_grid  <- unique(round(exp(seq(log(5), log(k_theo * 4), length.out = 12))))
+k_grid  <- ifelse(k_grid %% 2 == 0, k_grid + 1, k_grid)
 
 cat(sprintf(
     "sqrt(n) = %d, candidate K grid: %s\n",
@@ -1067,7 +1031,7 @@ knn_model <- train(
 
 knn_pred <- predict(knn_model, X_test_scaled)
 knn_prob <- predict(knn_model, X_test_scaled, type = "prob")
-knn_cm <- confusionMatrix(knn_pred, y_test_fct)
+knn_cm <- confusionMatrix(knn_pred, y_test_fct, positive = "Win")
 
 cat(sprintf(
     "\nKNN Results (%.1fs):\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nBest k: %d\nCV AUC-ROC: %.3f",
@@ -1082,13 +1046,13 @@ cat(sprintf(
 
 ## Decision Tree CART
 
-CART (Classification and Regression Trees) recursively splits the feature space into rectangular regions by asking binary questions about individual features (e.g. "is `golddiffat15` \> 500?"). At each node, it selects the split that maximally reduces Gini impurity — a measure of class mixing. Unlike KNN, CART is scale-invariant and fully interpretable: the final model is a set of human-readable rules that directly show which features drive the prediction and at what thresholds. We tune the complexity parameter `cp`, which penalizes tree growth — small `cp` allows deep trees (risk of overfitting), large `cp` forces early stopping (risk of underfitting).
+Single-tree analogue of RF; like RF, immune to multicollinearity. We tune the complexity parameter `cp` over `{1e-5, 5e-5, 1e-4, 5e-4, 1e-3}`.
 
 ```{r s1-cart}
 cat("Training Decision Tree CART...\n")
 t0 <- Sys.time()
 
-# cp (complexity parameter) controls tree depth — tuned via 5-fold CV
+# cp (complexity parameter) controls tree depth - tuned via 5-fold CV
 cart_model <- train(
     x = X_train,
     y = y_train_fct,
@@ -1100,7 +1064,7 @@ cart_model <- train(
 
 cart_pred <- predict(cart_model, X_test)
 cart_prob <- predict(cart_model, X_test, type = "prob")
-cart_cm <- confusionMatrix(cart_pred, y_test_fct)
+cart_cm <- confusionMatrix(cart_pred, y_test_fct, positive = "Win")
 
 cat(sprintf(
     "\nCART Results (%.1fs):\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nBest cp: %.4f\nCV AUC-ROC: %.3f",
@@ -1127,7 +1091,7 @@ cart_imp <- varImp(cart_model)$importance %>%
 
 ## Model comparison
 
-Now we bring all models together to compare their performance side by side. We look at overall metrics (accuracy, AUC-ROC, F1), confusion matrices, and ROC curves. The key questions: does the non-linearity of RF pay off over the two simple probabilistic baselines (LR, Naive Bayes)? Do all models beat our 72.9% gold-rule baseline?
+Side-by-side test-set metrics, confusion matrices, ROC curves. We check (a) which models beat the 72.9 % gold-rule baseline and (b) whether the non-linear RF gains anything over the linear/probabilistic baselines.
 
 ```{r s1-metrics-table}
 calc_metrics <- function(cm, prob, y_true, name) {
@@ -1240,20 +1204,16 @@ ggroc(list(
     )) +
     labs(
         title = "ROC Curves - Model Comparison",
-        subtitle = sprintf(
-            "AUC: LR=%.3f, RF=%.3f, CART=%.3f, NB=%.3f, KNN=%.3f",
-            auc(roc_lr), auc(roc_rf), auc(roc_cart), auc(roc_nb), auc(roc_knn)
-        ),
         x = "Specificity", y = "Sensitivity", color = "Model"
     ) +
     theme_minimal()
 ```
 
-The ROC curves show each model's trade-off between true positive rate and false positive rate across all classification thresholds. A curve closer to the top-left corner indicates better performance. The diagonal dashed line represents a random classifier (AUC = 0.5).
+All four AUC curves overlap closely; the discriminating differences are at the upper-left corner where the curves diverge by 1-2 pp.
 
 ## Explainability comparison
 
-Different models define "importance" differently: LR uses coefficient magnitude, RF uses mean decrease in Gini impurity, CART uses the total reduction in impurity contributed by each feature's splits, and Naive Bayes has no native importance — so we fall back to a filter-based score (each feature's single-feature ROC-AUC against the target). We compare the top features across all four to identify **consensus features** - those that all models agree are important, regardless of the method. Features that appear in all top-10 lists are the most robust predictors.
+Each model produces an importance score on a different axis (LR: coefficient magnitude, RF: mean Gini decrease, CART: total Gini reduction across splits, NB: filter-based per-feature AUC). KNN is excluded - no native importance signal. The interesting question is whether the four rankings agree on a small core of features.
 
 ```{r s1-explainability}
 # KNN excluded - no meaningful feature importance
@@ -1275,13 +1235,12 @@ ggplot(top_features, aes(x = reorder(feature, -rank), y = rank, color = model)) 
     scale_color_manual(values = c("LR" = "#3498db", "RF" = "#27ae60", "CART" = "#9b59b6", "NB" = "#e67e22")) +
     labs(
         title = "Feature Importance Rankings - Top 10 per Model",
-        subtitle = "Features appearing across multiple models are the most robust predictors",
         x = NULL, y = "Rank (1 = most important)", color = "Model"
     ) +
     theme_minimal()
 ```
 
-A simple "appears in top-10 of each model" tally is misleading here because the four methods rank features on fundamentally different axes. Instead, we join the **full** feature rankings from every model and report each feature's average rank across the four methods. Features with a low average rank are consistently important across model families; features with high variance in rank reveal where model families disagree.
+A "top-10 hit count" is a coarse view because the four importance scales are not directly comparable. The full ranking - average rank plus spread across the four methods - gives a sharper read of which features every family agrees on and where they disagree.
 
 ```{r s1-consensus}
 full_ranks <- lr_coefs %>%
@@ -1317,25 +1276,19 @@ cat("\nMixed signal (in 2 of 4 top-10s) - model families disagree:\n")
 full_ranks %>% filter(times_in_top10 == 2) %>% print()
 ```
 
-The true consensus — features ranked highly by **all four** methods — is a compact set of continuous early-game differentials: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. These are the features any defense of H1 should lean on.
+The four-way consensus - features ranked highly by every method - is a compact set of continuous early-game differentials: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. These are the features any defense of H1 should lean on.
 
-The interesting disagreement is around binary objective flags, especially `firstdragon` and `firstherald`, which rank high in Logistic Regression (and LASSO) but low in Random Forest and Naive Bayes. This is a model-family effect, not noise:
-
--   **Logistic Regression treats features as independent additive log-odds shifts.** A clean binary signal with a 57-58% win rate still produces a meaningful standardized coefficient (\~0.33 for `firstdragon`), so LR ranks it in the top 10.
--   **Tree ensembles split greedily on continuous features first.** A binary feature produces at most one split per tree and competes against continuous features (gold, XP, CS) that admit hundreds of candidate splits. By the time the greedy algorithm considers `firstdragon`, most of its signal is already absorbed by the earlier gold/XP splits, so its Gini-based importance collapses.
--   **Naive Bayes uses filter-based importance (single-feature AUC).** `firstdragon` has marginal AUC ≈ 0.58, which maps to an importance score far below the \~0.82 of `golddiffat15`. NB is simply reading it as a weak standalone predictor.
-
-The takeaway is not that `firstdragon` is irrelevant — LASSO (Scenario 3) keeps it with a non-zero coefficient, and the EDA confirmed a real WR effect. It is that **importance metrics are not comparable across model families**, and that "consensus" should be defined carefully. For H1, the four-way consensus on continuous diffs is the strongest evidence; the two-way LR/CART signal on first objectives is a secondary, model-dependent finding.
+The notable disagreement is around binary objective flags (`firstdragon`, `firstherald`), which rank high for LR but low for the tree ensembles and NB filter score. This is a known artefact: each importance metric measures a different thing - LR sees them as additive log-odds shifts, RF/CART absorb their signal into continuous splits earlier, and the NB filter score reads them as weak standalone predictors. LASSO (S3) still keeps `firstdragon` with a non-zero coefficient, so the disagreement is metric-driven, not evidence that the feature is irrelevant.
 
 ## H1 vs H2 comparison
 
-We now repeat the best-performing model on the H2 feature set (which includes role-specific differentials) to test whether knowing *which role* has the gold lead improves prediction over just knowing the team total. If H2 achieves higher AUC-ROC, role-level features add value. We also compare feature importances to see whether bot lane differentials rank highest - the core claim of H2.
+We refit Random Forest (the best H1 performer) on the H2 feature set - H1 features plus 30 per-role differentials - to test whether role-level early-game gaps add signal beyond team totals. The H2 claim is that bot lane differentials should rank highest among role features.
 
 ```{r s1-h2-setup}
 X_train_h2 <- train_h2 %>% select(-blue_win)
-y_train_h2 <- factor(train_h2$blue_win, levels = c(1, 0), labels = c("Win", "Loss"))
+y_train_h2 <- factor(train_h2$blue_win, levels = c(0, 1), labels = c("Loss", "Win"))
 X_test_h2  <- test_h2  %>% select(-blue_win)
-y_test_h2  <- factor(test_h2$blue_win,  levels = c(1, 0), labels = c("Win", "Loss"))
+y_test_h2  <- factor(test_h2$blue_win,  levels = c(0, 1), labels = c("Loss", "Win"))
 ```
 
 ```{r s1-h2-rf}
@@ -1351,7 +1304,7 @@ rf_h2 <- train(
 
 rf_h2_pred <- predict(rf_h2, X_test_h2)
 rf_h2_prob <- predict(rf_h2, X_test_h2, type = "prob")
-rf_h2_cm <- confusionMatrix(rf_h2_pred, y_test_h2)
+rf_h2_cm <- confusionMatrix(rf_h2_pred, y_test_h2, positive = "Win")
 roc_h2 <- roc(y_test_h2, rf_h2_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 
 cat(sprintf(
@@ -1386,7 +1339,6 @@ ggplot(
     ) +
     labs(
         title = "H2 Random Forest - Top 25 Feature Importances",
-        subtitle = "Do role-specific features (red) rank among the most important?",
         x = NULL, y = "Importance", fill = "Feature type"
     ) +
     theme_minimal()
@@ -1412,15 +1364,15 @@ cat("\nBest rank per role:\n")
 print(other_role_features)
 ```
 
-Based on these results, we can assess whether H2 is supported: does bot lane gold differential consistently rank as the most impactful role-specific feature, and does adding role-level features improve overall prediction?
+H2 is supported iff (a) the H2 RF AUC exceeds the H1 RF AUC by more than the CV split-noise band, and (b) at least one bot-lane feature ranks above the best feature of every other role. The two prints above provide the numbers needed for that judgement.
 
 # Scenario 3: Feature Selection (Adriana)
 
-The EDA revealed high multicollinearity between raw stats and their differentials (e.g. `goldat15` and `golddiffat15`), and between @10 and @15 versions of the same metric. With \~46 features, many are likely redundant - carrying the same signal in different forms. This motivates feature selection to find the minimal set of truly informative features. LASSO and Elastic Net are particularly relevant here, as they can zero out redundant features from correlated groups.
+The S1 VIF flagged a tight collinear cluster around resource diffs and momentum - direct evidence of redundancy. With 19 H1 features, S3 finds the minimal informative subset; LASSO and Elastic Net are particularly relevant since they zero out redundant features within correlated groups.
 
 ## RFE (Recursive Feature Elimination)
 
-RFE repeatedly trains a model, ranks features by importance, removes the weakest, and repeats — narrowing the feature set until performance stops improving. We use Logistic Regression as the base estimator so importance is defined by coefficient magnitude on standardized features. Subset sizes from 5 to the full feature set are tested; 5-fold cross-validation picks the size that maximises accuracy. After RFE identifies the optimal subset, a fresh LR is trained on only those features and evaluated on the held-out test set for a clean performance estimate.
+RFE repeatedly trains a model, ranks features by importance, removes the weakest, and repeats - narrowing the feature set until performance stops improving. We use Logistic Regression as the base estimator so importance is defined by coefficient magnitude on standardized features. Subset sizes from 5 to the full feature set are tested; 5-fold cross-validation picks the size that maximises accuracy. After RFE identifies the optimal subset, a fresh LR is trained on only those features and evaluated on the held-out test set for a clean performance estimate.
 
 ```{r s3-rfe}
 cat("Running RFE with Logistic Regression estimator (5-fold CV)...\n")
@@ -1455,7 +1407,7 @@ rfe_lr <- train(
 )
 rfe_pred_class <- predict(rfe_lr, X_test_scaled[, rfe_selected, drop = FALSE])
 rfe_pred_prob  <- predict(rfe_lr, X_test_scaled[, rfe_selected, drop = FALSE], type = "prob")
-rfe_cm  <- confusionMatrix(rfe_pred_class, y_test_fct)
+rfe_cm  <- confusionMatrix(rfe_pred_class, y_test_fct, positive = "Win")
 rfe_roc <- roc(y_test_fct, rfe_pred_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 
 cat(sprintf("\nRFE Results (%.1fs):\nOptimal features: %d / %d\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
@@ -1488,7 +1440,6 @@ ggplot(rfe_coef_df,
     scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
                       labels = c("Negative", "Positive")) +
     labs(title = "RFE - Selected Features and Coefficients",
-         subtitle = sprintf("Optimal subset: %d features out of %d", length(rfe_selected), n_features),
          x = NULL, y = "Coefficient", fill = "Direction") +
     theme_minimal()
 ```
@@ -1497,7 +1448,7 @@ The first plot shows the accuracy-vs-size curve: the elbow marks the optimal sub
 
 ## Forward Stepwise Selection
 
-Forward Stepwise starts with an intercept-only model and greedily adds the feature that most improves AIC at each step, stopping when no addition helps. AIC balances model fit against complexity by penalising extra parameters, so the algorithm naturally limits how many features get added without any manual threshold. Unlike RFE — which re-evaluates all sizes via cross-validation — stepwise selection is a single greedy pass and is therefore much faster. A key difference from LASSO: once a feature is added it stays; there is no shrinkage of redundant coefficients.
+Forward Stepwise starts with an intercept-only model and greedily adds the feature that most improves AIC at each step, stopping when no addition helps. AIC balances model fit against complexity by penalising extra parameters, so the algorithm naturally limits how many features get added without any manual threshold. Unlike RFE - which re-evaluates all sizes via cross-validation - stepwise selection is a single greedy pass and is therefore much faster. A key difference from LASSO: once a feature is added it stays; there is no shrinkage of redundant coefficients.
 
 ```{r s3-forward}
 cat("Running Forward Stepwise Selection (AIC criterion)...\n")
@@ -1521,8 +1472,8 @@ fwd_selected <- fwd_selected[fwd_selected != "(Intercept)"]
 
 fwd_pred_prob_raw <- predict(fwd_model, newdata = X_test_scaled, type = "response")
 fwd_pred_class    <- factor(ifelse(fwd_pred_prob_raw > 0.5, "Win", "Loss"),
-                             levels = c("Win", "Loss"))
-fwd_cm  <- confusionMatrix(fwd_pred_class, y_test_fct)
+                             levels = c("Loss", "Win"))
+fwd_cm  <- confusionMatrix(fwd_pred_class, y_test_fct, positive = "Win")
 fwd_roc <- roc(y_test_fct, fwd_pred_prob_raw, levels = c("Loss", "Win"), quiet = TRUE)
 
 cat(sprintf("\nForward Stepwise Results (%.1fs):\nFeatures selected: %d / %d\nFinal AIC: %.1f\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
@@ -1552,13 +1503,11 @@ ggplot(fwd_coef_df,
     scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
                       labels = c("Negative", "Positive")) +
     labs(title = "Forward Stepwise - Selected Features and Coefficients",
-         subtitle = sprintf("AIC-based selection: %d features out of %d",
-                            length(fwd_selected), ncol(X_train_scaled)),
          x = NULL, y = "Coefficient", fill = "Direction") +
     theme_minimal()
 ```
 
-Because features are standardized, coefficient magnitudes are directly comparable — the AIC criterion selects the same high-signal features we expect from the correlation heatmap.
+Because features are standardized, coefficient magnitudes are directly comparable - the AIC criterion selects the same high-signal features we expect from the correlation heatmap.
 
 ## LASSO (L1)
 
@@ -1596,9 +1545,9 @@ lasso_pred_prob <- predict(lasso_cv,
     s = "lambda.1se", type = "response"
 )
 lasso_pred_class <- factor(ifelse(lasso_pred_prob > 0.5, "Win", "Loss"),
-    levels = c("Win", "Loss")
+    levels = c("Loss", "Win")
 )
-lasso_cm <- confusionMatrix(lasso_pred_class, y_test_fct)
+lasso_cm <- confusionMatrix(lasso_pred_class, y_test_fct, positive = "Win")
 lasso_roc <- roc(y_test_fct, as.numeric(lasso_pred_prob),
     levels = c("Loss", "Win"), quiet = TRUE
 )
@@ -1635,10 +1584,6 @@ lasso_selected %>%
     ) +
     labs(
         title = "LASSO - Surviving Features and Coefficients",
-        subtitle = sprintf(
-            "lambda.1se: %d features kept out of %d",
-            nrow(lasso_selected), nrow(lasso_coef_df)
-        ),
         x = NULL, y = "Coefficient", fill = "Direction"
     ) +
     theme_minimal()
@@ -1648,7 +1593,7 @@ The CV plot shows how model error changes as lambda increases (fewer features). 
 
 ## Elastic Net (L1 + L2)
 
-Elastic Net combines L1 (LASSO) and L2 (Ridge) penalties in a single term. The mix is controlled by `alpha`: `alpha = 1` is pure LASSO, `alpha = 0` is pure Ridge, values in between give Elastic Net. Where LASSO tends to pick one feature from a correlated group and zero out the rest, Elastic Net can keep several features from the same group at reduced coefficients — potentially more stable when features are strongly correlated, as ours are (e.g. `goldat15` and `golddiffat15`). We search the full alpha range from 0 (Ridge) to 1 (LASSO) in 0.05 steps, and for each find the optimal lambda via 5-fold CV. For every alpha we also record the CV binomial deviance at `lambda.1se` and its standard error, so we can judge whether the "best" alpha is meaningfully better than its neighbours or the curve is flat within 1 SE.
+Elastic Net combines L1 (LASSO) and L2 (Ridge) penalties in a single term. The mix is controlled by `alpha`: `alpha = 1` is pure LASSO, `alpha = 0` is pure Ridge, values in between give Elastic Net. Where LASSO tends to pick one feature from a correlated group and zero out the rest, Elastic Net can keep several features from the same group at reduced coefficients - potentially more stable when features are strongly correlated, as ours are (e.g. `goldat15` and `golddiffat15`). We search the full alpha range from 0 (Ridge) to 1 (LASSO) in 0.05 steps, and for each find the optimal lambda via 5-fold CV. For every alpha we also record the CV binomial deviance at `lambda.1se` and its standard error, so we can judge whether the "best" alpha is meaningfully better than its neighbours or the curve is flat within 1 SE.
 
 ```{r s3-elasticnet}
 cat("Running Elastic Net - searching alpha grid (0 to 1, step 0.05)...\n")
@@ -1667,8 +1612,8 @@ enet_cv_results <- map_dfr(alpha_grid, function(a) {
     idx_1se    <- which(cv_fit$lambda == cv_fit$lambda.1se)
     pred_prob  <- predict(cv_fit, newx = as.matrix(X_test_scaled),
                           s = "lambda.1se", type = "response")
-    pred_class <- factor(ifelse(pred_prob > 0.5, "Win", "Loss"), levels = c("Win", "Loss"))
-    cm         <- confusionMatrix(pred_class, y_test_fct)
+    pred_class <- factor(ifelse(pred_prob > 0.5, "Win", "Loss"), levels = c("Loss", "Win"))
+    cm         <- confusionMatrix(pred_class, y_test_fct, positive = "Win")
     roc_obj    <- roc(y_test_fct, as.numeric(pred_prob), levels = c("Loss", "Win"), quiet = TRUE)
     n_kept     <- sum(coef(cv_fit, s = "lambda.1se") != 0) - 1
     tibble(
@@ -1718,8 +1663,8 @@ enet_selected    <- enet_selected_df$feature
 enet_pred_prob  <- predict(enet_cv_final, newx = as.matrix(X_test_scaled),
                             s = "lambda.1se", type = "response")
 enet_pred_class <- factor(ifelse(enet_pred_prob > 0.5, "Win", "Loss"),
-                           levels = c("Win", "Loss"))
-enet_cm  <- confusionMatrix(enet_pred_class, y_test_fct)
+                           levels = c("Loss", "Win"))
+enet_cm  <- confusionMatrix(enet_pred_class, y_test_fct, positive = "Win")
 enet_roc <- roc(y_test_fct, as.numeric(enet_pred_prob), levels = c("Loss", "Win"), quiet = TRUE)
 
 cat(sprintf("\nElastic Net Results (%.1fs):\nBest alpha: %.1f (0=Ridge, 1=LASSO)\nLambda (1se): %.6f\nFeatures kept: %d / %d (eliminated %d)\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
@@ -1749,8 +1694,6 @@ ggplot(enet_cv_results, aes(x = alpha, y = cv_dev)) +
     geom_point(data = filter(enet_cv_results, alpha == best_alpha),
                size = 5, shape = 21, fill = "#e74c3c", color = "white", stroke = 1.5) +
     labs(title = "Elastic Net: CV Binomial Deviance across Alpha Values",
-         subtitle = sprintf("Best alpha = %.2f (red dot); dashed line = best + 1 SE. Points below the line are statistically indistinguishable from the best.",
-                            best_alpha),
          x = "Alpha (0 = Ridge, 1 = LASSO)", y = "5-fold CV Deviance at lambda.1se") +
     theme_minimal()
 
@@ -1762,17 +1705,15 @@ enet_selected_df %>%
     scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
                       labels = c("Negative", "Positive")) +
     labs(title = "Elastic Net - Surviving Features and Coefficients",
-         subtitle = sprintf("alpha = %.1f, lambda.1se: %d features kept out of %d",
-                            best_alpha, nrow(enet_selected_df), nrow(enet_coef_df)),
          x = NULL, y = "Coefficient", fill = "Direction") +
     theme_minimal()
 ```
 
-The alpha search plot shows the 5-fold CV deviance at `lambda.1se` across the full 0–1 range, with the shaded band covering ±1 SE and the dashed line marking `best + 1 SE`. Every alpha whose point sits on or below that line is statistically indistinguishable from the best — so if many points fall below it, the L1/L2 mix is effectively underdetermined by this data and the "best alpha" is a tiebreak rather than a real optimum. A sharp U- or V-shape, by contrast, would indicate the data genuinely benefits from a specific mix. The coefficient plot mirrors the LASSO plot above; differences between the two reveal which features LASSO eliminated but Elastic Net retained due to correlated grouping.
+The alpha search plot shows the 5-fold CV deviance at `lambda.1se` across the full 0-1 range, with the shaded band covering ±1 SE and the dashed line marking `best + 1 SE`. Every alpha whose point sits on or below that line is statistically indistinguishable from the best - so if many points fall below it, the L1/L2 mix is effectively underdetermined by this data and the "best alpha" is a tiebreak rather than a real optimum. A sharp U- or V-shape, by contrast, would indicate the data genuinely benefits from a specific mix. The coefficient plot mirrors the LASSO plot above; differences between the two reveal which features LASSO eliminated but Elastic Net retained due to correlated grouping.
 
 ## Random Forest Importance
 
-The Random Forest trained in S1 generates feature importance scores as a by-product of training — no additional computation is needed. We use these scores as a filter: features with importance above the mean are retained, the rest discarded. This is the fastest and least tuning-intensive selection method: it piggybacks on the RF already trained for S1, requires no new cross-validation, and handles correlated features gracefully — RF distributes importance among correlated features rather than zeroing all but one like LASSO. To get a comparable performance estimate, we train a simple LR on the selected subset and evaluate it on the held-out test set.
+The Random Forest trained in S1 generates feature importance scores as a by-product of training - no additional computation is needed. We use these scores as a filter: features with importance above the mean are retained, the rest discarded. This is the fastest and least tuning-intensive selection method: it piggybacks on the RF already trained for S1, requires no new cross-validation, and handles correlated features gracefully - RF distributes importance among correlated features rather than zeroing all but one like LASSO. To get a comparable performance estimate, we train a simple LR on the selected subset and evaluate it on the held-out test set.
 
 ```{r s3-rf-importance}
 rf_importance_threshold <- mean(rf_imp$Overall)
@@ -1792,7 +1733,7 @@ rf_s3_lr <- train(
 )
 rf_s3_pred_class <- predict(rf_s3_lr, X_test_scaled[, rf_s3_selected, drop = FALSE])
 rf_s3_pred_prob  <- predict(rf_s3_lr, X_test_scaled[, rf_s3_selected, drop = FALSE], type = "prob")
-rf_s3_cm  <- confusionMatrix(rf_s3_pred_class, y_test_fct)
+rf_s3_cm  <- confusionMatrix(rf_s3_pred_class, y_test_fct, positive = "Win")
 rf_s3_roc <- roc(y_test_fct, rf_s3_pred_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 
 cat(sprintf("LR on RF-selected features:\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
@@ -1819,14 +1760,12 @@ rf_imp %>%
     scale_fill_manual(values = c("FALSE" = "#bdc3c7", "TRUE" = "#27ae60"),
                       labels = c("Eliminated", "Selected")) +
     labs(title = "RF Importance - Feature Selection Threshold",
-         subtitle = sprintf("Threshold = mean importance (%.2f) — %d features selected out of %d",
-                            rf_importance_threshold, length(rf_s3_selected), nrow(rf_imp)),
          x = NULL, y = "Importance", fill = "Status") +
     theme_minimal() +
     theme(axis.text.y = element_text(size = 7))
 ```
 
-The dashed red line marks the mean importance threshold. Features above it (green) are retained; those below (grey) are discarded. Note that RF distributes importance among correlated features — so unlike LASSO, several correlated gold metrics may all survive with reduced but non-zero importance.
+The dashed red line marks the mean importance threshold. Features above it (green) are retained; those below (grey) are discarded. Note that RF distributes importance among correlated features - so unlike LASSO, several correlated gold metrics may all survive with reduced but non-zero importance.
 
 ```{r s3-best-hyperparams}
 s3_best_hyperparams <- tibble(
@@ -1911,7 +1850,7 @@ cat("\nFeatures never selected by any method:\n")
 if (nrow(never_sel) > 0) {
     cat(paste(never_sel$feature, collapse = ", "), "\n")
 } else {
-    cat("None — every feature was selected by at least one method\n")
+    cat("None - every feature was selected by at least one method\n")
 }
 
 # Performance comparison table
@@ -1965,7 +1904,6 @@ ggplot(overlap_long, aes(x = method, y = feature_label, fill = selected)) +
     ) +
     labs(
         title    = "Feature Selection Overlap Across All Methods",
-        subtitle = "Each row shows which methods selected that feature  ·  (x/5) = number of methods",
         x = NULL, y = NULL
     ) +
     theme_minimal() +
@@ -1997,26 +1935,25 @@ perf_summary %>%
     scale_x_continuous(limits = c(baseline_auc - 1.5, baseline_auc + 1.5)) +
     labs(
         title   = "Feature Selection: AUC-ROC vs. Method",
-        subtitle = "Red dashed line = LR trained on all features  ·  Labels show number of features used",
         x = "AUC-ROC (%)", y = NULL
     ) +
     theme_minimal() +
     theme(panel.grid.minor = element_blank())
 ```
 
-Každý riadok = jedna metóda. Dĺžka stĺpca = AUC-ROC, číslo v texte hovorí koľko features použila. Prerušovaná čiara = baseline (všetky features). LASSO a RFE sú tesne pod čiarou s 9 features — prakticky rovnaký výkon pri polovici features.
+Každý riadok = jedna metóda. Dĺžka stĺpca = AUC-ROC, číslo v texte hovorí koľko features použila. Prerušovaná čiara = baseline (všetky features). LASSO a RFE sú tesne pod čiarou s 9 features - prakticky rovnaký výkon pri polovici features.
 
 ## S3 findings
 
-All five selection methods converge on the same answer: **the predictive signal in this dataset is highly concentrated**. Starting from 21 features, every method reduces the set substantially — LASSO and RF Importance down to just 9, RFE to 10 — with almost no loss in AUC-ROC (83.2–84.4% vs. 84.4% for the full-feature baseline). This means roughly half the features in the model are redundant: they carry signal already captured by other features, or no signal at all.
+All five selection methods converge on the same answer: **the predictive signal in this dataset is highly concentrated**. Starting from 19 features, every method reduces the set substantially - LASSO and RF Importance down to just 9, RFE to 10 - with almost no loss in AUC-ROC (83.2-84.4% vs. 84.4% for the full-feature baseline). This means roughly half the features in the model are redundant: they carry signal already captured by other features, or no signal at all.
 
-**Four features form the consensus core** — selected by all five methods regardless of the criterion used: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `winrate_diff`. These are the three resource differentials at 15 minutes plus the pre-game team strength gap. Their universal selection confirms what the EDA correlation heatmap showed: who is ahead in gold, XP, and CS at 15 minutes is the strongest combined signal for match outcome. The `winrate_diff` feature indicates that pre-game team quality adds real information on top of the in-game state.
+**Four features form the consensus core** - selected by all five methods regardless of the criterion used: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `winrate_diff`. These are the three resource differentials at 15 minutes plus the pre-game team strength gap. Their universal selection confirms what the EDA correlation heatmap showed: who is ahead in gold, XP, and CS at 15 minutes is the strongest combined signal for match outcome. The `winrate_diff` feature indicates that pre-game team quality adds real information on top of the in-game state.
 
-**Four more features reach near-consensus** (4 out of 5 methods): `firsttower`, `firstherald`, `firstdragon`, and `cs_momentum`. Objective control — particularly tower and herald — contributes a second, independent layer of signal beyond raw economic leads. `cs_momentum` (the acceleration of the CS advantage from @10 to @15) captures information not fully redundant with the snapshot differential at @15.
+**Four more features reach near-consensus** (4 out of 5 methods): `firsttower`, `firstherald`, `firstdragon`, and `cs_momentum`. Objective control - particularly tower and herald - contributes a second, independent layer of signal beyond raw economic leads. `cs_momentum` (the acceleration of the CS advantage from @10 to @15) captures information not fully redundant with the snapshot differential at @15.
 
-**Three features were never selected** by any method: `firstblood`, `kill_pressure_10_15`, and `opp_kill_pressure_10_15`. This is a meaningful null result — it suggests that early kill activity, while visible in the data, does not independently predict match outcome once the economic and objective features are accounted for. First blood in particular is consistent with published LoL research, where its win-rate correlation is weak relative to tower or gold leads.
+**Three features were never selected** by any method: `firstblood`, `kill_pressure_10_15`, and `opp_kill_pressure_10_15`. This is a meaningful null result - it suggests that early kill activity, while visible in the data, does not independently predict match outcome once the economic and objective features are accounted for. First blood in particular is consistent with published LoL research, where its win-rate correlation is weak relative to tower or gold leads.
 
-The key practical takeaway is that **9 features achieve 84.3% AUC-ROC** — within 0.1 points of the full-feature LR — which means a model trained on only the consensus + near-consensus features is as useful as one trained on everything, while being substantially easier to interpret and explain.
+The key practical takeaway is that **9 features achieve 84.3% AUC-ROC** - within 0.1 points of the full-feature LR - which means a model trained on only the consensus + near-consensus features is as useful as one trained on everything, while being substantially easier to interpret and explain.
 
 # Conclusions
 
@@ -2070,7 +2007,6 @@ shiny_red <- games_model %>%
         xp_momentum    = -xp_momentum,
         cs_momentum    = -cs_momentum,
         kill_diff_15   = -kill_diff_15,
-        death_diff_15  = -death_diff_15,
         assist_diff_15 = -assist_diff_15,
         kill_pressure_10_15     = opp_kill_pressure_10_15,
         opp_kill_pressure_10_15 = kill_pressure_10_15,
