@@ -23,7 +23,7 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-League of Legends is the most-played and most-watched esport in the world, with a 2025 professional scene running across 45 leagues in every major region. Predicting which team will win from the early state of the match is a long-standing question in esports analytics: by 15 minutes - well before half of a typical game has elapsed - gold, experience, and objective leads have already begun to compound. We use the 2025 season of professional play to test how reliably this 15-minute snapshot forecasts the eventual winner, and which features actually drive the prediction.
+League of Legends is the most-played and most-watched esport in the world. Predicting which team will win from the early state of the match is a long-standing question in esports analytics: by 15 minutes - well before half of a typical game has elapsed - gold, experience, and objective leads have already begun to compound. We use the 2025 season of professional play to test how reliably this 15-minute snapshot forecasts the eventual winner, and which features actually drive the prediction.
 
 The analysis runs two scenarios on the same data:
 
@@ -65,7 +65,7 @@ The early game also has a set of one-off objective races, each won by exactly on
 Published work on early-game LoL match prediction at the **15-minute mark** converges tightly, with reported accuracy clustering in the **76-78% band** across model families and dataset types.
 
 | Study                                        | Year | Dataset                      | Model               | Acc. \@15  |
-|-----------------|--------------|--------------|--------------|--------------|
+|---------------|---------------|---------------|---------------|---------------|
 | Spaargaren, MSc thesis (Tilburg)             | 2022 | Oracle's Elixir pro, 2021    | Logistic Regression | **77.99%** |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Random Forest       | 77.26%     |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Naïve Bayes         | 76.82%     |
@@ -91,8 +91,6 @@ library(glmnet)
 library(randomForest)
 library(naivebayes)
 library(rpart)
-library(rpart.plot)
-library(class)
 library(pROC)
 library(gridExtra)
 library(doParallel)
@@ -760,7 +758,7 @@ cat(sprintf(
 We compare five classifiers on the same one-row-per-match feature set, evaluating both predictive performance and interpretability.
 
 | Category       | Model                | Why we chose it                                                                      |
-|----------------|----------------|----------------------------------------|
+|-----------------|-----------------|--------------------------------------|
 | Statistical/ML | Logistic Regression  | Linear baseline, directly interpretable coefficients                                 |
 | Statistical/ML | Random Forest        | Ensemble of trees, captures non-linear relationships, built-in feature importance    |
 | Statistical/ML | Naive Bayes          | Probabilistic classifier using Bayes' theorem with a feature-independence assumption |
@@ -1156,6 +1154,42 @@ metrics <- bind_rows(
 knitr::kable(metrics, digits = 1, caption = "Model Performance Comparison (H1)")
 ```
 
+```{r s1-best-hyperparams}
+best_hyperparams <- tibble(
+    Model = c("Logistic Regression",
+              "Random Forest",
+              "CART",
+              "Naive Bayes",
+              "KNN"),
+    `Tuned params` = c(
+        "(none - glm has no hyperparameters)",
+        sprintf("mtry = %d (ntree = 500 fixed)", rf_model$bestTune$mtry),
+        sprintf("cp = %.5f", cart_model$bestTune$cp),
+        sprintf("usekernel = %s, adjust = %.2f, laplace = %.0f",
+                nb_model$bestTune$usekernel,
+                nb_model$bestTune$adjust,
+                nb_model$bestTune$laplace),
+        sprintf("k = %d", knn_model$bestTune$k)
+    ),
+    `CV ROC` = c(
+        max(lr_model$results$ROC),
+        max(rf_model$results$ROC),
+        max(cart_model$results$ROC),
+        max(nb_model$results$ROC),
+        max(knn_model$results$ROC)
+    )
+)
+
+htmltools::div(
+    style = "background-color: white; color: black; padding: 10px; border-radius: 4px;",
+    htmltools::HTML(knitr::kable(
+        best_hyperparams, digits = 3,
+        caption = "Best hyperparameters per model (selected by 5-fold CV ROC)",
+        format = "html"
+    ))
+)
+```
+
 ```{r s1-confusion-matrices, fig.width=12, fig.height=4}
 plot_cm <- function(cm, title) {
     cm_df <- as.data.frame(cm$table)
@@ -1165,7 +1199,9 @@ plot_cm <- function(cm, title) {
         scale_fill_gradient(low = "white", high = "#3498db") +
         labs(title = title) +
         theme_minimal() +
-        theme(legend.position = "none")
+        theme(legend.position = "none",
+              plot.background  = element_rect(fill = "white", color = NA),
+              panel.background = element_rect(fill = "white", color = NA))
 }
 
 gridExtra::grid.arrange(
@@ -1319,8 +1355,10 @@ rf_h2_cm <- confusionMatrix(rf_h2_pred, y_test_h2)
 roc_h2 <- roc(y_test_h2, rf_h2_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 
 cat(sprintf(
-    "H1 Random Forest AUC: %.3f\nH2 Random Forest AUC: %.3f\nDifference: %+.3f",
-    auc(roc_rf), auc(roc_h2), auc(roc_h2) - auc(roc_rf)
+    "H1 Random Forest AUC: %.3f (best mtry = %d)\nH2 Random Forest AUC: %.3f (best mtry = %d)\nDifference: %+.3f",
+    auc(roc_rf), rf_model$bestTune$mtry,
+    auc(roc_h2), rf_h2$bestTune$mtry,
+    auc(roc_h2) - auc(roc_rf)
 ))
 ```
 
@@ -1789,6 +1827,33 @@ rf_imp %>%
 ```
 
 The dashed red line marks the mean importance threshold. Features above it (green) are retained; those below (grey) are discarded. Note that RF distributes importance among correlated features — so unlike LASSO, several correlated gold metrics may all survive with reduced but non-zero importance.
+
+```{r s3-best-hyperparams}
+s3_best_hyperparams <- tibble(
+    Method = c("RFE", "Forward Stepwise", "LASSO", "Elastic Net", "RF Importance"),
+    `Best param(s)` = c(
+        sprintf("subset size = %d (of %d)",
+                rfe_result$bestSubset, ncol(X_train_scaled)),
+        sprintf("AIC = %.1f, %d features kept",
+                AIC(fwd_model), length(fwd_selected)),
+        sprintf("lambda.1se = %.5f, %d features kept",
+                lasso_cv$lambda.1se, length(lasso_selected$feature)),
+        sprintf("alpha = %.2f, lambda.1se = %.5f, %d features kept",
+                best_alpha, enet_cv_final$lambda.1se, length(enet_selected)),
+        sprintf("threshold = %.2f (mean importance), %d features kept",
+                rf_importance_threshold, length(rf_s3_selected))
+    )
+)
+
+htmltools::div(
+    style = "background-color: white; color: black; padding: 10px; border-radius: 4px;",
+    htmltools::HTML(knitr::kable(
+        s3_best_hyperparams,
+        caption = "Best hyperparameters per S3 selection method",
+        format = "html"
+    ))
+)
+```
 
 ## Feature selection comparison
 
