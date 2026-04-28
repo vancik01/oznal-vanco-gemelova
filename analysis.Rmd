@@ -357,7 +357,7 @@ The two densities are clearly separated. The naive rule reaches 72.9% accuracy a
 
 ## First objective win rates
 
-The four "first" objectives (first blood, first dragon, first herald, first tower) all happen in the first \~14 minutes and are mutually exclusive: exactly one team secures each. For every objective we compute `P(Blue wins | Blue secured X)` and run a chi-square test of independence between securer and outcome. TODO: Make diagram more readable
+The four "first" objectives (first blood, first dragon, first herald, first tower) all happen in the first \~14 minutes and are mutually exclusive: exactly one team secures each. For every objective we compute the win rate of the team that secured it and run a chi-square test of independence between securer and outcome.
 
 ```{r eda-objectives}
 obj_cols <- c("firstblood", "firstdragon", "firstherald", "firsttower")
@@ -376,12 +376,12 @@ obj_winrates <- map_dfr(obj_cols, function(obj) {
     chi <- chisq.test(table(df[[blue_col]], df$blue_win))
 
     tibble(
-        objective       = str_replace(obj, "first", "First ") %>% str_to_title(),
-        secured_by      = c("Blue secured", "Red secured"),
-        win_rate_blue   = c(blue_wr, red_wr),
-        n               = c(n_blue, n_red),
-        chi2            = chi$statistic,
-        p_value         = chi$p.value
+        objective     = str_replace(obj, "first", "First ") %>% str_to_title(),
+        secured_by    = c("Blue secured", "Red secured"),
+        win_rate_blue = c(blue_wr, red_wr),
+        n             = c(n_blue, n_red),
+        chi2          = chi$statistic,
+        p_value       = chi$p.value
     )
 })
 
@@ -1253,10 +1253,12 @@ full_ranks <- lr_coefs %>%
     full_join(nb_imp   %>% mutate(rank_NB   = row_number()) %>% select(feature, rank_NB),
               by = "feature") %>%
     mutate(
-        avg_rank       = rowMeans(across(starts_with("rank_")), na.rm = TRUE),
-        rank_spread    = apply(across(starts_with("rank_")), 1,
-                               function(r) max(r, na.rm = TRUE) - min(r, na.rm = TRUE)),
-        times_in_top10 = rowSums(across(starts_with("rank_"),
+        avg_rank    = rowMeans(across(starts_with("rank_")), na.rm = TRUE),
+        rank_spread = apply(across(starts_with("rank_")), 1,
+                            function(r) max(r, na.rm = TRUE) - min(r, na.rm = TRUE))
+    ) %>%
+    mutate(
+        times_in_top10 = rowSums(across(c(rank_LR, rank_RF, rank_CART, rank_NB),
                                         ~ replace_na(.x, 999) <= 10))
     ) %>%
     arrange(avg_rank)
