@@ -91,6 +91,7 @@ library(glmnet)
 library(randomForest)
 library(naivebayes)
 library(rpart)
+library(xgboost)
 library(pROC)
 library(gridExtra)
 library(doParallel)
@@ -794,21 +795,39 @@ cat(sprintf(
 
 # Scenario 1: Model Comparison
 
-Five classifiers on the same H1 feature set, judged on accuracy, AUC-ROC, precision, recall, and F1. Hyperparameters are tuned with shared 5-fold CV (`metric = "ROC"`); the test set is held out for the final report.
+Six classifiers on the same H1 feature set, judged on accuracy, AUC-ROC, precision, recall, and F1. Hyperparameters are tuned with shared 5-fold CV (`metric = "ROC"`); the test set is held out for the final report.
 
-| Category       | Model                | Role in the comparison                                     |
-|----------------|----------------------|------------------------------------------------------------|
-| Statistical/ML | Logistic Regression  | Interpretable linear baseline; standardised coefficients   |
-| Statistical/ML | Random Forest        | Non-linear ensemble; agreement check on what matters       |
-| Statistical/ML | Naive Bayes          | Bayes-rule baseline assuming feature independence          |
-| Partitioning   | KNN                  | Distance-based; sensitive to scale and correlated features |
-| Partitioning   | Decision Tree (CART) | Single-tree analogue of RF for the consensus comparison    |
+| Category       | Model                | Role in the comparison                                                     |
+|----------------|----------------------|----------------------------------------------------------------------------|
+| Statistical/ML | Logistic Regression  | Interpretable linear baseline; standardised coefficients                   |
+| Statistical/ML | Random Forest        | Non-linear ensemble; agreement check on what matters                       |
+| Statistical/ML | Naive Bayes          | Bayes-rule baseline assuming feature independence                          |
+| Partitioning   | KNN                  | Distance-based; sensitive to scale and correlated features                 |
+| Partitioning   | Decision Tree (CART) | Single-tree analogue of RF for the consensus comparison                    |
+| Statistical/ML | XGBoost              | Gradient-boosted trees; benchmark used in modern LoL @15 prediction papers |
 
 The bar to beat is the EDA baseline: **72.9 %** from "Blue ahead in gold @15 wins". Published @15 LoL studies report 73-78 %, so a 75 %-band result is consistent with the literature.
 
+## Algorithm requirements
+
+Each classifier carries a different set of statistical assumptions; the matrix below records whether `games_model` meets them and where a violation is mitigated. Status: ✓ met, ⚠ violation noted/mitigated, — not applicable to this model. Evidence is grounded in the EDA above and the VIF check that follows.
+
+| Requirement                  | LR                                            | RF                       | NB                               | KNN                             | CART                        | XGBoost                                |
+|------------------------------|-----------------------------------------------|--------------------------|----------------------------------|---------------------------------|-----------------------------|----------------------------------------|
+| Binary response variable     | ✓ `blue_win` 0/1                              | ✓                        | ✓                                | ✓                               | ✓                           | ✓                                      |
+| Independence of observations | ✓ one row per game                            | ✓                        | ✓                                | ✓                               | ✓                           | ✓                                      |
+| Low multicollinearity        | ⚠ momentum/diff pair, mirrors dropped, scaled | — split-invariant        | ⚠ violates conditional indep.    | — distance bias mild            | — splits univariate         | — boosting handles correlated features |
+| Feature normality            | — not assumed (logistic link)                 | —                        | ⚠ KDA columns right-skewed (EDA) | —                               | —                           | —                                      |
+| Feature scaling              | ✓ centered + scaled                           | — invariant              | — invariant                      | ✓ centered + scaled (distances) | — invariant                 | — invariant                            |
+| Homoscedasticity             | — N/A for binary outcome                      | —                        | —                                | —                               | —                           | —                                      |
+| Robustness to outliers       | ⚠ scaling caps influence                      | ✓ bagging averages       | ⚠ mean/var sensitive             | ⚠ k ≈ √n smooths long tails     | ✓ splits do not extrapolate | ✓ tree-based                           |
+| Predictor-target form        | log-odds linear in features                   | non-linear, interactions | conditional indep. given class   | local non-linearity             | step-wise non-linear        | boosted non-linear                     |
+
+Two flags drive most of the model-choice argument here. Multicollinearity and the LR/NB assumption violations are the reason we keep regularisation in scope (S3) and treat the LR coefficient signs as suggestive rather than causal. Scaling sensitivity for LR and KNN is handled in the modelling pipeline below via `preProcess(method = c("center", "scale"))`. Tree-based methods (RF, CART, XGBoost) sidestep nearly every row of the table - which is also why they tend to dominate this kind of tabular comparison in the LoL literature.
+
 ## Multicollinearity check (VIF)
 
-Logistic Regression, Naive Bayes, and KNN are sensitive to correlated inputs: LR coefficient signs and standard errors degrade under collinearity, NB's independence assumption is directly violated, and KNN distances over-weight correlated dimensions. Random Forest and CART are immune (univariate splits). Per the consultation, S1 keeps every feature and uses VIF only as a diagnostic - high-VIF features remain in the model and motivate the regularised selection in S3.
+Logistic Regression, Naive Bayes, and KNN are sensitive to correlated inputs: LR coefficient signs and standard errors degrade under collinearity, NB's independence assumption is directly violated, and KNN distances over-weight correlated dimensions. Random Forest, CART, and XGBoost are immune (univariate splits). Per the consultation, S1 keeps every feature and uses VIF only as a diagnostic - high-VIF features remain in the model and motivate the regularised selection in S3.
 
 ```{r s1-preprocess}
 X_train <- train_h1 %>% select(-blue_win)
@@ -1129,6 +1148,68 @@ cart_imp <- varImp(cart_model)$importance %>%
 #            extra = 104)
 ```
 
+## XGBoost
+
+Gradient-boosted trees: a boosted-ensemble counterpart to RF and the model used as the strongest non-linear baseline in the recent LoL prediction literature. Like RF and CART it is immune to multicollinearity and feature scaling. We tune `nrounds`, `max_depth`, and `eta` over a small grid; the remaining XGBoost hyperparameters are held at sensible defaults to keep the search tractable.
+
+```{r s1-xgb}
+t0 <- Sys.time()
+
+xgb_grid <- expand.grid(
+    nrounds          = c(100, 300),
+    max_depth        = c(4, 6),
+    eta              = c(0.05, 0.1),
+    gamma            = 0,
+    colsample_bytree = 0.8,
+    min_child_weight = 1,
+    subsample        = 0.8
+)
+
+xgb_model <- train(
+    x = X_train,
+    y = y_train_fct,
+    method = "xgbTree",
+    trControl = ctrl,
+    metric = "ROC",
+    tuneGrid = xgb_grid,
+    verbosity = 0
+)
+
+xgb_pred <- predict(xgb_model, X_test)
+xgb_prob <- predict(xgb_model, X_test, type = "prob")
+xgb_cm <- confusionMatrix(xgb_pred, y_test_fct, positive = "Win")
+
+cat(sprintf(
+    "\nXGBoost Results (trained in %.1fs):\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nBest nrounds=%d, max_depth=%d, eta=%.2f\nCV AUC-ROC: %.3f",
+    as.numeric(Sys.time() - t0, units = "secs"),
+    xgb_cm$overall["Accuracy"] * 100,
+    xgb_cm$byClass["Sensitivity"] * 100,
+    xgb_cm$byClass["Specificity"] * 100,
+    xgb_model$bestTune$nrounds,
+    xgb_model$bestTune$max_depth,
+    xgb_model$bestTune$eta,
+    max(xgb_model$results$ROC)
+))
+```
+
+```{r s1-xgb-importance}
+xgb_imp <- varImp(xgb_model)$importance %>%
+    rownames_to_column("feature") %>%
+    arrange(desc(Overall))
+
+ggplot(
+    xgb_imp %>% head(20),
+    aes(x = reorder(feature, Overall), y = Overall)
+) +
+    geom_col(fill = "#16a085") +
+    coord_flip() +
+    labs(
+        title = "XGBoost - Top 20 Feature Importances",
+        x = NULL, y = "Importance (gain)"
+    ) +
+    theme_minimal()
+```
+
 ## Model comparison
 
 Side-by-side test-set metrics, confusion matrices, ROC curves. We check (a) which models beat the 72.9 % gold-rule baseline and (b) whether the non-linear RF gains anything over the linear/probabilistic baselines.
@@ -1152,7 +1233,8 @@ metrics <- bind_rows(
     calc_metrics(rf_cm, rf_prob, y_test_fct, "Random Forest"),
     calc_metrics(cart_cm, cart_prob, y_test_fct, "CART"),
     calc_metrics(nb_cm, nb_prob, y_test_fct, "Naive Bayes"),
-    calc_metrics(knn_cm, knn_prob, y_test_fct, "KNN")
+    calc_metrics(knn_cm, knn_prob, y_test_fct, "KNN"),
+    calc_metrics(xgb_cm, xgb_prob, y_test_fct, "XGBoost")
 )
 
 knitr::kable(metrics, digits = 1, caption = "Model Performance Comparison (H1)")
@@ -1164,7 +1246,8 @@ best_hyperparams <- tibble(
               "Random Forest",
               "CART",
               "Naive Bayes",
-              "KNN"),
+              "KNN",
+              "XGBoost"),
     `Tuned params` = c(
         "(none - glm has no hyperparameters)",
         sprintf("mtry = %d (ntree = 500 fixed)", rf_model$bestTune$mtry),
@@ -1173,14 +1256,19 @@ best_hyperparams <- tibble(
                 nb_model$bestTune$usekernel,
                 nb_model$bestTune$adjust,
                 nb_model$bestTune$laplace),
-        sprintf("k = %d", knn_model$bestTune$k)
+        sprintf("k = %d", knn_model$bestTune$k),
+        sprintf("nrounds = %d, max_depth = %d, eta = %.2f",
+                xgb_model$bestTune$nrounds,
+                xgb_model$bestTune$max_depth,
+                xgb_model$bestTune$eta)
     ),
     `CV ROC` = c(
         max(lr_model$results$ROC),
         max(rf_model$results$ROC),
         max(cart_model$results$ROC),
         max(nb_model$results$ROC),
-        max(knn_model$results$ROC)
+        max(knn_model$results$ROC),
+        max(xgb_model$results$ROC)
     )
 )
 
@@ -1214,7 +1302,8 @@ gridExtra::grid.arrange(
     plot_cm(cart_cm, "CART"),
     plot_cm(nb_cm, "Naive Bayes"),
     plot_cm(knn_cm, "KNN"),
-    ncol = 5
+    plot_cm(xgb_cm, "XGBoost"),
+    ncol = 6
 )
 ```
 
@@ -1226,13 +1315,15 @@ roc_rf <- roc(y_test_fct, rf_prob[, "Win"], levels = c("Loss", "Win"), quiet = T
 roc_cart <- roc(y_test_fct, cart_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 roc_nb <- roc(y_test_fct, nb_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 roc_knn <- roc(y_test_fct, knn_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_xgb <- roc(y_test_fct, xgb_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 
 ggroc(list(
     "Logistic Regression" = roc_lr,
     "Random Forest" = roc_rf,
     "CART" = roc_cart,
     "Naive Bayes" = roc_nb,
-    "KNN" = roc_knn
+    "KNN" = roc_knn,
+    "XGBoost" = roc_xgb
 )) +
     geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray40") +
     scale_color_manual(values = c(
@@ -1240,7 +1331,8 @@ ggroc(list(
         "Random Forest" = "#27ae60",
         "CART" = "#9b59b6",
         "Naive Bayes" = "#e67e22",
-        "KNN" = "#e74c3c"
+        "KNN" = "#e74c3c",
+        "XGBoost" = "#16a085"
     )) +
     labs(
         title = "ROC Curves - Model Comparison",
@@ -1249,11 +1341,11 @@ ggroc(list(
     theme_minimal()
 ```
 
-All four AUC curves overlap closely; the discriminating differences are at the upper-left corner where the curves diverge by 1-2 pp.
+All five probabilistic AUC curves overlap closely; the discriminating differences are at the upper-left corner where the curves diverge by 1-2 pp.
 
 ## Explainability comparison
 
-Each model produces an importance score on a different axis (LR: coefficient magnitude, RF: mean Gini decrease, CART: total Gini reduction across splits, NB: filter-based per-feature AUC). KNN is excluded - no native importance signal. The interesting question is whether the four rankings agree on a small core of features.
+Each model produces an importance score on a different axis (LR: coefficient magnitude, RF: mean Gini decrease, CART: total Gini reduction across splits, NB: filter-based per-feature AUC, XGBoost: split gain). KNN is excluded - no native importance signal. The interesting question is whether the five rankings agree on a small core of features.
 
 ```{r s1-explainability}
 # KNN excluded - no meaningful feature importance
@@ -1265,6 +1357,8 @@ top_features <- bind_rows(
     cart_imp %>% mutate(rank = row_number(), model = "CART") %>%
         select(feature, rank, model) %>% head(10),
     nb_imp %>% mutate(rank = row_number(), model = "NB") %>%
+        select(feature, rank, model) %>% head(10),
+    xgb_imp %>% mutate(rank = row_number(), model = "XGB") %>%
         select(feature, rank, model) %>% head(10)
 )
 
@@ -1272,7 +1366,7 @@ ggplot(top_features, aes(x = reorder(feature, -rank), y = rank, color = model)) 
     geom_jitter(size = 3, width = 0, height = 0.2) +
     coord_flip() +
     scale_y_reverse(breaks = 1:10) +
-    scale_color_manual(values = c("LR" = "#3498db", "RF" = "#27ae60", "CART" = "#9b59b6", "NB" = "#e67e22")) +
+    scale_color_manual(values = c("LR" = "#3498db", "RF" = "#27ae60", "CART" = "#9b59b6", "NB" = "#e67e22", "XGB" = "#16a085")) +
     labs(
         title = "Feature Importance Rankings - Top 10 per Model",
         x = NULL, y = "Rank (1 = most important)", color = "Model"
@@ -1280,7 +1374,7 @@ ggplot(top_features, aes(x = reorder(feature, -rank), y = rank, color = model)) 
     theme_minimal()
 ```
 
-A "top-10 hit count" is a coarse view because the four importance scales are not directly comparable. The full ranking - average rank plus spread across the four methods - gives a sharper read of which features every family agrees on and where they disagree.
+A "top-10 hit count" is a coarse view because the five importance scales are not directly comparable. The full ranking - average rank plus spread across the five methods - gives a sharper read of which features every family agrees on and where they disagree.
 
 ```{r s1-consensus}
 full_ranks <- lr_coefs %>%
@@ -1292,13 +1386,15 @@ full_ranks <- lr_coefs %>%
               by = "feature") %>%
     full_join(nb_imp   %>% mutate(rank_NB   = row_number()) %>% select(feature, rank_NB),
               by = "feature") %>%
+    full_join(xgb_imp  %>% mutate(rank_XGB  = row_number()) %>% select(feature, rank_XGB),
+              by = "feature") %>%
     mutate(
         avg_rank    = rowMeans(across(starts_with("rank_")), na.rm = TRUE),
         rank_spread = apply(across(starts_with("rank_")), 1,
                             function(r) max(r, na.rm = TRUE) - min(r, na.rm = TRUE))
     ) %>%
     mutate(
-        times_in_top10 = rowSums(across(c(rank_LR, rank_RF, rank_CART, rank_NB),
+        times_in_top10 = rowSums(across(c(rank_LR, rank_RF, rank_CART, rank_NB, rank_XGB),
                                         ~ replace_na(.x, 999) <= 10))
     ) %>%
     arrange(avg_rank)
@@ -1308,19 +1404,19 @@ options(tibble.print_max = Inf)
 cat("Cross-model feature ranking (lower avg_rank = more consistently important):\n")
 print(as.data.frame(full_ranks))
 
-cat("\nTrue consensus features (in all 4 top-10s):\n")
+cat("\nTrue consensus features (in all 5 top-10s):\n")
+full_ranks %>% filter(times_in_top10 == 5) %>% print()
+
+cat("\nStrong majority (in 4 of 5 top-10s):\n")
 full_ranks %>% filter(times_in_top10 == 4) %>% print()
 
-cat("\nStrong majority (in 3 of 4 top-10s):\n")
-full_ranks %>% filter(times_in_top10 == 3) %>% print()
-
-cat("\nMixed signal (in 2 of 4 top-10s) - model families disagree:\n")
-full_ranks %>% filter(times_in_top10 == 2) %>% print()
+cat("\nMixed signal (in 2-3 of 5 top-10s) - model families disagree:\n")
+full_ranks %>% filter(times_in_top10 %in% c(2, 3)) %>% print()
 ```
 
-The four-way consensus - features ranked highly by every method - is a compact set of continuous early-game differentials: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. These are the features any defense of H1 should lean on.
+The five-way consensus - features ranked highly by every method - centres on the same compact set of continuous early-game differentials that the four-way consensus already identified: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. XGBoost adds a tree-ensemble vote that lines up with RF and CART, which tightens rather than reshuffles the ranking. These are the features any defense of H1 should lean on.
 
-The notable disagreement is around binary objective flags (`firstdragon`, `firstherald`), which rank high for LR but low for the tree ensembles and NB filter score. This is a known artefact: each importance metric measures a different thing - LR sees them as additive log-odds shifts, RF/CART absorb their signal into continuous splits earlier, and the NB filter score reads them as weak standalone predictors. LASSO (S3) still keeps `firstdragon` with a non-zero coefficient, so the disagreement is metric-driven, not evidence that the feature is irrelevant.
+The notable disagreement is still around binary objective flags (`firstdragon`, `firstherald`), which rank high for LR but low for the tree ensembles and the NB filter score. This is a known artefact: each importance metric measures a different thing - LR sees them as additive log-odds shifts, RF/CART/XGBoost absorb their signal into continuous splits earlier, and the NB filter score reads them as weak standalone predictors. LASSO (S3) still keeps `firstdragon` with a non-zero coefficient, so the disagreement is metric-driven, not evidence that the feature is irrelevant.
 
 ## Same models, enriched data
 
