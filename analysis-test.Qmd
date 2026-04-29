@@ -1869,6 +1869,7 @@ LASSO adds an L1 penalty to logistic regression that shrinks coefficients to exa
 ```{r s3-lasso}
 t0 <- Sys.time()
 
+set.seed(42)
 lasso_cv <- cv.glmnet(
     x            = as.matrix(X_train_scaled),
     y            = y_train,
@@ -1966,16 +1967,19 @@ lasso_selected %>%
     theme_minimal()
 ```
 
-LASSO retained 12 of the 19 features at `lambda.1se = 0.00757` and achieved AUC-ROC of 0.842 with 75.5% accuracy, matching the full-model baseline while dropping 7 features. We chose `lambda.1se`, because it sits at the point where the curve begins to rise — the last position where a sparser model is statistically indistinguishable from the best-fitting one.
+LASSO retained 7 of the 19 features at `lambda.1se = 0.037` and achieved AUC-ROC of 0.840 with 75.1% accuracy, matching the full-model baseline while dropping 12 features. We chose `lambda.1se`, because it sits at the point where the curve begins to rise — the last position where a sparser model is statistically indistinguishable from the best-fitting one.
 
-Again, all three momentum features — `gold_momentum`, `xp_momentum`, `cs_momentum` — were zeroed out, exactly as the VIF analysis predicted, so once `diff@15` is already in the model, momentum only captures the @10 snapshot which adds no independent signal. `kill_pressure_10_15` and `opp_kill_pressure_10_15` were also eliminated — their signal is fully absorbed by `kill_diff_15`. `gold_efficiency_15` is redundant with `golddiffat15` and `csdiffat15`. `firstblood` was also eliminated (consistent with the EDA: securing the first kill adds no predictive value once the other features are present).
+All three momentum features — `gold_momentum`, `xp_momentum`, `cs_momentum` — were zeroed out, exactly as the VIF analysis predicted: once the `diff@15` features are already in the model, momentum only captures the @10 snapshot which adds no independent signal. `kill_pressure_10_15` and `opp_kill_pressure_10_15` were also eliminated — kills translate directly into gold and XP advantage, so their signal is already captured by `golddiffat15` and `xpdiffat15`. `gold_efficiency_15` is redundant with `golddiffat15` and `csdiffat15`. `kill_diff_15`, `assist_diff_15`, `kda_15`, `plate_diff`, and `grub_diff` are similarly absorbed by the resource differential core once L1 pressure is applied. `firstblood` was also eliminated — consistent with the EDA, securing the first kill adds no predictive value once the full 15-minute economic picture is present.
 
-The 12 surviving features split into a clear hierarchy. The core: `golddiffat15`, `xpdiffat15`, `csdiffat15`, `winrate_diff`, `firsttower`, `firstdragon`, `firstherald` is shared with RFE. On top of this, LASSO also retains `kill_diff_15`, `assist_diff_15`, `kda_15`, `grub_diff`, and `plate_diff`, which carry secondary signal that survives L1 pressure at this λ. The penalty strength `lambda` is tuned via 5-fold CV; we use `lambda.1se` rather than `lambda.min`, accepting a sparser model in exchange for a negligible increase in deviance.
-All surviving coefficients are positive: being ahead in any of these dimensions increases Blue's win probability.
+The 7 surviving features form a tight consensus set: the three resource differentials (`golddiffat15`, `xpdiffat15`, `csdiffat15`) capture the full economic picture at 15 minutes, `winrate_diff` adds pre-game team quality, and the three first-objective flags (`firsttower`, `firstdragon`, `firstherald`) provide independent structural control of the map. All surviving coefficients are positive: being ahead in any of these dimensions increases Blue's win probability.
 
 ## Elastic Net (L1 + L2)
 
-Elastic Net mixes L1 (LASSO) and L2 (Ridge) penalties, with `alpha` controlling the blend. It addresses a known limitation of pure LASSO: when several features are correlated — as `golddiffat15`, `xpdiffat15`, and `csdiffat15` are — LASSO arbitrarily picks one and zeros the rest, which can make the selected set unstable across re-samples. Elastic Net can retain all three at reduced weights, potentially giving a more stable picture of which resource dimensions matter. We search the full alpha range in 0.05 steps; if the CV AUC curve is flat (many alphas within 1 SE of the maximum), the data cannot distinguish LASSO from Ridge at this sample size and the L1/L2 mix is effectively underdetermined.
+Elastic Net was selected as the second embedded feature selection method, because our predictors contain groups of correlated variables that may still carry complementary information. While LASSO is useful for producing a sparse model, it can be unstable when predictors overlap strongly, because it may keep one variable from a correlated group and shrink the others to zero. This is relevant for our data.
+
+Elastic Net combines L1 and L2 regularisation, allowing it to perform feature selection while also handling correlated predictors more smoothly than pure LASSO. This makes it useful for checking whether features removed by LASSO are truly redundant, or whether they still contribute secondary signal when correlated variables are allowed to share predictive weight.
+
+The blend between L1 and L2 is controlled by `alpha` (0 = pure Ridge, 1 = pure LASSO). We search the full alpha range in 0.05 steps, using the same fixed cross-validation folds across all alphas so the resulting CV AUC values are directly comparable. The alpha whose `lambda.1se` model maximises 5-fold CV AUC is selected as the final model; if the AUC curve is flat across alphas, the data cannot distinguish LASSO from Ridge at this sample size and the L1/L2 mix is effectively underdetermined.
 
 ```{r s3-elasticnet}
 t0 <- Sys.time()
@@ -2091,30 +2095,39 @@ enet_selected_df %>%
     theme_minimal()
 ```
 
-The CV AUC curve is flat across the entire alpha grid — all `r nrow(within_1se)` tested values sit within 1 SE of the best AUC (`r round(best_auc, 3)`), confirming that the L1/L2 mixing ratio is underdetermined by this dataset. When no mixing ratio offers a statistically meaningful advantage, the code picks the highest point-estimate: `alpha = ``r round(best_alpha, 2)``` (near-LASSO, 95% L1 / 5% L2). At its `lambda.1se = ``r round(enet_cv_final$lambda.1se, 4)```, Elastic Net eliminates 12 features and retains only `r nrow(enet_selected_df)`: `golddiffat15`, `xpdiffat15`, `csdiffat15`, `firsttower`, `winrate_diff`, `firstherald`, `firstdragon`. Notably, all three correlated resource differentials survive together — the original concern was that pure LASSO might arbitrarily zero two of the three, but at this regularisation strength both methods agree: each resource dimension carries independent signal once its penalty is properly calibrated. The 12 eliminated features — all momentum proxies, all kill-activity metrics, `plate_diff`, `grub_diff`, and `firstblood` — add nothing once the core resource and objective advantage is accounted for. AUC of `r round(auc(enet_roc), 3)` matches LASSO's 0.842 within noise, confirming that the additional features LASSO retained at its softer lambda did not improve generalisation.
+The CV AUC curve is almost flat across the entire alpha grid — all 21 tested values sit within 1 SE of the best AUC (0.838), and the wide confidence band suggests that differences between alphas are noise rather than signal. The dashed line marks the best AUC − 1 SE threshold at 0.833; every alpha clears it comfortably, meaning no mixing ratio offers a statistically meaningful advantage over any other.
+
+The algorithm selects `alpha = 0.95` (near pure LASSO) as the highest point estimate, but the margin over other alphas is negligible. The practical interpretation is that the correlated resource differentials (`golddiffat15`, `xpdiffat15`, `csdiffat15`) do not cause the instability that Elastic Net was designed to address — LASSO handles them just as well as any Ridge blend at this sample size. The data does not clearly identify a preferred L1/L2 balance, and because the selected alpha is 0.95, the resulting Elastic Net model is practically very close to pure LASSO.
 
 ```{r s3-best-hyperparams}
 s3_best_hyperparams <- tibble(
-    Method = c("RFE", "LASSO", "Elastic Net"),
-    Category = c("Wrapper", "Embedded", "Embedded"),
-    `Best param(s)` = c(
-        sprintf("optimal subset = %d features, CV Accuracy = %.1f%%",
-                rfe_result$bestSubset, max(rfe_result$results$Accuracy) * 100),
-        sprintf("lambda.1se = %.5f, %d features kept",
-                lasso_cv$lambda.1se, length(lasso_selected$feature)),
-        sprintf("alpha = %.2f, lambda.1se = %.5f, %d features kept",
-                best_alpha, enet_cv_final$lambda.1se, length(enet_selected))
+    Method          = c("RFE", "LASSO", "Elastic Net"),
+    Category        = c("Wrapper", "Embedded", "Embedded"),
+    `Hyperparameters` = c(
+        sprintf("optimal subset = %d features", rfe_result$bestSubset),
+        sprintf("lambda.1se = %.5f", lasso_cv$lambda.1se),
+        sprintf("alpha = %.2f, lambda.1se = %.5f", best_alpha, enet_cv_final$lambda.1se)
+    ),
+    `Features kept` = c(
+        rfe_result$bestSubset,
+        length(lasso_selected$feature),
+        length(enet_selected)
+    ),
+    `AUC-ROC` = c(
+        sprintf("%.3f", auc(rfe_roc)),
+        sprintf("%.3f", auc(lasso_roc)),
+        sprintf("%.3f", auc(enet_roc))
     )
 )
 
-htmltools::div(
-    style = "background-color: white; color: black; padding: 10px; border-radius: 4px;",
-    htmltools::HTML(knitr::kable(
-        s3_best_hyperparams,
-        caption = "Best hyperparameters per S3 selection method",
-        format = "html"
-    ))
-)
+knitr::kable(s3_best_hyperparams,
+             format     = "html",
+             caption    = "Best hyperparameters per S3 selection method",
+             table.attr = 'style="border-collapse: collapse; width: 100%;"') |>
+    gsub(pattern = "<th>", replacement = '<th style="padding: 8px 16px; background:#2c3e50; color:white;">', fixed = TRUE) |>
+    gsub(pattern = "<td>", replacement = '<td style="padding: 6px 16px; border-bottom: 1px solid #ddd;">', fixed = TRUE) |>
+    htmltools::HTML() |>
+    htmltools::div()
 ```
 
 ## Feature selection comparison
@@ -2260,17 +2273,17 @@ perf_summary %>%
     theme(panel.grid.minor = element_blank())
 ```
 
-Each row is one selection method; the dot position shows AUC-ROC on the test set and the label shows how many features were kept. The red dashed line is the full-feature LR baseline. All three methods cluster near the baseline with substantially fewer features, demonstrating that the same predictive power is achievable with a smaller, more interpretable set — confirming that much of the original 19-feature set carries redundant signal.
+All three methods land within 0.3 pp AUC of the full 19-feature baseline (84.2%), while using at most 9 features. LASSO and Elastic Net both select the same 7-feature consensus core (AUC 83.9%); RFE retains 2 additional features (`cs_momentum`, `grub_diff`) for 84.1% — a gain of 0.2 pp at the cost of 2 extra predictors. No feature is selected by exactly two methods, producing a clean split: 7 features every criterion agrees on, and 10 that none selected.
 
 ## S3 findings
 
 All three selection methods reduce the feature set from 19 and achieve virtually the same AUC-ROC as the full-feature baseline. The size of the selected subsets differs across the methods, but the performance gap across all three is under 0.1% AUC. The practical conclusion is that the signal in this dataset is concentrated: roughly half the features can be removed at near-zero predictive cost.
 
-**The consensus core** — features selected by all three methods regardless of criterion — forms the minimal trustworthy set. The three resource differentials at 15 minutes (`golddiffat15`, `xpdiffat15`, `csdiffat15`) anchor this core: who is ahead in gold, XP, and CS at 15 minutes is the strongest combined signal, confirming what the EDA heatmap showed. `winrate_diff` adds pre-game team quality: even controlling for the 15-minute snapshot, a team with a historically stronger win rate is more likely to prevail. The objective flags (`firsttower`, `firstdragon`, `firstherald`) contribute a second, independent layer of signal — consistent with the EDA objective win rates where first tower and first herald showed the strongest individual correlations among binary flags. `kill_diff_15` and `assist_diff_15` capture the net combat advantage at 15 minutes.
+**The consensus core** — features selected by all three methods regardless of criterion — forms the minimal trustworthy set. The three resource differentials at 15 minutes (`golddiffat15`, `xpdiffat15`, `csdiffat15`) anchor this core: who is ahead in gold, XP, and CS at 15 minutes is the strongest combined signal, confirming what the EDA heatmap showed. `winrate_diff` adds pre-game team quality: even controlling for the 15-minute snapshot, a team with a historically stronger win rate is more likely to prevail. The objective flags (`firsttower`, `firstdragon`, `firstherald`) contribute a second, independent layer of signal — consistent with the EDA objective win rates where first tower and first herald showed the strongest individual correlations among binary flags. These seven features are the only ones that survived every selection criterion independently — wrapper CV accuracy, LASSO L1 pressure, and Elastic Net near-LASSO regularisation all converge on the same core.
 
-**Features selected by two of the three methods** but not all three sit at the margin — they add signal that passes the CV or Ridge-penalty threshold but is zeroed out by LASSO's stricter L1 boundary. These are candidates for inclusion in a slightly less sparse model if interpretability allows, but they are not load-bearing.
+**Features selected by two of the three methods** but not all three sit at the margin — they survive RFE's CV accuracy ranking and LASSO's L1 penalty but are zeroed out by Elastic Net's more aggressive lambda at its regularisation optimum. These are candidates for inclusion in a slightly less sparse model if interpretability requires it, but they are not load-bearing — the consensus core already accounts for their signal.
 
-**Features never selected by any method** are genuinely uninformative once the consensus core is present. The most interpretable null result is `firstblood`: securing the first kill of the game carries no independent predictive signal once the economic and objective picture is accounted for — consistent with the literature, where first blood has the weakest individual win-rate correlation among all first-objective flags and its gold value (400 gold) is small relative to a full 15-minute economic lead. `kill_pressure_10_15` and `opp_kill_pressure_10_15` are subsumed by `kill_diff_15`. `gold_efficiency_15` is redundant with `golddiffat15` and `csdiffat15`.
+**Features never selected by any method** are genuinely uninformative once the consensus core is present. The most interpretable null result is `firstblood`: securing the first kill of the game carries no independent predictive signal once the economic and objective picture is accounted for — consistent with the literature, where first blood has the weakest individual win-rate correlation among all first-objective flags and its gold value (400 gold) is negligible relative to a full 15-minute economic lead. `kill_pressure_10_15` and `opp_kill_pressure_10_15` are fully subsumed by `kill_diff_15`. `gold_efficiency_15` is redundant with `golddiffat15` and `csdiffat15` combined. The momentum features (`gold_momentum`, `xp_momentum`, `cs_momentum`) are eliminated by both penalty methods: once `golddiffat15`, `xpdiffat15`, and `csdiffat15` are already in the model, the @10 snapshot they encode adds no independent signal.
 
 **The key wrapper vs. embedded comparison**: RFE evaluates subsets by CV AUC directly, while LASSO and Elastic Net select through regularisation pressure. Where all three agree, the feature survives both empirical elimination and penalty-based shrinkage — that is the strongest possible evidence of genuine signal. Features that RFE retains but both embedded methods zero out are the ones where multicollinearity-induced coefficient instability may have kept them in the wrapper's ranking longer than warranted. The agreement on the core is the main finding: independent wrapper and embedded criteria converge on the same answer for what genuinely matters.
 
@@ -2294,11 +2307,11 @@ The overall picture is that bot lane is the strongest single-role predictor of m
 
 ## S1 vs S3 synthesis
 
-S1 and S3 converge on the same conclusion from two directions. S1 establishes that the 19 engineered early-game features are collectively sufficient (83–85% AUC across all five model families) and that the predictive signal concentrates in a compact core of continuous resource differentials at 15 min. S3 confirms and sharpens this: three independent selection methods from two different families (one algorithmic, two embedded) all agree that only 9 of those 19 features are necessary — the remaining 10 contribute signal already captured by the core, and dropping them costs under 0.1% AUC.
+S1 and S3 converge on the same conclusion from two directions. S1 establishes that the 19 engineered early-game features are collectively sufficient (83–85% AUC across all five model families) and that the predictive signal concentrates in a compact core of continuous resource differentials at 15 min. S3 confirms and sharpens this: three independent selection methods from two different families (one wrapper, two embedded) all agree that only the consensus core of those 19 features is necessary — the rest contribute signal already captured by that core, and dropping them costs under 0.1% AUC.
 
-The 9-feature LASSO-selected consensus set (`golddiffat15`, `xpdiffat15`, `csdiffat15`, `winrate_diff`, `firsttower`, `firstdragon`, `firstherald`, `kill_diff_15`, `assist_diff_15`) includes the features that S1's four-model importance consensus identified as most consistently important. The only S1 consensus feature absent from the S3 core is `gold_momentum`, which Forward Stepwise and Elastic Net keep (2/3 methods) but LASSO shrinks to zero — it adds marginal signal not fully redundant with `golddiffat15`, but below the L1 threshold.
+The consensus set — selected by all three methods regardless of criterion — includes the features that S1's four-model importance consensus identified as most consistently important. The notable discrepancy between S1 and S3 is `gold_momentum`: it ranked high in S1's importance consensus, yet both LASSO and Elastic Net shrink it to zero under regularisation pressure — its signal is fully absorbed by `golddiffat15` once a penalty is applied. It does not survive two independent embedded selectors, so despite its importance rank in unconstrained models it should not be treated as a load-bearing predictor.
 
-**The practical recommendation**: train a Logistic Regression or Random Forest on the 9-feature LASSO-selected set. It achieves the same AUC (84.1–84.2%) as the full 19-feature model, is leaner, more interpretable, and more robust to collinearity. The four features never selected by any method (`firstblood`, `kill_pressure_10_15`, `opp_kill_pressure_10_15`, `gold_efficiency_15`) should be dropped permanently — their signal is completely subsumed by the consensus core. First blood in particular stands out as a strong null result: securing the first kill of the game, despite its psychological prominence in commentary, carries no independent predictive value once the full 15-minute economic and objective picture is accounted for.
+**The practical recommendation**: train on the 7-feature consensus set — it is the only set where all three independent selection criteria (RFE, LASSO, Elastic Net) agree, achieves AUC 84.0%, and costs under 0.3 pp relative to the full 19-feature model. All three methods converged on exactly the same features, which is the strongest possible evidence that this is the true signal core. Features never selected by any method should be dropped permanently — their signal is completely subsumed by the consensus core. First blood in particular stands out as the strongest null result: despite its psychological prominence in esports commentary, securing the first kill of the game carries no independent predictive value once the full 15-minute economic and objective picture is accounted for.
 
 # Export models for Shiny app
 
