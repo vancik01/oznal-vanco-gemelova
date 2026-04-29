@@ -1,7 +1,0 @@
-﻿suppressPackageStartupMessages(library(tidyverse))
-raw <- read_csv('data/2025_LoL_esports_match_data_from_OraclesElixir.csv', show_col_types=FALSE)
-complete <- raw %>% filter(datacompleteness=='complete')
-teams <- complete %>% filter(position=='team')
-game_cols <- c('result','goldat10','goldat15','golddiffat15')
-games_full <- teams %>% select(gameid, side, all_of(game_cols)) %>% mutate(side=tolower(side)) %>% pivot_wider(id_cols=gameid, names_from=side, values_from=all_of(game_cols), names_glue='{side}_{.value}')
-cat('Cols:', paste(names(games_full), collapse=', '), '\n')

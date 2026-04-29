@@ -2,13 +2,14 @@
 title: "OZNAL Capstone - LoL Esports Early-Game Prediction"
 author: "Martin Vanco, Adriana Gemeľová"
 date: "`r Sys.Date()`"
-output:
-  html_document:
+format:
+  html:
     toc: true
-    toc_float: true
-    number_sections: true
+    toc-location: left
+    number-sections: true
     theme: flatly
-    code_folding: show
+    code-fold: false
+    embed-resources: true
 ---
 
 ```{r setup, include=FALSE}
@@ -159,10 +160,10 @@ games_full <- teams %>%
 # and mutually exclusive binary flags must satisfy red = 1 - blue whenever
 # the objective fires.
 stopifnot(all.equal(games_full$blue_golddiffat15, -games_full$red_golddiffat15))
-stopifnot(all.equal(games_full$blue_xpdiffat15,   -games_full$red_xpdiffat15))
-stopifnot(all.equal(games_full$blue_csdiffat15,   -games_full$red_csdiffat15))
-stopifnot(all(games_full$blue_firstblood   + games_full$red_firstblood   <= 1))
-stopifnot(all(games_full$blue_firsttower   + games_full$red_firsttower   <= 1))
+stopifnot(all.equal(games_full$blue_xpdiffat15, -games_full$red_xpdiffat15))
+stopifnot(all.equal(games_full$blue_csdiffat15, -games_full$red_csdiffat15))
+stopifnot(all(games_full$blue_firstblood + games_full$red_firstblood <= 1))
+stopifnot(all(games_full$blue_firsttower + games_full$red_firsttower <= 1))
 
 # Drop the strict-mirror columns identified above. We keep both sides for
 # independent counts (kills/deaths/assists/turret plates) and for the
@@ -184,8 +185,10 @@ cat(sprintf(
     mean(1 - games$blue_win) * 100
 ))
 
-cat("\nDropped features (recoverable as -blue_X or 1-blue_X):\n  ",
-    paste(redundant_mirrors, collapse = ", "), "\n")
+cat(
+    "\nDropped features (recoverable as -blue_X or 1-blue_X):\n  ",
+    paste(redundant_mirrors, collapse = ", "), "\n"
+)
 
 # Statistical test for side imbalance
 side_test <- prop.test(sum(games$blue_win), nrow(games), p = 0.5)
@@ -214,7 +217,7 @@ games %>%
     scale_fill_manual(values = c("Red won" = "#e74c3c", "Blue won" = "#3498db")) +
     geom_hline(yintercept = nrow(games) / 2, linetype = "dashed", color = "gray40") +
     labs(
-        title    = "Target Variable Distribution (blue_win)",
+        title = "Target Variable Distribution (blue_win)",
         x = "Outcome", y = "Count"
     ) +
     theme_minimal() +
@@ -246,14 +249,14 @@ games %>%
     drop_na() %>%
     group_by(feature) %>%
     summarise(
-        n      = n(),
-        mean   = mean(value),
-        sd     = sd(value),
-        min    = min(value),
-        q25    = quantile(value, 0.25),
+        n = n(),
+        mean = mean(value),
+        sd = sd(value),
+        min = min(value),
+        q25 = quantile(value, 0.25),
         median = median(value),
-        q75    = quantile(value, 0.75),
-        max    = max(value),
+        q75 = quantile(value, 0.75),
+        max = max(value),
         .groups = "drop"
     ) %>%
     mutate(across(c(mean, sd, min, q25, median, q75, max), ~ round(.x, 2))) %>%
@@ -275,12 +278,12 @@ cor_data <- games %>%
 cor_matrix <- cor(cor_data)
 
 corrplot(cor_matrix,
-    method   = "color", type = "lower",
-    tl.cex   = 0.7, tl.col = "black",
-    col      = colorRampPalette(c("#e74c3c", "white", "#2ecc71"))(200),
-    col.lim  = c(-1, 1),
-    title    = "Correlation Matrix - Early-Game Features (Blue's perspective)",
-    mar      = c(0, 0, 2, 0)
+    method = "color", type = "lower",
+    tl.cex = 0.7, tl.col = "black",
+    col = colorRampPalette(c("#e74c3c", "white", "#2ecc71"))(200),
+    col.lim = c(-1, 1),
+    title = "Correlation Matrix - Early-Game Features (Blue's perspective)",
+    mar = c(0, 0, 2, 0)
 )
 ```
 
@@ -304,7 +307,7 @@ ggplot(result_cors, aes(
         labels = c("Negative", "Positive")
     ) +
     labs(
-        title    = "Feature Correlation with blue_win",
+        title = "Feature Correlation with blue_win",
         x = NULL, y = "Pearson Correlation", fill = "Direction"
     ) +
     theme_minimal()
@@ -357,7 +360,7 @@ games %>%
     scale_fill_manual(values = c("Red won" = "#e74c3c", "Blue won" = "#3498db")) +
     geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
     labs(
-        title    = "Gold Differential at 15 Minutes - Blue's Perspective",
+        title = "Gold Differential at 15 Minutes - Blue's Perspective",
         x = "blue_golddiffat15", y = "Density", fill = "Outcome"
     ) +
     theme_minimal()
@@ -373,7 +376,7 @@ games %>%
     geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
     geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
     labs(
-        title    = "Blue Gold Diff @10 vs @15 - Do Leads Grow?",
+        title = "Blue Gold Diff @10 vs @15 - Do Leads Grow?",
         x = "blue_golddiffat10", y = "blue_golddiffat15", color = "Outcome"
     ) +
     theme_minimal()
@@ -389,10 +392,10 @@ gold_baseline_df <- games %>%
         actual        = blue_win == 1
     )
 
-gold_baseline_acc  <- mean(gold_baseline_df$pred_blue_win == gold_baseline_df$actual)
-gold_baseline_n    <- nrow(gold_baseline_df)
+gold_baseline_acc <- mean(gold_baseline_df$pred_blue_win == gold_baseline_df$actual)
+gold_baseline_n <- nrow(gold_baseline_df)
 gold_baseline_ties <- sum(games$blue_golddiffat15 == 0, na.rm = TRUE)
-blue_base_rate     <- mean(games$blue_win)
+blue_base_rate <- mean(games$blue_win)
 
 cat(sprintf(
     "Naive rule 'Blue ahead in gold @15 -> Blue wins':\n  N = %d games (%d games tied at exactly 0 gold diff)\n  Accuracy: %.2f%%\n  Always-predict-Blue baseline: %.2f%%\n  Rule beats always-Blue by: %.2f pp",
@@ -419,9 +422,9 @@ obj_winrates <- map_dfr(obj_cols, function(obj) {
         drop_na()
 
     n_blue <- sum(df[[blue_col]] == 1)
-    n_red  <- sum(df[[blue_col]] == 0)
+    n_red <- sum(df[[blue_col]] == 0)
     blue_wr <- mean(df$blue_win[df[[blue_col]] == 1]) * 100
-    red_wr  <- mean(df$blue_win[df[[blue_col]] == 0]) * 100  # P(Blue wins | Red secured)
+    red_wr <- mean(df$blue_win[df[[blue_col]] == 0]) * 100 # P(Blue wins | Red secured)
 
     chi <- chisq.test(table(df[[blue_col]], df$blue_win))
 
@@ -450,7 +453,7 @@ ggplot(
     scale_y_continuous(limits = c(0, 100)) +
     geom_hline(yintercept = 50, linetype = "dashed", color = "gray40") +
     labs(
-        title    = "P(Blue wins) by Who Secured the First Objective",
+        title = "P(Blue wins) by Who Secured the First Objective",
         x = NULL, y = "Blue Win Rate (%)", fill = NULL
     ) +
     theme_minimal()
@@ -489,7 +492,7 @@ games %>%
     scale_y_continuous(limits = c(0, 100)) +
     geom_hline(yintercept = 50, linetype = "dashed", color = "gray40") +
     labs(
-        title    = "Blue Win Rate by Number of Void Grubs Blue Secured",
+        title = "Blue Win Rate by Number of Void Grubs Blue Secured",
         x = "blue_void_grubs", y = "P(Blue wins) (%)"
     ) +
     theme_minimal() +
@@ -503,12 +506,12 @@ The relationship is essentially monotonic: 0 grubs sits well below 50% win rate,
 Blue side gets first pick in the draft and has slight map asymmetries. We measure the side advantage as the share of Blue wins, and report a 95% CI plus a chi-square test against the 50% null.
 
 ```{r eda-side}
-n_games  <- nrow(games)
-n_blue   <- sum(games$blue_win)
-side_pt  <- prop.test(n_blue, n_games, p = 0.5)
-blue_wr  <- n_blue / n_games * 100
-ci_low   <- side_pt$conf.int[1] * 100
-ci_high  <- side_pt$conf.int[2] * 100
+n_games <- nrow(games)
+n_blue <- sum(games$blue_win)
+side_pt <- prop.test(n_blue, n_games, p = 0.5)
+blue_wr <- n_blue / n_games * 100
+ci_low <- side_pt$conf.int[1] * 100
+ci_high <- side_pt$conf.int[2] * 100
 
 tibble(
     label    = "Blue side",
@@ -520,15 +523,17 @@ tibble(
     geom_col(width = 0.4, fill = "#3498db") +
     geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = 0.15, color = "gray20") +
     geom_text(
-        aes(label = sprintf("%.2f%%  [%.2f, %.2f]\nn=%d  ·  chi^2=%.1f, p=%.2g",
-                            win_rate, ci_low, ci_high, n_games,
-                            side_pt$statistic, side_pt$p.value)),
+        aes(label = sprintf(
+            "%.2f%%  [%.2f, %.2f]\nn=%d  ·  chi^2=%.1f, p=%.2g",
+            win_rate, ci_low, ci_high, n_games,
+            side_pt$statistic, side_pt$p.value
+        )),
         vjust = -0.6, size = 3.5
     ) +
     geom_hline(yintercept = 50, linetype = "dashed", color = "gray40") +
     scale_y_continuous(limits = c(0, 70)) +
     labs(
-        title    = "Blue-Side Advantage",
+        title = "Blue-Side Advantage",
         x = NULL, y = "P(Blue wins) (%)"
     ) +
     theme_minimal() +
@@ -543,9 +548,11 @@ H2 asks whether some roles' early leads matter more than others. As a first look
 
 ```{r eda-roles}
 role_diffs_blue <- players %>%
-    filter(position %in% c("top", "jng", "mid", "bot", "sup"),
-           side == "Blue",
-           !is.na(golddiffat15)) %>%
+    filter(
+        position %in% c("top", "jng", "mid", "bot", "sup"),
+        side == "Blue",
+        !is.na(golddiffat15)
+    ) %>%
     select(gameid, position, golddiffat15)
 
 role_cors <- role_diffs_blue %>%
@@ -560,8 +567,8 @@ role_cors <- role_diffs_blue %>%
     mutate(position = toupper(position))
 
 ggplot(role_cors, aes(
-    x    = reorder(position, correlation),
-    y    = correlation, fill = correlation
+    x = reorder(position, correlation),
+    y = correlation, fill = correlation
 )) +
     geom_col() +
     geom_text(aes(label = sprintf("r = %.3f", correlation)),
@@ -571,7 +578,7 @@ ggplot(role_cors, aes(
     scale_y_continuous(limits = c(0, 0.42)) +
     scale_fill_gradient(low = "#f39c12", high = "#2ecc71") +
     labs(
-        title    = "Correlation: Role Gold Diff @15 (Blue side) vs blue_win",
+        title = "Correlation: Role Gold Diff @15 (Blue side) vs blue_win",
         x = NULL, y = "Pearson Correlation with blue_win"
     ) +
     theme_minimal() +
@@ -590,7 +597,7 @@ role_diffs_blue %>%
     scale_fill_manual(values = c("Red won" = "#e74c3c", "Blue won" = "#3498db")) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
     labs(
-        title    = "Blue-Side Player Gold Differential @15 by Role and Outcome",
+        title = "Blue-Side Player Gold Differential @15 by Role and Outcome",
         x = "Role", y = "Gold Diff @15 min", fill = "Outcome"
     ) +
     theme_minimal()
@@ -616,7 +623,7 @@ ggplot(scale_check, aes(x = value)) +
     geom_histogram(bins = 50, fill = "#3498db", alpha = 0.7) +
     facet_wrap(~feature, scales = "free", ncol = 4) +
     labs(
-        title    = "Feature Distributions - Scale Check (Blue's perspective)",
+        title = "Feature Distributions - Scale Check (Blue's perspective)",
         x = "Value", y = "Count"
     ) +
     theme_minimal()
@@ -692,37 +699,36 @@ games_model <- games_wr %>%
 
         # Snapshot diffs at 15 (primary signal, Blue's perspective)
         golddiffat15 = blue_golddiffat15,
-        xpdiffat15   = blue_xpdiffat15,
-        csdiffat15   = blue_csdiffat15,
+        xpdiffat15 = blue_xpdiffat15,
+        csdiffat15 = blue_csdiffat15,
 
         # Momentum: did Blue's lead grow between 10 and 15?
         gold_momentum = blue_golddiffat15 - blue_golddiffat10,
-        xp_momentum   = blue_xpdiffat15   - blue_xpdiffat10,
-        cs_momentum   = blue_csdiffat15   - blue_csdiffat10,
+        xp_momentum = blue_xpdiffat15 - blue_xpdiffat10,
+        cs_momentum = blue_csdiffat15 - blue_csdiffat10,
 
         # Combat diffs at 15 (death_diff omitted: near-perfect mirror of -kill_diff, see VIF)
-        kill_diff_15   = blue_killsat15   - red_killsat15,
+        kill_diff_15 = blue_killsat15 - red_killsat15,
         assist_diff_15 = blue_assistsat15 - red_assistsat15,
 
         # Per-team kill counts in the 10-15 window
-        kill_pressure_10_15     = blue_killsat15 - blue_killsat10,
-        opp_kill_pressure_10_15 = red_killsat15  - red_killsat10,
-
+        kill_pressure_10_15 = blue_killsat15 - blue_killsat10,
+        opp_kill_pressure_10_15 = red_killsat15 - red_killsat10,
         gold_efficiency_15 = blue_goldat15 / pmax(blue_csat15, 1),
-        kda_15             = (blue_killsat15 + blue_assistsat15) / pmax(blue_deathsat15, 1),
+        kda_15 = (blue_killsat15 + blue_assistsat15) / pmax(blue_deathsat15, 1),
 
         # Objective differentials
         plate_diff = blue_turretplates - red_turretplates,
-        grub_diff  = blue_void_grubs   - red_void_grubs,
+        grub_diff = blue_void_grubs - red_void_grubs,
 
         # Pre-game strength
         winrate_diff,
 
         # First-objective flags (1 if Blue secured)
-        firstblood  = blue_firstblood,
+        firstblood = blue_firstblood,
         firstdragon = blue_firstdragon,
         firstherald = blue_firstherald,
-        firsttower  = blue_firsttower
+        firsttower = blue_firsttower
     ) %>%
     drop_na()
 
@@ -739,22 +745,26 @@ For H2 we add per-role early-game differentials. The signed `golddiffat15` of ea
 
 ```{r h2-role-features}
 role_diffs <- players %>%
-    filter(position %in% c("top", "jng", "mid", "bot", "sup"),
-           side == "Blue") %>%
+    filter(
+        position %in% c("top", "jng", "mid", "bot", "sup"),
+        side == "Blue"
+    ) %>%
     select(
         gameid, position,
         golddiffat10, golddiffat15,
-        xpdiffat10,   xpdiffat15,
-        csdiffat10,   csdiffat15
+        xpdiffat10, xpdiffat15,
+        csdiffat10, csdiffat15
     ) %>%
     drop_na() %>%
     pivot_wider(
-        id_cols     = gameid,
-        names_from  = position,
-        values_from = c(golddiffat10, golddiffat15,
-                        xpdiffat10,   xpdiffat15,
-                        csdiffat10,   csdiffat15),
-        names_glue  = "{position}_{.value}"
+        id_cols = gameid,
+        names_from = position,
+        values_from = c(
+            golddiffat10, golddiffat15,
+            xpdiffat10, xpdiffat15,
+            csdiffat10, csdiffat15
+        ),
+        names_glue = "{position}_{.value}"
     )
 
 games_h2 <- games_model %>%
@@ -780,11 +790,19 @@ set.seed(42)
 
 train_ids <- sample(games_model$gameid, size = floor(0.8 * nrow(games_model)))
 
-train_h1 <- games_model %>% filter(gameid %in% train_ids)  %>% select(-gameid)
-test_h1  <- games_model %>% filter(!gameid %in% train_ids) %>% select(-gameid)
+train_h1 <- games_model %>%
+    filter(gameid %in% train_ids) %>%
+    select(-gameid)
+test_h1 <- games_model %>%
+    filter(!gameid %in% train_ids) %>%
+    select(-gameid)
 
-train_h2 <- games_h2    %>% filter(gameid %in% train_ids)  %>% select(-gameid)
-test_h2  <- games_h2    %>% filter(!gameid %in% train_ids) %>% select(-gameid)
+train_h2 <- games_h2 %>%
+    filter(gameid %in% train_ids) %>%
+    select(-gameid)
+test_h2 <- games_h2 %>%
+    filter(!gameid %in% train_ids) %>%
+    select(-gameid)
 
 cat(sprintf(
     "Games: %d train, %d test\nH1 - Train: %d rows, Test: %d rows\nH2 - Train: %d rows, Test: %d rows",
@@ -832,15 +850,17 @@ Logistic Regression, Naive Bayes, and KNN are sensitive to correlated inputs: LR
 ```{r s1-preprocess}
 X_train <- train_h1 %>% select(-blue_win)
 y_train <- train_h1$blue_win
-X_test  <- test_h1  %>% select(-blue_win)
-y_test  <- test_h1$blue_win
+X_test <- test_h1 %>% select(-blue_win)
+y_test <- test_h1$blue_win
 
-preproc        <- preProcess(X_train, method = c("center", "scale"))
+preproc <- preProcess(X_train, method = c("center", "scale"))
 X_train_scaled <- predict(preproc, X_train)
-X_test_scaled  <- predict(preproc, X_test)
+X_test_scaled <- predict(preproc, X_test)
 
-cat(sprintf("Training features: %d   Training rows: %d   Test rows: %d\n",
-            ncol(X_train), nrow(X_train), nrow(X_test)))
+cat(sprintf(
+    "Training features: %d   Training rows: %d   Test rows: %d\n",
+    ncol(X_train), nrow(X_train), nrow(X_test)
+))
 ```
 
 ```{r s1-vif}
@@ -849,8 +869,10 @@ vif_df <- tibble(
     VIF     = diag(solve(cor(X_train_scaled)))
 ) %>% arrange(desc(VIF))
 
-knitr::kable(vif_df, digits = 2,
-             caption = "VIF on H1 training features (diagnostic only - no features dropped in S1).")
+knitr::kable(vif_df,
+    digits = 2,
+    caption = "VIF on H1 training features (diagnostic only - no features dropped in S1)."
+)
 ```
 
 Resource diffs and momentum form the dominant collinear group (`golddiffat15` ↔ `gold_momentum`, etc.) because momentum is constructed from the @15 diff and the @10 diff. The KDA features (`kill_diff_15`, `kda_15`, `assist_diff_15`) carry mid-range VIF from sharing the same combat signal. Binary objective flags and `winrate_diff` are clean. We expect to see the consequences in the LR coefficient table - collinear features may carry inflated SEs and signs that flip relative to the marginal direction.
@@ -870,7 +892,7 @@ ctrl <- trainControl(
 )
 
 y_train_fct <- factor(y_train, levels = c(0, 1), labels = c("Loss", "Win"))
-y_test_fct  <- factor(y_test,  levels = c(0, 1), labels = c("Loss", "Win"))
+y_test_fct <- factor(y_test, levels = c(0, 1), labels = c("Loss", "Win"))
 ```
 
 ## Logistic Regression
@@ -1071,9 +1093,9 @@ t0 <- Sys.time()
 
 # k grid log-spaced from 5 to ~4*sqrt(n), forced odd to avoid 50/50 ties.
 n_train <- nrow(X_train_scaled)
-k_theo  <- round(sqrt(n_train))
-k_grid  <- unique(round(exp(seq(log(5), log(k_theo * 4), length.out = 12))))
-k_grid  <- ifelse(k_grid %% 2 == 0, k_grid + 1, k_grid)
+k_theo <- round(sqrt(n_train))
+k_grid <- unique(round(exp(seq(log(5), log(k_theo * 4), length.out = 12))))
+k_grid <- ifelse(k_grid %% 2 == 0, k_grid + 1, k_grid)
 
 cat(sprintf(
     "sqrt(n) = %d, candidate K grid: %s\n",
@@ -1242,25 +1264,31 @@ knitr::kable(metrics, digits = 1, caption = "Model Performance Comparison (H1)")
 
 ```{r s1-best-hyperparams}
 best_hyperparams <- tibble(
-    Model = c("Logistic Regression",
-              "Random Forest",
-              "CART",
-              "Naive Bayes",
-              "KNN",
-              "XGBoost"),
+    Model = c(
+        "Logistic Regression",
+        "Random Forest",
+        "CART",
+        "Naive Bayes",
+        "KNN",
+        "XGBoost"
+    ),
     `Tuned params` = c(
         "(none - glm has no hyperparameters)",
         sprintf("mtry = %d (ntree = 500 fixed)", rf_model$bestTune$mtry),
         sprintf("cp = %.5f", cart_model$bestTune$cp),
-        sprintf("usekernel = %s, adjust = %.2f, laplace = %.0f",
-                nb_model$bestTune$usekernel,
-                nb_model$bestTune$adjust,
-                nb_model$bestTune$laplace),
+        sprintf(
+            "usekernel = %s, adjust = %.2f, laplace = %.0f",
+            nb_model$bestTune$usekernel,
+            nb_model$bestTune$adjust,
+            nb_model$bestTune$laplace
+        ),
         sprintf("k = %d", knn_model$bestTune$k),
-        sprintf("nrounds = %d, max_depth = %d, eta = %.2f",
-                xgb_model$bestTune$nrounds,
-                xgb_model$bestTune$max_depth,
-                xgb_model$bestTune$eta)
+        sprintf(
+            "nrounds = %d, max_depth = %d, eta = %.2f",
+            xgb_model$bestTune$nrounds,
+            xgb_model$bestTune$max_depth,
+            xgb_model$bestTune$eta
+        )
     ),
     `CV ROC` = c(
         max(lr_model$results$ROC),
@@ -1275,7 +1303,8 @@ best_hyperparams <- tibble(
 htmltools::div(
     style = "background-color: white; color: black; padding: 10px; border-radius: 4px;",
     htmltools::HTML(knitr::kable(
-        best_hyperparams, digits = 3,
+        best_hyperparams,
+        digits = 3,
         caption = "Best hyperparameters per model (selected by 5-fold CV ROC)",
         format = "html"
     ))
@@ -1291,9 +1320,11 @@ plot_cm <- function(cm, title) {
         scale_fill_gradient(low = "white", high = "#3498db") +
         labs(title = title) +
         theme_minimal() +
-        theme(legend.position = "none",
-              plot.background  = element_rect(fill = "white", color = NA),
-              panel.background = element_rect(fill = "white", color = NA))
+        theme(
+            legend.position = "none",
+            plot.background = element_rect(fill = "white", color = NA),
+            panel.background = element_rect(fill = "white", color = NA)
+        )
 }
 
 gridExtra::grid.arrange(
@@ -1380,22 +1411,30 @@ A "top-10 hit count" is a coarse view because the five importance scales are not
 full_ranks <- lr_coefs %>%
     mutate(rank_LR = row_number()) %>%
     select(feature, rank_LR) %>%
-    full_join(rf_imp   %>% mutate(rank_RF   = row_number()) %>% select(feature, rank_RF),
-              by = "feature") %>%
+    full_join(rf_imp %>% mutate(rank_RF = row_number()) %>% select(feature, rank_RF),
+        by = "feature"
+    ) %>%
     full_join(cart_imp %>% mutate(rank_CART = row_number()) %>% select(feature, rank_CART),
-              by = "feature") %>%
-    full_join(nb_imp   %>% mutate(rank_NB   = row_number()) %>% select(feature, rank_NB),
-              by = "feature") %>%
-    full_join(xgb_imp  %>% mutate(rank_XGB  = row_number()) %>% select(feature, rank_XGB),
-              by = "feature") %>%
-    mutate(
-        avg_rank    = rowMeans(across(starts_with("rank_")), na.rm = TRUE),
-        rank_spread = apply(across(starts_with("rank_")), 1,
-                            function(r) max(r, na.rm = TRUE) - min(r, na.rm = TRUE))
+        by = "feature"
+    ) %>%
+    full_join(nb_imp %>% mutate(rank_NB = row_number()) %>% select(feature, rank_NB),
+        by = "feature"
+    ) %>%
+    full_join(xgb_imp %>% mutate(rank_XGB = row_number()) %>% select(feature, rank_XGB),
+        by = "feature"
     ) %>%
     mutate(
-        times_in_top10 = rowSums(across(c(rank_LR, rank_RF, rank_CART, rank_NB, rank_XGB),
-                                        ~ replace_na(.x, 999) <= 10))
+        avg_rank = rowMeans(across(starts_with("rank_")), na.rm = TRUE),
+        rank_spread = apply(
+            across(starts_with("rank_")), 1,
+            function(r) max(r, na.rm = TRUE) - min(r, na.rm = TRUE)
+        )
+    ) %>%
+    mutate(
+        times_in_top10 = rowSums(across(
+            c(rank_LR, rank_RF, rank_CART, rank_NB, rank_XGB),
+            ~ replace_na(.x, 999) <= 10
+        ))
     ) %>%
     arrange(avg_rank)
 
@@ -1405,13 +1444,19 @@ cat("Cross-model feature ranking (lower avg_rank = more consistently important):
 print(as.data.frame(full_ranks))
 
 cat("\nTrue consensus features (in all 5 top-10s):\n")
-full_ranks %>% filter(times_in_top10 == 5) %>% print()
+full_ranks %>%
+    filter(times_in_top10 == 5) %>%
+    print()
 
 cat("\nStrong majority (in 4 of 5 top-10s):\n")
-full_ranks %>% filter(times_in_top10 == 4) %>% print()
+full_ranks %>%
+    filter(times_in_top10 == 4) %>%
+    print()
 
 cat("\nMixed signal (in 2-3 of 5 top-10s) - model families disagree:\n")
-full_ranks %>% filter(times_in_top10 %in% c(2, 3)) %>% print()
+full_ranks %>%
+    filter(times_in_top10 %in% c(2, 3)) %>%
+    print()
 ```
 
 The five-way consensus - features ranked highly by every method - centres on the same compact set of continuous early-game differentials that the four-way consensus already identified: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. XGBoost adds a tree-ensemble vote that lines up with RF and CART, which tightens rather than reshuffles the ranking. These are the features any defense of H1 should lean on.
@@ -1426,23 +1471,29 @@ H1 summarises the early game at the team level - one gold-diff per game, one xp-
 # Per-role @15 differentials. Economy diffs come straight from the player row;
 # combat diffs we compute as Blue-player-stat minus lane-opponent stat.
 role_enriched <- players %>%
-    filter(position %in% c("top", "jng", "mid", "bot", "sup"),
-           side == "Blue") %>%
-    mutate(
-        killdiffat15   = killsat15   - opp_killsat15,
-        assistdiffat15 = assistsat15 - opp_assistsat15,
-        deathdiffat15  = deathsat15  - opp_deathsat15
+    filter(
+        position %in% c("top", "jng", "mid", "bot", "sup"),
+        side == "Blue"
     ) %>%
-    select(gameid, position,
-           golddiffat15, xpdiffat15, csdiffat15,
-           killdiffat15, assistdiffat15, deathdiffat15) %>%
+    mutate(
+        killdiffat15   = killsat15 - opp_killsat15,
+        assistdiffat15 = assistsat15 - opp_assistsat15,
+        deathdiffat15  = deathsat15 - opp_deathsat15
+    ) %>%
+    select(
+        gameid, position,
+        golddiffat15, xpdiffat15, csdiffat15,
+        killdiffat15, assistdiffat15, deathdiffat15
+    ) %>%
     drop_na() %>%
     pivot_wider(
-        id_cols     = gameid,
-        names_from  = position,
-        values_from = c(golddiffat15, xpdiffat15, csdiffat15,
-                        killdiffat15, assistdiffat15, deathdiffat15),
-        names_glue  = "{position}_{.value}"
+        id_cols = gameid,
+        names_from = position,
+        values_from = c(
+            golddiffat15, xpdiffat15, csdiffat15,
+            killdiffat15, assistdiffat15, deathdiffat15
+        ),
+        names_glue = "{position}_{.value}"
     )
 
 games_enriched <- games_model %>%
@@ -1462,17 +1513,21 @@ cat(sprintf(
 
 ```{r s1-enrich-split}
 # Reuse train_ids so the only thing changing between runs is the feature matrix.
-train_e <- games_enriched %>% filter(gameid %in% train_ids)  %>% select(-gameid)
-test_e  <- games_enriched %>% filter(!gameid %in% train_ids) %>% select(-gameid)
+train_e <- games_enriched %>%
+    filter(gameid %in% train_ids) %>%
+    select(-gameid)
+test_e <- games_enriched %>%
+    filter(!gameid %in% train_ids) %>%
+    select(-gameid)
 
 X_train_e <- train_e %>% select(-blue_win)
-X_test_e  <- test_e  %>% select(-blue_win)
+X_test_e <- test_e %>% select(-blue_win)
 y_train_e <- factor(train_e$blue_win, levels = c(0, 1), labels = c("Loss", "Win"))
-y_test_e  <- factor(test_e$blue_win,  levels = c(0, 1), labels = c("Loss", "Win"))
+y_test_e <- factor(test_e$blue_win, levels = c(0, 1), labels = c("Loss", "Win"))
 
-preproc_e        <- preProcess(X_train_e, method = c("center", "scale"))
+preproc_e <- preProcess(X_train_e, method = c("center", "scale"))
 X_train_e_scaled <- predict(preproc_e, X_train_e)
-X_test_e_scaled  <- predict(preproc_e, X_test_e)
+X_test_e_scaled <- predict(preproc_e, X_test_e)
 ```
 
 ```{r s1-enrich-train}
@@ -1485,9 +1540,11 @@ lr_e <- train(
 )
 
 # RF mtry grid scaled to the new feature count.
-n_feat_e  <- ncol(X_train_e)
-rf_grid_e <- unique(round(c(sqrt(n_feat_e), sqrt(n_feat_e) * 1.5,
-                            sqrt(n_feat_e) * 2,  sqrt(n_feat_e) * 3)))
+n_feat_e <- ncol(X_train_e)
+rf_grid_e <- unique(round(c(
+    sqrt(n_feat_e), sqrt(n_feat_e) * 1.5,
+    sqrt(n_feat_e) * 2, sqrt(n_feat_e) * 3
+)))
 rf_e <- train(
     x = X_train_e, y = y_train_e,
     method = "rf", trControl = ctrl, metric = "ROC",
@@ -1501,9 +1558,9 @@ nb_e <- train(
 )
 
 n_train_e <- nrow(X_train_e_scaled)
-k_theo_e  <- round(sqrt(n_train_e))
-k_grid_e  <- unique(round(exp(seq(log(5), log(k_theo_e * 4), length.out = 12))))
-k_grid_e  <- ifelse(k_grid_e %% 2 == 0, k_grid_e + 1, k_grid_e)
+k_theo_e <- round(sqrt(n_train_e))
+k_grid_e <- unique(round(exp(seq(log(5), log(k_theo_e * 4), length.out = 12))))
+k_grid_e <- ifelse(k_grid_e %% 2 == 0, k_grid_e + 1, k_grid_e)
 knn_e <- train(
     x = X_train_e_scaled, y = y_train_e,
     method = "knn", trControl = ctrl, metric = "ROC",
@@ -1519,22 +1576,24 @@ cart_e <- train(
 
 ```{r s1-enrich-metrics}
 score_e <- function(model, X_eval, name) {
-    cls  <- predict(model, X_eval)
+    cls <- predict(model, X_eval)
     prob <- predict(model, X_eval, type = "prob")
-    cm   <- confusionMatrix(cls, y_test_e, positive = "Win")
+    cm <- confusionMatrix(cls, y_test_e, positive = "Win")
     calc_metrics(cm, prob, y_test_e, name)
 }
 
 metrics_enriched <- bind_rows(
-    score_e(lr_e,   X_test_e_scaled, "Logistic Regression"),
-    score_e(rf_e,   X_test_e,        "Random Forest"),
-    score_e(cart_e, X_test_e,        "CART"),
-    score_e(nb_e,   X_test_e,        "Naive Bayes"),
-    score_e(knn_e,  X_test_e_scaled, "KNN")
+    score_e(lr_e, X_test_e_scaled, "Logistic Regression"),
+    score_e(rf_e, X_test_e, "Random Forest"),
+    score_e(cart_e, X_test_e, "CART"),
+    score_e(nb_e, X_test_e, "Naive Bayes"),
+    score_e(knn_e, X_test_e_scaled, "KNN")
 )
 
-knitr::kable(metrics_enriched, digits = 1,
-             caption = "Enriched feature set: same five models, H1 + 30 per-role @15 features")
+knitr::kable(metrics_enriched,
+    digits = 1,
+    caption = "Enriched feature set: same five models, H1 + 30 per-role @15 features"
+)
 ```
 
 ```{r s1-enrich-delta}
@@ -1542,27 +1601,30 @@ enrich_delta <- metrics %>%
     select(Model, H1_Acc = Accuracy, H1_AUC = AUC_ROC, H1_F1 = F1) %>%
     inner_join(
         metrics_enriched %>% select(Model,
-                                    Enr_Acc = Accuracy,
-                                    Enr_AUC = AUC_ROC,
-                                    Enr_F1  = F1),
+            Enr_Acc = Accuracy,
+            Enr_AUC = AUC_ROC,
+            Enr_F1  = F1
+        ),
         by = "Model"
     ) %>%
     mutate(
         Acc_delta = Enr_Acc - H1_Acc,
         AUC_delta = Enr_AUC - H1_AUC,
-        F1_delta  = Enr_F1  - H1_F1
+        F1_delta  = Enr_F1 - H1_F1
     )
 
-knitr::kable(enrich_delta, digits = 2,
-             caption = "Same models, enriched data: deltas vs H1 (positive = enrichment helped)")
+knitr::kable(enrich_delta,
+    digits = 2,
+    caption = "Same models, enriched data: deltas vs H1 (positive = enrichment helped)"
+)
 ```
 
 ```{r s1-enrich-roc, fig.width=10, fig.height=6}
-roc_lr_e   <- roc(y_test_e, predict(lr_e,   X_test_e_scaled, type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
-roc_rf_e   <- roc(y_test_e, predict(rf_e,   X_test_e,        type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
-roc_cart_e <- roc(y_test_e, predict(cart_e, X_test_e,        type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
-roc_nb_e   <- roc(y_test_e, predict(nb_e,   X_test_e,        type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
-roc_knn_e  <- roc(y_test_e, predict(knn_e,  X_test_e_scaled, type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
+roc_lr_e <- roc(y_test_e, predict(lr_e, X_test_e_scaled, type = "prob")[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_rf_e <- roc(y_test_e, predict(rf_e, X_test_e, type = "prob")[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_cart_e <- roc(y_test_e, predict(cart_e, X_test_e, type = "prob")[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_nb_e <- roc(y_test_e, predict(nb_e, X_test_e, type = "prob")[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_knn_e <- roc(y_test_e, predict(knn_e, X_test_e_scaled, type = "prob")[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 
 ggroc(list(
     "LR (H1)"     = roc_lr,   "LR (enriched)"   = roc_lr_e,
@@ -1572,8 +1634,10 @@ ggroc(list(
     "KNN (H1)"    = roc_knn,  "KNN (enriched)"  = roc_knn_e
 )) +
     geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray40") +
-    labs(title = "ROC: H1 baseline vs enriched (per-role) feature set",
-         x = "Specificity", y = "Sensitivity", color = "Model") +
+    labs(
+        title = "ROC: H1 baseline vs enriched (per-role) feature set",
+        x = "Specificity", y = "Sensitivity", color = "Model"
+    ) +
     theme_minimal()
 ```
 
@@ -1672,10 +1736,10 @@ The VIF showed us which features are collinear, but not which side of each colli
 cat("Running Forward Stepwise Selection (AIC criterion)...\n")
 t0 <- Sys.time()
 
-fwd_train_df        <- X_train_scaled
+fwd_train_df <- X_train_scaled
 fwd_train_df$result <- y_train_fct
 
-null_model   <- glm(result ~ 1, data = fwd_train_df, family = "binomial")
+null_model <- glm(result ~ 1, data = fwd_train_df, family = "binomial")
 full_formula <- as.formula(paste("result ~", paste(names(X_train_scaled), collapse = " + ")))
 
 fwd_model <- MASS::stepAIC(
@@ -1689,19 +1753,22 @@ fwd_selected <- names(coef(fwd_model))
 fwd_selected <- fwd_selected[fwd_selected != "(Intercept)"]
 
 fwd_pred_prob_raw <- predict(fwd_model, newdata = X_test_scaled, type = "response")
-fwd_pred_class    <- factor(ifelse(fwd_pred_prob_raw > 0.5, "Win", "Loss"),
-                             levels = c("Loss", "Win"))
-fwd_cm  <- confusionMatrix(fwd_pred_class, y_test_fct, positive = "Win")
+fwd_pred_class <- factor(ifelse(fwd_pred_prob_raw > 0.5, "Win", "Loss"),
+    levels = c("Loss", "Win")
+)
+fwd_cm <- confusionMatrix(fwd_pred_class, y_test_fct, positive = "Win")
 fwd_roc <- roc(y_test_fct, fwd_pred_prob_raw, levels = c("Loss", "Win"), quiet = TRUE)
 
-cat(sprintf("\nForward Stepwise Results (%.1fs):\nFeatures selected: %d / %d\nFinal AIC: %.1f\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
+cat(sprintf(
+    "\nForward Stepwise Results (%.1fs):\nFeatures selected: %d / %d\nFinal AIC: %.1f\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
     as.numeric(Sys.time() - t0, units = "secs"),
     length(fwd_selected), ncol(X_train_scaled),
     AIC(fwd_model),
     fwd_cm$overall["Accuracy"] * 100,
     fwd_cm$byClass["Sensitivity"] * 100,
     fwd_cm$byClass["Specificity"] * 100,
-    auc(fwd_roc)))
+    auc(fwd_roc)
+))
 
 cat("\nSelected features:\n")
 cat(paste(fwd_selected, collapse = ", "), "\n")
@@ -1714,14 +1781,20 @@ fwd_coef_df <- data.frame(
 ) %>%
     arrange(desc(abs(coefficient)))
 
-ggplot(fwd_coef_df,
-       aes(x = reorder(feature, abs(coefficient)), y = coefficient, fill = coefficient > 0)) +
+ggplot(
+    fwd_coef_df,
+    aes(x = reorder(feature, abs(coefficient)), y = coefficient, fill = coefficient > 0)
+) +
     geom_col() +
     coord_flip() +
-    scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
-                      labels = c("Negative", "Positive")) +
-    labs(title = "Forward Stepwise - Selected Features and Coefficients",
-         x = NULL, y = "Coefficient", fill = "Direction") +
+    scale_fill_manual(
+        values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
+        labels = c("Negative", "Positive")
+    ) +
+    labs(
+        title = "Forward Stepwise - Selected Features and Coefficients",
+        x = NULL, y = "Coefficient", fill = "Direction"
+    ) +
     theme_minimal()
 ```
 Forward Stepwise Selection retained 13 of the 19 candidate features and achieved an AUC-ROC of 0.842 with 75.1% accuracy. This shows that the model can remove several predictors without losing much predictive performance, suggesting that part of the original feature set is redundant.
@@ -1828,20 +1901,22 @@ t0 <- Sys.time()
 alpha_grid <- seq(0, 1, by = 0.05)
 
 enet_cv_results <- map_dfr(alpha_grid, function(a) {
-    cv_fit     <- cv.glmnet(
+    cv_fit <- cv.glmnet(
         x      = as.matrix(X_train_scaled),
         y      = y_train,
         alpha  = a,
         family = "binomial",
         nfolds = 5
     )
-    idx_1se    <- which(cv_fit$lambda == cv_fit$lambda.1se)
-    pred_prob  <- predict(cv_fit, newx = as.matrix(X_test_scaled),
-                          s = "lambda.1se", type = "response")
+    idx_1se <- which(cv_fit$lambda == cv_fit$lambda.1se)
+    pred_prob <- predict(cv_fit,
+        newx = as.matrix(X_test_scaled),
+        s = "lambda.1se", type = "response"
+    )
     pred_class <- factor(ifelse(pred_prob > 0.5, "Win", "Loss"), levels = c("Loss", "Win"))
-    cm         <- confusionMatrix(pred_class, y_test_fct, positive = "Win")
-    roc_obj    <- roc(y_test_fct, as.numeric(pred_prob), levels = c("Loss", "Win"), quiet = TRUE)
-    n_kept     <- sum(coef(cv_fit, s = "lambda.1se") != 0) - 1
+    cm <- confusionMatrix(pred_class, y_test_fct, positive = "Win")
+    roc_obj <- roc(y_test_fct, as.numeric(pred_prob), levels = c("Loss", "Win"), quiet = TRUE)
+    n_kept <- sum(coef(cv_fit, s = "lambda.1se") != 0) - 1
     tibble(
         alpha      = a,
         lambda_1se = cv_fit$lambda.1se,
@@ -1853,16 +1928,22 @@ enet_cv_results <- map_dfr(alpha_grid, function(a) {
     )
 })
 
-best_row   <- enet_cv_results %>% arrange(cv_dev) %>% dplyr::slice(1)
+best_row <- enet_cv_results %>%
+    arrange(cv_dev) %>%
+    dplyr::slice(1)
 best_alpha <- best_row$alpha
-best_dev   <- best_row$cv_dev
-best_se    <- best_row$cv_dev_se
+best_dev <- best_row$cv_dev
+best_se <- best_row$cv_dev_se
 within_1se <- enet_cv_results %>% filter(cv_dev <= best_dev + best_se)
 
-cat(sprintf("\nAlpha grid diagnostic: %d of %d alphas sit within 1 SE of the best (%.3f <= %.3f).\n",
-            nrow(within_1se), nrow(enet_cv_results), best_dev, best_dev + best_se))
-cat(sprintf("Alphas within 1 SE: %s\n",
-            paste(sprintf("%.2f", within_1se$alpha), collapse = ", ")))
+cat(sprintf(
+    "\nAlpha grid diagnostic: %d of %d alphas sit within 1 SE of the best (%.3f <= %.3f).\n",
+    nrow(within_1se), nrow(enet_cv_results), best_dev, best_dev + best_se
+))
+cat(sprintf(
+    "Alphas within 1 SE: %s\n",
+    paste(sprintf("%.2f", within_1se$alpha), collapse = ", ")
+))
 if (nrow(within_1se) >= nrow(enet_cv_results) - 2) {
     cat("-> CV curve is effectively flat across alpha; the L1/L2 mix is underdetermined by this data.\n")
 }
@@ -1876,7 +1957,7 @@ enet_cv_final <- cv.glmnet(
 )
 
 enet_coef_raw <- coef(enet_cv_final, s = "lambda.1se")
-enet_coef_df  <- data.frame(
+enet_coef_df <- data.frame(
     feature     = rownames(enet_coef_raw),
     coefficient = as.numeric(enet_coef_raw)
 ) %>%
@@ -1884,16 +1965,20 @@ enet_coef_df  <- data.frame(
     arrange(desc(abs(coefficient)))
 
 enet_selected_df <- enet_coef_df %>% filter(coefficient != 0)
-enet_selected    <- enet_selected_df$feature
+enet_selected <- enet_selected_df$feature
 
-enet_pred_prob  <- predict(enet_cv_final, newx = as.matrix(X_test_scaled),
-                            s = "lambda.1se", type = "response")
+enet_pred_prob <- predict(enet_cv_final,
+    newx = as.matrix(X_test_scaled),
+    s = "lambda.1se", type = "response"
+)
 enet_pred_class <- factor(ifelse(enet_pred_prob > 0.5, "Win", "Loss"),
-                           levels = c("Loss", "Win"))
-enet_cm  <- confusionMatrix(enet_pred_class, y_test_fct, positive = "Win")
+    levels = c("Loss", "Win")
+)
+enet_cm <- confusionMatrix(enet_pred_class, y_test_fct, positive = "Win")
 enet_roc <- roc(y_test_fct, as.numeric(enet_pred_prob), levels = c("Loss", "Win"), quiet = TRUE)
 
-cat(sprintf("\nElastic Net Results (%.1fs):\nBest alpha: %.1f (0=Ridge, 1=LASSO)\nLambda (1se): %.6f\nFeatures kept: %d / %d (eliminated %d)\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
+cat(sprintf(
+    "\nElastic Net Results (%.1fs):\nBest alpha: %.1f (0=Ridge, 1=LASSO)\nLambda (1se): %.6f\nFeatures kept: %d / %d (eliminated %d)\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
     as.numeric(Sys.time() - t0, units = "secs"),
     best_alpha,
     enet_cv_final$lambda.1se,
@@ -1901,7 +1986,8 @@ cat(sprintf("\nElastic Net Results (%.1fs):\nBest alpha: %.1f (0=Ridge, 1=LASSO)
     enet_cm$overall["Accuracy"] * 100,
     enet_cm$byClass["Sensitivity"] * 100,
     enet_cm$byClass["Specificity"] * 100,
-    auc(enet_roc)))
+    auc(enet_roc)
+))
 
 cat("\nKept features:\n")
 cat(paste(enet_selected, collapse = ", "), "\n")
@@ -1913,14 +1999,19 @@ cat(paste(enet_coef_df %>% filter(coefficient == 0) %>% pull(feature), collapse 
 ```{r s3-elasticnet-plot}
 ggplot(enet_cv_results, aes(x = alpha, y = cv_dev)) +
     geom_ribbon(aes(ymin = cv_dev - cv_dev_se, ymax = cv_dev + cv_dev_se),
-                fill = "#1abc9c", alpha = 0.2) +
+        fill = "#1abc9c", alpha = 0.2
+    ) +
     geom_hline(yintercept = best_dev + best_se, linetype = "dashed", color = "#7f8c8d") +
     geom_line(color = "#1abc9c", linewidth = 1.2) +
     geom_point(size = 3, color = "#1abc9c") +
-    geom_point(data = filter(enet_cv_results, alpha == best_alpha),
-               size = 5, shape = 21, fill = "#e74c3c", color = "white", stroke = 1.5) +
-    labs(title = "Elastic Net: CV Binomial Deviance across Alpha Values",
-         x = "Alpha (0 = Ridge, 1 = LASSO)", y = "5-fold CV Deviance at lambda.1se") +
+    geom_point(
+        data = filter(enet_cv_results, alpha == best_alpha),
+        size = 5, shape = 21, fill = "#e74c3c", color = "white", stroke = 1.5
+    ) +
+    labs(
+        title = "Elastic Net: CV Binomial Deviance across Alpha Values",
+        x = "Alpha (0 = Ridge, 1 = LASSO)", y = "5-fold CV Deviance at lambda.1se"
+    ) +
     theme_minimal()
 
 enet_selected_df %>%
@@ -1928,10 +2019,14 @@ enet_selected_df %>%
     ggplot(aes(x = feature, y = coefficient, fill = coefficient > 0)) +
     geom_col() +
     coord_flip() +
-    scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
-                      labels = c("Negative", "Positive")) +
-    labs(title = "Elastic Net - Surviving Features and Coefficients",
-         x = NULL, y = "Coefficient", fill = "Direction") +
+    scale_fill_manual(
+        values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
+        labels = c("Negative", "Positive")
+    ) +
+    labs(
+        title = "Elastic Net - Surviving Features and Coefficients",
+        x = NULL, y = "Coefficient", fill = "Direction"
+    ) +
     theme_minimal()
 ```
 
@@ -1942,12 +2037,18 @@ s3_best_hyperparams <- tibble(
     Method = c("Forward Stepwise", "LASSO", "Elastic Net"),
     Category = c("Algorithmic", "Embedded", "Embedded"),
     `Best param(s)` = c(
-        sprintf("AIC = %.1f, %d features kept",
-                AIC(fwd_model), length(fwd_selected)),
-        sprintf("lambda.1se = %.5f, %d features kept",
-                lasso_cv$lambda.1se, length(lasso_selected$feature)),
-        sprintf("alpha = %.2f, lambda.1se = %.5f, %d features kept",
-                best_alpha, enet_cv_final$lambda.1se, length(enet_selected))
+        sprintf(
+            "AIC = %.1f, %d features kept",
+            AIC(fwd_model), length(fwd_selected)
+        ),
+        sprintf(
+            "lambda.1se = %.5f, %d features kept",
+            lasso_cv$lambda.1se, length(lasso_selected$feature)
+        ),
+        sprintf(
+            "alpha = %.2f, lambda.1se = %.5f, %d features kept",
+            best_alpha, enet_cv_final$lambda.1se, length(enet_selected)
+        )
     )
 )
 
@@ -1987,7 +2088,7 @@ overlap_df <- map_dfr(all_features, function(f) {
 
 consensus_3 <- overlap_df %>% filter(n_methods == 3)
 consensus_2 <- overlap_df %>% filter(n_methods == 2)
-never_sel   <- overlap_df %>% filter(n_methods == 0)
+never_sel <- overlap_df %>% filter(n_methods == 0)
 
 cat("Feature selection summary across all 3 methods:\n")
 cat(sprintf("  Total features:                 %d\n", length(all_features)))
@@ -2018,20 +2119,20 @@ if (nrow(never_sel) > 0) {
 
 # Performance comparison table
 perf_summary <- tibble(
-    Method     = c("Forward", "LASSO", "ElasticNet", "LR_all"),
+    Method = c("Forward", "LASSO", "ElasticNet", "LR_all"),
     n_features = c(
         length(fwd_selected),
         nrow(lasso_selected),
         nrow(enet_selected_df),
         ncol(X_train_scaled)
     ),
-    Accuracy   = c(
+    Accuracy = c(
         fwd_cm$overall["Accuracy"] * 100,
         lasso_cm$overall["Accuracy"] * 100,
         enet_cm$overall["Accuracy"] * 100,
         lr_cm$overall["Accuracy"] * 100
     ),
-    AUC_ROC    = c(
+    AUC_ROC = c(
         auc(fwd_roc),
         auc(lasso_roc),
         auc(enet_roc),
@@ -2066,7 +2167,7 @@ ggplot(overlap_long, aes(x = method, y = feature_label, fill = selected)) +
         guide  = "none"
     ) +
     labs(
-        title    = "Feature Selection Overlap Across All Three Methods",
+        title = "Feature Selection Overlap Across All Three Methods",
         x = NULL, y = NULL
     ) +
     theme_minimal() +
@@ -2086,18 +2187,24 @@ perf_summary %>%
     mutate(Method = reorder(Method, AUC_ROC)) %>%
     ggplot(aes(x = AUC_ROC, y = Method)) +
     geom_segment(aes(x = baseline_auc - 1.5, xend = AUC_ROC, yend = Method),
-                 color = "grey75", linewidth = 1) +
+        color = "grey75", linewidth = 1
+    ) +
     geom_point(size = 5, color = "#2ecc71") +
     geom_text(aes(label = sprintf("%d features", n_features)),
-              nudge_x = 0.15, hjust = 0, size = 3.5, color = "grey30") +
-    geom_vline(xintercept = baseline_auc, linetype = "dashed",
-               color = "#e74c3c", linewidth = 0.8) +
-    annotate("text", x = baseline_auc + 0.05, y = 0.6,
-             label = sprintf("Baseline\n(all %d feat.)", ncol(X_train_scaled)),
-             color = "#e74c3c", size = 3, hjust = 0) +
+        nudge_x = 0.15, hjust = 0, size = 3.5, color = "grey30"
+    ) +
+    geom_vline(
+        xintercept = baseline_auc, linetype = "dashed",
+        color = "#e74c3c", linewidth = 0.8
+    ) +
+    annotate("text",
+        x = baseline_auc + 0.05, y = 0.6,
+        label = sprintf("Baseline\n(all %d feat.)", ncol(X_train_scaled)),
+        color = "#e74c3c", size = 3, hjust = 0
+    ) +
     scale_x_continuous(limits = c(baseline_auc - 1.5, baseline_auc + 1.5)) +
     labs(
-        title   = "Feature Selection: AUC-ROC vs. Method",
+        title = "Feature Selection: AUC-ROC vs. Method",
         x = "AUC-ROC (%)", y = NULL
     ) +
     theme_minimal() +
@@ -2149,17 +2256,17 @@ The 9-feature LASSO-selected consensus set (`golddiffat15`, `xpdiffat15`, `csdif
 ```{r save-models}
 dir.create("shiny/models", recursive = TRUE, showWarnings = FALSE)
 
-saveRDS(lr_model,      "shiny/models/lr_model.rds")
-saveRDS(rf_model,      "shiny/models/rf_model.rds")
-saveRDS(nb_model,      "shiny/models/nb_model.rds")
-saveRDS(knn_model,     "shiny/models/knn_model.rds")
-saveRDS(cart_model,    "shiny/models/cart_model.rds")
-saveRDS(preproc,       "shiny/models/preproc.rds")
-saveRDS(perf_summary,  "shiny/models/perf_summary.rds")
-saveRDS(overlap_df,    "shiny/models/overlap_df.rds")
-saveRDS(games_model,   "shiny/models/games_model.rds")
-saveRDS(X_train,       "shiny/models/X_train.rds")
-saveRDS(games,         "shiny/models/games.rds")
+saveRDS(lr_model, "shiny/models/lr_model.rds")
+saveRDS(rf_model, "shiny/models/rf_model.rds")
+saveRDS(nb_model, "shiny/models/nb_model.rds")
+saveRDS(knn_model, "shiny/models/knn_model.rds")
+saveRDS(cart_model, "shiny/models/cart_model.rds")
+saveRDS(preproc, "shiny/models/preproc.rds")
+saveRDS(perf_summary, "shiny/models/perf_summary.rds")
+saveRDS(overlap_df, "shiny/models/overlap_df.rds")
+saveRDS(games_model, "shiny/models/games_model.rds")
+saveRDS(X_train, "shiny/models/X_train.rds")
+saveRDS(games, "shiny/models/games.rds")
 
 # Game lookup table for Shiny browser.
 # The Shiny app's game-picker is per-side (one Blue and one Red row per game),
@@ -2175,26 +2282,26 @@ shiny_red <- games_model %>%
     transmute(
         gameid,
         side_encoded = 0L,
-        result       = 1L - blue_win,
+        result = 1L - blue_win,
         golddiffat15 = -golddiffat15,
-        xpdiffat15   = -xpdiffat15,
-        csdiffat15   = -csdiffat15,
-        gold_momentum  = -gold_momentum,
-        xp_momentum    = -xp_momentum,
-        cs_momentum    = -cs_momentum,
-        kill_diff_15   = -kill_diff_15,
+        xpdiffat15 = -xpdiffat15,
+        csdiffat15 = -csdiffat15,
+        gold_momentum = -gold_momentum,
+        xp_momentum = -xp_momentum,
+        cs_momentum = -cs_momentum,
+        kill_diff_15 = -kill_diff_15,
         assist_diff_15 = -assist_diff_15,
-        kill_pressure_10_15     = opp_kill_pressure_10_15,
+        kill_pressure_10_15 = opp_kill_pressure_10_15,
         opp_kill_pressure_10_15 = kill_pressure_10_15,
-        gold_efficiency_15 = NA_real_,  # Blue-only ratio, no Red counterpart kept
-        kda_15             = NA_real_,
-        plate_diff   = -plate_diff,
-        grub_diff    = -grub_diff,
+        gold_efficiency_15 = NA_real_, # Blue-only ratio, no Red counterpart kept
+        kda_15 = NA_real_,
+        plate_diff = -plate_diff,
+        grub_diff = -grub_diff,
         winrate_diff = -winrate_diff,
-        firstblood   = ifelse(firstblood   == 1L, 0L, firstblood),
-        firstdragon  = ifelse(firstdragon  == 1L, 0L, firstdragon),
-        firstherald  = ifelse(firstherald  == 1L, 0L, firstherald),
-        firsttower   = ifelse(firsttower   == 1L, 0L, firsttower)
+        firstblood = ifelse(firstblood == 1L, 0L, firstblood),
+        firstdragon = ifelse(firstdragon == 1L, 0L, firstdragon),
+        firstherald = ifelse(firstherald == 1L, 0L, firstherald),
+        firsttower = ifelse(firsttower == 1L, 0L, firsttower)
     )
 
 per_side_features <- bind_rows(shiny_blue, shiny_red)
@@ -2202,31 +2309,38 @@ per_side_features <- bind_rows(shiny_blue, shiny_red)
 # Per-side team labels
 team_labels <- teams %>%
     select(gameid, league, date, side, teamname) %>%
-    mutate(side_encoded = ifelse(side == "Blue", 1L, 0L),
-           side_label   = side) %>%
+    mutate(
+        side_encoded = ifelse(side == "Blue", 1L, 0L),
+        side_label = side
+    ) %>%
     select(gameid, league, date, teamname, side_label, side_encoded)
 
 opp_labels <- team_labels %>%
     transmute(gameid,
-              side_encoded_opp = 1L - side_encoded,
-              opp_teamname     = teamname)
+        side_encoded_opp = 1L - side_encoded,
+        opp_teamname     = teamname
+    )
 
 game_lookup <- team_labels %>%
     left_join(opp_labels, by = c("gameid", "side_encoded" = "side_encoded_opp")) %>%
     inner_join(per_side_features, by = c("gameid", "side_encoded")) %>%
-    mutate(date         = as.Date(date),
-           result_label = ifelse(result == 1, "WIN", "LOSS"))
+    mutate(
+        date = as.Date(date),
+        result_label = ifelse(result == 1, "WIN", "LOSS")
+    )
 
 saveRDS(game_lookup, "shiny/models/game_lookup.rds")
 
 # ROC objects for Shiny Model Comparison tab
-roc_lr   <- pROC::roc(y_test_fct, lr_prob[,   "Win"], levels = c("Loss","Win"), quiet = TRUE)
-roc_rf   <- pROC::roc(y_test_fct, rf_prob[,   "Win"], levels = c("Loss","Win"), quiet = TRUE)
-roc_nb   <- pROC::roc(y_test_fct, nb_prob[,   "Win"], levels = c("Loss","Win"), quiet = TRUE)
-roc_knn  <- pROC::roc(y_test_fct, knn_prob[,  "Win"], levels = c("Loss","Win"), quiet = TRUE)
-roc_cart <- pROC::roc(y_test_fct, cart_prob[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
-saveRDS(list(lr = roc_lr, rf = roc_rf, nb = roc_nb, knn = roc_knn, cart = roc_cart),
-        "shiny/models/roc_list.rds")
+roc_lr <- pROC::roc(y_test_fct, lr_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_rf <- pROC::roc(y_test_fct, rf_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_nb <- pROC::roc(y_test_fct, nb_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_knn <- pROC::roc(y_test_fct, knn_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_cart <- pROC::roc(y_test_fct, cart_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+saveRDS(
+    list(lr = roc_lr, rf = roc_rf, nb = roc_nb, knn = roc_knn, cart = roc_cart),
+    "shiny/models/roc_list.rds"
+)
 
 # LR test predictions for Shiny (confusion matrix + prob distribution)
 saveRDS(

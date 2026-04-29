@@ -60,3 +60,15 @@ Useful later if we want to look at predictions without retraining. `"final"` = s
 **`verboseIter = TRUE`** → "Print progress while training."
 Shows lines like `Fold1: mtry= 5` so you can tell it's alive when training takes minutes.
 
+
+## Youden's J (optimal cutoff) - why we skip it
+
+Youden's J = sensitivity + specificity − 1, maximised over the ROC curve to pick a "best" probability threshold instead of the default 0.5.
+
+We do not apply it because:
+- Classes are near-balanced (~53/47 blue/red wins) → default 0.5 is already close to the Youden-optimal threshold; expected gain on accuracy/F1 is ~0.1-0.5 pp.
+- Our headline metric is AUC, which is threshold-independent → tuning the cutoff does not move the number we report.
+- No asymmetric cost between false positives and false negatives in this problem (predicting the wrong winner at minute 15 has the same "cost" either way), so there is no domain reason to shift the threshold.
+
+If we had imbalance or asymmetric costs, Youden's J (or a cost-weighted threshold) would be the right move.
+
