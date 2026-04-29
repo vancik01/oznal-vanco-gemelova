@@ -65,7 +65,7 @@ The early game also has a set of one-off objective races, each won by exactly on
 Published work on early-game LoL match prediction at the **15-minute mark** converges tightly, with reported accuracy clustering in the **76-78% band** across model families and dataset types.
 
 | Study                                        | Year | Dataset                      | Model               | Acc. \@15  |
-|---------------|---------------|---------------|---------------|---------------|
+|----------------------------------------------|------|------------------------------|---------------------|------------|
 | Spaargaren, MSc thesis (Tilburg)             | 2022 | Oracle's Elixir pro, 2021    | Logistic Regression | **77.99%** |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Random Forest       | 77.26%     |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Naïve Bayes         | 76.82%     |
@@ -91,6 +91,7 @@ library(glmnet)
 library(randomForest)
 library(naivebayes)
 library(rpart)
+library(xgboost)
 library(pROC)
 library(gridExtra)
 library(doParallel)
@@ -186,8 +187,7 @@ cat(sprintf(
 cat("\nDropped features (recoverable as -blue_X or 1-blue_X):\n  ",
     paste(redundant_mirrors, collapse = ", "), "\n")
 
-# Statistical test for side imbalance - hypotheses should be evaluated with
-# significance tests, not just point estimates.
+# Statistical test for side imbalance
 side_test <- prop.test(sum(games$blue_win), nrow(games), p = 0.5)
 cat(sprintf(
     "\nTwo-sided proportion test vs 50%%:\n  chi^2 = %.2f, df = 1, p = %.3g\n  95%% CI for Blue WR: [%.3f, %.3f]\n  -> Blue-side advantage is %s.\n",
@@ -223,11 +223,11 @@ games %>%
 
 Blue side wins slightly more than half of all games. The proportion test above puts this at p \< 0.001, so the imbalance is real, but at roughly 3 percentage points above 50% it is small enough that we keep accuracy as a valid metric and skip resampling.
 
-## Early-game feature correlations with `blue_win`
+## Descriptive statistics
 
-We correlate each early-game numeric feature (Blue's perspective) with the target.
+Before correlations and modelling, we look at the central tendency and spread of every early-game numeric we plan to feed into the models. The columns are sorted by standard deviation - the loudest features will dominate any unscaled distance-based model, which motivates the centering and scaling done later in the modelling pipeline.
 
-```{r eda-correlation, fig.width=12, fig.height=10}
+```{r eda-describe}
 early_game_cols <- c(
     "blue_goldat10", "blue_xpat10", "blue_csat10",
     "blue_golddiffat10", "blue_xpdiffat10", "blue_csdiffat10",
@@ -240,6 +240,34 @@ early_game_cols <- c(
     "blue_win"
 )
 
+games %>%
+    select(all_of(setdiff(early_game_cols, "blue_win"))) %>%
+    pivot_longer(everything(), names_to = "feature", values_to = "value") %>%
+    drop_na() %>%
+    group_by(feature) %>%
+    summarise(
+        n      = n(),
+        mean   = mean(value),
+        sd     = sd(value),
+        min    = min(value),
+        q25    = quantile(value, 0.25),
+        median = median(value),
+        q75    = quantile(value, 0.75),
+        max    = max(value),
+        .groups = "drop"
+    ) %>%
+    mutate(across(c(mean, sd, min, q25, median, q75, max), ~ round(.x, 2))) %>%
+    arrange(desc(sd)) %>%
+    print(n = Inf)
+```
+
+The differentials sit at the top of the spread ranking with standard deviations in the thousands of gold and XP, while the absolute totals at 15 minutes cluster tightly around 25k gold and 30k XP. CS columns are an order of magnitude smaller, kill/death/assist counts smaller still, and the 0/1-coded objectives sit at the bottom with sd around 0.5. On the original scale the objectives would be invisible next to gold and XP, which is why the modelling pipeline centers and scales every input before training Logistic Regression and KNN. The differential means hover near zero (243 gold and 49 XP at 15) - close enough to confirm the features behave like signed deltas rather than biased counters, but slightly positive in line with the Blue-side advantage seen earlier.
+
+## Early-game feature correlations with `blue_win`
+
+We correlate each early-game numeric feature (Blue's perspective) with the target.
+
+```{r eda-correlation, fig.width=12, fig.height=10}
 cor_data <- games %>%
     select(all_of(early_game_cols)) %>%
     drop_na()
@@ -293,6 +321,28 @@ cat(sprintf(
 ```
 
 Differentials (`blue_golddiffat15`, `blue_xpdiffat15`, `blue_csdiffat15`) dominate the ranking, since what matters is the *gap* between teams rather than the absolute totals. Among objectives, `blue_firsttower` and `blue_firstherald` stand out; `blue_firstblood` and `blue_firstdragon` carry less signal. The matrix also shows two flavours of multicollinearity: between a raw stat and its differential (`blue_goldat15` vs `blue_golddiffat15`), and between Blue and Red counts of the same shared-pool objective (`blue_void_grubs` vs `red_void_grubs`, strongly negatively correlated because they share a 6-grub pit). Both forms hurt Logistic Regression and **motivate the LASSO and Elastic Net regularization used in Scenario 3**.
+
+## Per-outcome means
+
+The correlation chart ranks features by linear association with `blue_win`. Putting the same features through a means-by-outcome lens shows the gap in the original units rather than on the [-1, 1] scale, which is easier to read for objectives and combat counts.
+
+```{r eda-by-outcome}
+games %>%
+    select(all_of(early_game_cols)) %>%
+    drop_na() %>%
+    mutate(outcome = if_else(blue_win == 1, "blue_win", "red_win")) %>%
+    select(-blue_win) %>%
+    pivot_longer(-outcome, names_to = "feature", values_to = "value") %>%
+    group_by(feature, outcome) %>%
+    summarise(mean = mean(value), .groups = "drop") %>%
+    pivot_wider(names_from = outcome, values_from = mean) %>%
+    mutate(diff = blue_win - red_win) %>%
+    arrange(desc(abs(diff))) %>%
+    mutate(across(c(blue_win, red_win, diff), ~ round(.x, 3))) %>%
+    print(n = Inf)
+```
+
+The biggest absolute gaps fall on the gold and XP differentials at 15 minutes - Blue wins lead by \~1500 gold and \~940 XP on average; losses trail by similar amounts. Tower-related objectives produce the largest split among the 0/1 features: `blue_firsttower` jumps from 0.34 in losses to 0.73 in wins, `blue_firstherald` from 0.44 to 0.75. First blood and first dragon move the means by less than 0.17, matching their weaker correlations. The signs in the diff column also confirm direction: `blue_deathsat15` is the only count where the win-mean is *lower* than the loss-mean (3.6 vs 5.2), and `red_void_grubs` flips negative because more grubs to the enemy means a worse outcome for Blue.
 
 ## Gold differential distribution
 
@@ -478,7 +528,7 @@ tibble(
     geom_hline(yintercept = 50, linetype = "dashed", color = "gray40") +
     scale_y_continuous(limits = c(0, 70)) +
     labs(
-        title    = "Blue-Side Advantage (one row per game)",
+        title    = "Blue-Side Advantage",
         x = NULL, y = "P(Blue wins) (%)"
     ) +
     theme_minimal() +
@@ -745,21 +795,39 @@ cat(sprintf(
 
 # Scenario 1: Model Comparison
 
-Five classifiers on the same H1 feature set, judged on accuracy, AUC-ROC, precision, recall, and F1. Hyperparameters are tuned with shared 5-fold CV (`metric = "ROC"`); the test set is held out for the final report.
+Six classifiers on the same H1 feature set, judged on accuracy, AUC-ROC, precision, recall, and F1. Hyperparameters are tuned with shared 5-fold CV (`metric = "ROC"`); the test set is held out for the final report.
 
-| Category       | Model                | Role in the comparison                                     |
-|-----------------|-----------------|---------------------------------------|
-| Statistical/ML | Logistic Regression  | Interpretable linear baseline; standardised coefficients   |
-| Statistical/ML | Random Forest        | Non-linear ensemble; agreement check on what matters       |
-| Statistical/ML | Naive Bayes          | Bayes-rule baseline assuming feature independence          |
-| Partitioning   | KNN                  | Distance-based; sensitive to scale and correlated features |
-| Partitioning   | Decision Tree (CART) | Single-tree analogue of RF for the consensus comparison    |
+| Category       | Model                | Role in the comparison                                                     |
+|----------------|----------------------|----------------------------------------------------------------------------|
+| Statistical/ML | Logistic Regression  | Interpretable linear baseline; standardised coefficients                   |
+| Statistical/ML | Random Forest        | Non-linear ensemble; agreement check on what matters                       |
+| Statistical/ML | Naive Bayes          | Bayes-rule baseline assuming feature independence                          |
+| Partitioning   | KNN                  | Distance-based; sensitive to scale and correlated features                 |
+| Partitioning   | Decision Tree (CART) | Single-tree analogue of RF for the consensus comparison                    |
+| Statistical/ML | XGBoost              | Gradient-boosted trees; benchmark used in modern LoL @15 prediction papers |
 
 The bar to beat is the EDA baseline: **72.9 %** from "Blue ahead in gold @15 wins". Published @15 LoL studies report 73-78 %, so a 75 %-band result is consistent with the literature.
 
+## Algorithm requirements
+
+Each classifier carries a different set of statistical assumptions; the matrix below records whether `games_model` meets them and where a violation is mitigated. Status: ✓ met, ⚠ violation noted/mitigated, — not applicable to this model. Evidence is grounded in the EDA above and the VIF check that follows.
+
+| Requirement                  | LR                                            | RF                       | NB                               | KNN                             | CART                        | XGBoost                                |
+|------------------------------|-----------------------------------------------|--------------------------|----------------------------------|---------------------------------|-----------------------------|----------------------------------------|
+| Binary response variable     | ✓ `blue_win` 0/1                              | ✓                        | ✓                                | ✓                               | ✓                           | ✓                                      |
+| Independence of observations | ✓ one row per game                            | ✓                        | ✓                                | ✓                               | ✓                           | ✓                                      |
+| Low multicollinearity        | ⚠ momentum/diff pair, mirrors dropped, scaled | — split-invariant        | ⚠ violates conditional indep.    | — distance bias mild            | — splits univariate         | — boosting handles correlated features |
+| Feature normality            | — not assumed (logistic link)                 | —                        | ⚠ KDA columns right-skewed (EDA) | —                               | —                           | —                                      |
+| Feature scaling              | ✓ centered + scaled                           | — invariant              | — invariant                      | ✓ centered + scaled (distances) | — invariant                 | — invariant                            |
+| Homoscedasticity             | — N/A for binary outcome                      | —                        | —                                | —                               | —                           | —                                      |
+| Robustness to outliers       | ⚠ scaling caps influence                      | ✓ bagging averages       | ⚠ mean/var sensitive             | ⚠ k ≈ √n smooths long tails     | ✓ splits do not extrapolate | ✓ tree-based                           |
+| Predictor-target form        | log-odds linear in features                   | non-linear, interactions | conditional indep. given class   | local non-linearity             | step-wise non-linear        | boosted non-linear                     |
+
+Two flags drive most of the model-choice argument here. Multicollinearity and the LR/NB assumption violations are the reason we keep regularisation in scope (S3) and treat the LR coefficient signs as suggestive rather than causal. Scaling sensitivity for LR and KNN is handled in the modelling pipeline below via `preProcess(method = c("center", "scale"))`. Tree-based methods (RF, CART, XGBoost) sidestep nearly every row of the table - which is also why they tend to dominate this kind of tabular comparison in the LoL literature.
+
 ## Multicollinearity check (VIF)
 
-Logistic Regression, Naive Bayes, and KNN are sensitive to correlated inputs: LR coefficient signs and standard errors degrade under collinearity, NB's independence assumption is directly violated, and KNN distances over-weight correlated dimensions. Random Forest and CART are immune (univariate splits). Per the consultation, S1 keeps every feature and uses VIF only as a diagnostic - high-VIF features remain in the model and motivate the regularised selection in S3.
+Logistic Regression, Naive Bayes, and KNN are sensitive to correlated inputs: LR coefficient signs and standard errors degrade under collinearity, NB's independence assumption is directly violated, and KNN distances over-weight correlated dimensions. Random Forest, CART, and XGBoost are immune (univariate splits). Per the consultation, S1 keeps every feature and uses VIF only as a diagnostic - high-VIF features remain in the model and motivate the regularised selection in S3.
 
 ```{r s1-preprocess}
 X_train <- train_h1 %>% select(-blue_win)
@@ -801,8 +869,6 @@ ctrl <- trainControl(
     verboseIter = TRUE
 )
 
-# Target factor: Loss first, Win last so glm() models P(Win) directly
-# (positive = "Win" is passed to every confusionMatrix to keep Sens = Win recall)
 y_train_fct <- factor(y_train, levels = c(0, 1), labels = c("Loss", "Win"))
 y_test_fct  <- factor(y_test,  levels = c(0, 1), labels = c("Loss", "Win"))
 ```
@@ -812,7 +878,6 @@ y_test_fct  <- factor(y_test,  levels = c(0, 1), labels = c("Loss", "Win"))
 Linear baseline trained on the standardised feature matrix so coefficients are directly comparable. With Win as the last factor level, `glm` models log-odds of Win - a positive coefficient indicates the feature pushes towards Blue winning, a negative one pushes against.
 
 ```{r s1-logistic}
-cat("Training Logistic Regression...\n")
 t0 <- Sys.time()
 
 lr_model <- train(
@@ -874,7 +939,6 @@ Resource diffs at @15 (`golddiffat15`, `xpdiffat15`, `csdiffat15`), `kill_diff_1
 Non-linear ensemble; immune to the multicollinearity that distorts the LR coefficients. We tune `mtry` over `{5, 7, 10, 15, 19}` with 500 trees fixed.
 
 ```{r s1-rf}
-cat("Training Random Forest (5 mtry values x 5 folds = 25 fits, 500 trees each)...\n")
 t0 <- Sys.time()
 
 rf_model <- train(
@@ -902,7 +966,6 @@ cat(sprintf(
 ))
 
 # Show CV results across mtry values
-cat("\n\nCV results by mtry:\n")
 print(rf_model$results %>% select(mtry, ROC, Sens, Spec))
 ```
 
@@ -929,7 +992,6 @@ ggplot(
 The independence assumption is directly violated by the VIF result above; we still fit it to see how much accuracy that costs. We tune `usekernel` (Gaussian vs KDE) and the KDE bandwidth multiplier `adjust`.
 
 ```{r s1-nb}
-cat("Training Naive Bayes...\n")
 t0 <- Sys.time()
 
 nb_grid <- expand.grid(
@@ -962,7 +1024,6 @@ cat(sprintf(
     max(nb_model$results$ROC)
 ))
 
-cat("\n\nCV results by hyperparameter combo:\n")
 print(nb_model$results %>%
     arrange(desc(ROC)) %>%
     select(usekernel, adjust, ROC, Sens, Spec))
@@ -1006,7 +1067,6 @@ ggplot(
 Distance-based; runs on the standardised matrix. Multicollinearity inflates correlated dimensions in the Euclidean metric, so we expect KNN to lose ground to RF/CART here.
 
 ```{r s1-knn}
-cat("Training KNN...\n")
 t0 <- Sys.time()
 
 # k grid log-spaced from 5 to ~4*sqrt(n), forced odd to avoid 50/50 ties.
@@ -1049,7 +1109,6 @@ cat(sprintf(
 Single-tree analogue of RF; like RF, immune to multicollinearity. We tune the complexity parameter `cp` over `{1e-5, 5e-5, 1e-4, 5e-4, 1e-3}`.
 
 ```{r s1-cart}
-cat("Training Decision Tree CART...\n")
 t0 <- Sys.time()
 
 # cp (complexity parameter) controls tree depth - tuned via 5-fold CV
@@ -1089,6 +1148,68 @@ cart_imp <- varImp(cart_model)$importance %>%
 #            extra = 104)
 ```
 
+## XGBoost
+
+Gradient-boosted trees: a boosted-ensemble counterpart to RF and the model used as the strongest non-linear baseline in the recent LoL prediction literature. Like RF and CART it is immune to multicollinearity and feature scaling. We tune `nrounds`, `max_depth`, and `eta` over a small grid; the remaining XGBoost hyperparameters are held at sensible defaults to keep the search tractable.
+
+```{r s1-xgb}
+t0 <- Sys.time()
+
+xgb_grid <- expand.grid(
+    nrounds          = c(100, 300),
+    max_depth        = c(4, 6),
+    eta              = c(0.05, 0.1),
+    gamma            = 0,
+    colsample_bytree = 0.8,
+    min_child_weight = 1,
+    subsample        = 0.8
+)
+
+xgb_model <- train(
+    x = X_train,
+    y = y_train_fct,
+    method = "xgbTree",
+    trControl = ctrl,
+    metric = "ROC",
+    tuneGrid = xgb_grid,
+    verbosity = 0
+)
+
+xgb_pred <- predict(xgb_model, X_test)
+xgb_prob <- predict(xgb_model, X_test, type = "prob")
+xgb_cm <- confusionMatrix(xgb_pred, y_test_fct, positive = "Win")
+
+cat(sprintf(
+    "\nXGBoost Results (trained in %.1fs):\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nBest nrounds=%d, max_depth=%d, eta=%.2f\nCV AUC-ROC: %.3f",
+    as.numeric(Sys.time() - t0, units = "secs"),
+    xgb_cm$overall["Accuracy"] * 100,
+    xgb_cm$byClass["Sensitivity"] * 100,
+    xgb_cm$byClass["Specificity"] * 100,
+    xgb_model$bestTune$nrounds,
+    xgb_model$bestTune$max_depth,
+    xgb_model$bestTune$eta,
+    max(xgb_model$results$ROC)
+))
+```
+
+```{r s1-xgb-importance}
+xgb_imp <- varImp(xgb_model)$importance %>%
+    rownames_to_column("feature") %>%
+    arrange(desc(Overall))
+
+ggplot(
+    xgb_imp %>% head(20),
+    aes(x = reorder(feature, Overall), y = Overall)
+) +
+    geom_col(fill = "#16a085") +
+    coord_flip() +
+    labs(
+        title = "XGBoost - Top 20 Feature Importances",
+        x = NULL, y = "Importance (gain)"
+    ) +
+    theme_minimal()
+```
+
 ## Model comparison
 
 Side-by-side test-set metrics, confusion matrices, ROC curves. We check (a) which models beat the 72.9 % gold-rule baseline and (b) whether the non-linear RF gains anything over the linear/probabilistic baselines.
@@ -1112,7 +1233,8 @@ metrics <- bind_rows(
     calc_metrics(rf_cm, rf_prob, y_test_fct, "Random Forest"),
     calc_metrics(cart_cm, cart_prob, y_test_fct, "CART"),
     calc_metrics(nb_cm, nb_prob, y_test_fct, "Naive Bayes"),
-    calc_metrics(knn_cm, knn_prob, y_test_fct, "KNN")
+    calc_metrics(knn_cm, knn_prob, y_test_fct, "KNN"),
+    calc_metrics(xgb_cm, xgb_prob, y_test_fct, "XGBoost")
 )
 
 knitr::kable(metrics, digits = 1, caption = "Model Performance Comparison (H1)")
@@ -1124,7 +1246,8 @@ best_hyperparams <- tibble(
               "Random Forest",
               "CART",
               "Naive Bayes",
-              "KNN"),
+              "KNN",
+              "XGBoost"),
     `Tuned params` = c(
         "(none - glm has no hyperparameters)",
         sprintf("mtry = %d (ntree = 500 fixed)", rf_model$bestTune$mtry),
@@ -1133,14 +1256,19 @@ best_hyperparams <- tibble(
                 nb_model$bestTune$usekernel,
                 nb_model$bestTune$adjust,
                 nb_model$bestTune$laplace),
-        sprintf("k = %d", knn_model$bestTune$k)
+        sprintf("k = %d", knn_model$bestTune$k),
+        sprintf("nrounds = %d, max_depth = %d, eta = %.2f",
+                xgb_model$bestTune$nrounds,
+                xgb_model$bestTune$max_depth,
+                xgb_model$bestTune$eta)
     ),
     `CV ROC` = c(
         max(lr_model$results$ROC),
         max(rf_model$results$ROC),
         max(cart_model$results$ROC),
         max(nb_model$results$ROC),
-        max(knn_model$results$ROC)
+        max(knn_model$results$ROC),
+        max(xgb_model$results$ROC)
     )
 )
 
@@ -1174,7 +1302,8 @@ gridExtra::grid.arrange(
     plot_cm(cart_cm, "CART"),
     plot_cm(nb_cm, "Naive Bayes"),
     plot_cm(knn_cm, "KNN"),
-    ncol = 5
+    plot_cm(xgb_cm, "XGBoost"),
+    ncol = 6
 )
 ```
 
@@ -1186,13 +1315,15 @@ roc_rf <- roc(y_test_fct, rf_prob[, "Win"], levels = c("Loss", "Win"), quiet = T
 roc_cart <- roc(y_test_fct, cart_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 roc_nb <- roc(y_test_fct, nb_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 roc_knn <- roc(y_test_fct, knn_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_xgb <- roc(y_test_fct, xgb_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 
 ggroc(list(
     "Logistic Regression" = roc_lr,
     "Random Forest" = roc_rf,
     "CART" = roc_cart,
     "Naive Bayes" = roc_nb,
-    "KNN" = roc_knn
+    "KNN" = roc_knn,
+    "XGBoost" = roc_xgb
 )) +
     geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray40") +
     scale_color_manual(values = c(
@@ -1200,7 +1331,8 @@ ggroc(list(
         "Random Forest" = "#27ae60",
         "CART" = "#9b59b6",
         "Naive Bayes" = "#e67e22",
-        "KNN" = "#e74c3c"
+        "KNN" = "#e74c3c",
+        "XGBoost" = "#16a085"
     )) +
     labs(
         title = "ROC Curves - Model Comparison",
@@ -1209,11 +1341,11 @@ ggroc(list(
     theme_minimal()
 ```
 
-All four AUC curves overlap closely; the discriminating differences are at the upper-left corner where the curves diverge by 1-2 pp.
+All five probabilistic AUC curves overlap closely; the discriminating differences are at the upper-left corner where the curves diverge by 1-2 pp.
 
 ## Explainability comparison
 
-Each model produces an importance score on a different axis (LR: coefficient magnitude, RF: mean Gini decrease, CART: total Gini reduction across splits, NB: filter-based per-feature AUC). KNN is excluded - no native importance signal. The interesting question is whether the four rankings agree on a small core of features.
+Each model produces an importance score on a different axis (LR: coefficient magnitude, RF: mean Gini decrease, CART: total Gini reduction across splits, NB: filter-based per-feature AUC, XGBoost: split gain). KNN is excluded - no native importance signal. The interesting question is whether the five rankings agree on a small core of features.
 
 ```{r s1-explainability}
 # KNN excluded - no meaningful feature importance
@@ -1225,6 +1357,8 @@ top_features <- bind_rows(
     cart_imp %>% mutate(rank = row_number(), model = "CART") %>%
         select(feature, rank, model) %>% head(10),
     nb_imp %>% mutate(rank = row_number(), model = "NB") %>%
+        select(feature, rank, model) %>% head(10),
+    xgb_imp %>% mutate(rank = row_number(), model = "XGB") %>%
         select(feature, rank, model) %>% head(10)
 )
 
@@ -1232,7 +1366,7 @@ ggplot(top_features, aes(x = reorder(feature, -rank), y = rank, color = model)) 
     geom_jitter(size = 3, width = 0, height = 0.2) +
     coord_flip() +
     scale_y_reverse(breaks = 1:10) +
-    scale_color_manual(values = c("LR" = "#3498db", "RF" = "#27ae60", "CART" = "#9b59b6", "NB" = "#e67e22")) +
+    scale_color_manual(values = c("LR" = "#3498db", "RF" = "#27ae60", "CART" = "#9b59b6", "NB" = "#e67e22", "XGB" = "#16a085")) +
     labs(
         title = "Feature Importance Rankings - Top 10 per Model",
         x = NULL, y = "Rank (1 = most important)", color = "Model"
@@ -1240,7 +1374,7 @@ ggplot(top_features, aes(x = reorder(feature, -rank), y = rank, color = model)) 
     theme_minimal()
 ```
 
-A "top-10 hit count" is a coarse view because the four importance scales are not directly comparable. The full ranking - average rank plus spread across the four methods - gives a sharper read of which features every family agrees on and where they disagree.
+A "top-10 hit count" is a coarse view because the five importance scales are not directly comparable. The full ranking - average rank plus spread across the five methods - gives a sharper read of which features every family agrees on and where they disagree.
 
 ```{r s1-consensus}
 full_ranks <- lr_coefs %>%
@@ -1252,13 +1386,15 @@ full_ranks <- lr_coefs %>%
               by = "feature") %>%
     full_join(nb_imp   %>% mutate(rank_NB   = row_number()) %>% select(feature, rank_NB),
               by = "feature") %>%
+    full_join(xgb_imp  %>% mutate(rank_XGB  = row_number()) %>% select(feature, rank_XGB),
+              by = "feature") %>%
     mutate(
         avg_rank    = rowMeans(across(starts_with("rank_")), na.rm = TRUE),
         rank_spread = apply(across(starts_with("rank_")), 1,
                             function(r) max(r, na.rm = TRUE) - min(r, na.rm = TRUE))
     ) %>%
     mutate(
-        times_in_top10 = rowSums(across(c(rank_LR, rank_RF, rank_CART, rank_NB),
+        times_in_top10 = rowSums(across(c(rank_LR, rank_RF, rank_CART, rank_NB, rank_XGB),
                                         ~ replace_na(.x, 999) <= 10))
     ) %>%
     arrange(avg_rank)
@@ -1268,19 +1404,192 @@ options(tibble.print_max = Inf)
 cat("Cross-model feature ranking (lower avg_rank = more consistently important):\n")
 print(as.data.frame(full_ranks))
 
-cat("\nTrue consensus features (in all 4 top-10s):\n")
+cat("\nTrue consensus features (in all 5 top-10s):\n")
+full_ranks %>% filter(times_in_top10 == 5) %>% print()
+
+cat("\nStrong majority (in 4 of 5 top-10s):\n")
 full_ranks %>% filter(times_in_top10 == 4) %>% print()
 
-cat("\nStrong majority (in 3 of 4 top-10s):\n")
-full_ranks %>% filter(times_in_top10 == 3) %>% print()
-
-cat("\nMixed signal (in 2 of 4 top-10s) - model families disagree:\n")
-full_ranks %>% filter(times_in_top10 == 2) %>% print()
+cat("\nMixed signal (in 2-3 of 5 top-10s) - model families disagree:\n")
+full_ranks %>% filter(times_in_top10 %in% c(2, 3)) %>% print()
 ```
 
-The four-way consensus - features ranked highly by every method - is a compact set of continuous early-game differentials: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. These are the features any defense of H1 should lean on.
+The five-way consensus - features ranked highly by every method - centres on the same compact set of continuous early-game differentials that the four-way consensus already identified: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. XGBoost adds a tree-ensemble vote that lines up with RF and CART, which tightens rather than reshuffles the ranking. These are the features any defense of H1 should lean on.
 
-The notable disagreement is around binary objective flags (`firstdragon`, `firstherald`), which rank high for LR but low for the tree ensembles and NB filter score. This is a known artefact: each importance metric measures a different thing - LR sees them as additive log-odds shifts, RF/CART absorb their signal into continuous splits earlier, and the NB filter score reads them as weak standalone predictors. LASSO (S3) still keeps `firstdragon` with a non-zero coefficient, so the disagreement is metric-driven, not evidence that the feature is irrelevant.
+The notable disagreement is still around binary objective flags (`firstdragon`, `firstherald`), which rank high for LR but low for the tree ensembles and the NB filter score. This is a known artefact: each importance metric measures a different thing - LR sees them as additive log-odds shifts, RF/CART/XGBoost absorb their signal into continuous splits earlier, and the NB filter score reads them as weak standalone predictors. LASSO (S3) still keeps `firstdragon` with a non-zero coefficient, so the disagreement is metric-driven, not evidence that the feature is irrelevant.
+
+## Same models, enriched data
+
+H1 summarises the early game at the team level - one gold-diff per game, one xp-diff per game - but each match actually carries five values per metric, one per lane. Aggregating loses structure: a 1,000-gold team lead carried entirely by bot is a stronger signal than the same lead spread evenly across five lanes. We hold the five S1 models and the train/test split fixed and refit them on an enriched matrix - H1 plus per-role @15 differentials for economy (gold, xp, cs) and combat (kills, assists, deaths) - to see whether the extra granularity beats the team aggregate.
+
+```{r s1-enrich-features}
+# Per-role @15 differentials. Economy diffs come straight from the player row;
+# combat diffs we compute as Blue-player-stat minus lane-opponent stat.
+role_enriched <- players %>%
+    filter(position %in% c("top", "jng", "mid", "bot", "sup"),
+           side == "Blue") %>%
+    mutate(
+        killdiffat15   = killsat15   - opp_killsat15,
+        assistdiffat15 = assistsat15 - opp_assistsat15,
+        deathdiffat15  = deathsat15  - opp_deathsat15
+    ) %>%
+    select(gameid, position,
+           golddiffat15, xpdiffat15, csdiffat15,
+           killdiffat15, assistdiffat15, deathdiffat15) %>%
+    drop_na() %>%
+    pivot_wider(
+        id_cols     = gameid,
+        names_from  = position,
+        values_from = c(golddiffat15, xpdiffat15, csdiffat15,
+                        killdiffat15, assistdiffat15, deathdiffat15),
+        names_glue  = "{position}_{.value}"
+    )
+
+games_enriched <- games_model %>%
+    inner_join(role_enriched, by = "gameid") %>%
+    drop_na()
+
+cat(sprintf(
+    "Per-role features added: %d (5 roles x 6 metrics @15)\nGames after join + drop_na: %d (lost %d rows from H1, %.1f%%)\nFeature count: %d (was %d on H1)\n",
+    ncol(role_enriched) - 1,
+    nrow(games_enriched),
+    nrow(games_model) - nrow(games_enriched),
+    (nrow(games_model) - nrow(games_enriched)) / nrow(games_model) * 100,
+    ncol(games_enriched) - 2,
+    ncol(games_model) - 2
+))
+```
+
+```{r s1-enrich-split}
+# Reuse train_ids so the only thing changing between runs is the feature matrix.
+train_e <- games_enriched %>% filter(gameid %in% train_ids)  %>% select(-gameid)
+test_e  <- games_enriched %>% filter(!gameid %in% train_ids) %>% select(-gameid)
+
+X_train_e <- train_e %>% select(-blue_win)
+X_test_e  <- test_e  %>% select(-blue_win)
+y_train_e <- factor(train_e$blue_win, levels = c(0, 1), labels = c("Loss", "Win"))
+y_test_e  <- factor(test_e$blue_win,  levels = c(0, 1), labels = c("Loss", "Win"))
+
+preproc_e        <- preProcess(X_train_e, method = c("center", "scale"))
+X_train_e_scaled <- predict(preproc_e, X_train_e)
+X_test_e_scaled  <- predict(preproc_e, X_test_e)
+```
+
+```{r s1-enrich-train}
+cat("Training all five S1 models on the enriched feature set...\n")
+
+lr_e <- train(
+    x = X_train_e_scaled, y = y_train_e,
+    method = "glm", family = "binomial",
+    trControl = ctrl, metric = "ROC"
+)
+
+# RF mtry grid scaled to the new feature count.
+n_feat_e  <- ncol(X_train_e)
+rf_grid_e <- unique(round(c(sqrt(n_feat_e), sqrt(n_feat_e) * 1.5,
+                            sqrt(n_feat_e) * 2,  sqrt(n_feat_e) * 3)))
+rf_e <- train(
+    x = X_train_e, y = y_train_e,
+    method = "rf", trControl = ctrl, metric = "ROC",
+    tuneGrid = expand.grid(mtry = rf_grid_e), ntree = 500
+)
+
+nb_e <- train(
+    x = X_train_e, y = y_train_e,
+    method = "naive_bayes", trControl = ctrl, metric = "ROC",
+    tuneGrid = nb_grid
+)
+
+n_train_e <- nrow(X_train_e_scaled)
+k_theo_e  <- round(sqrt(n_train_e))
+k_grid_e  <- unique(round(exp(seq(log(5), log(k_theo_e * 4), length.out = 12))))
+k_grid_e  <- ifelse(k_grid_e %% 2 == 0, k_grid_e + 1, k_grid_e)
+knn_e <- train(
+    x = X_train_e_scaled, y = y_train_e,
+    method = "knn", trControl = ctrl, metric = "ROC",
+    tuneGrid = expand.grid(k = k_grid_e)
+)
+
+cart_e <- train(
+    x = X_train_e, y = y_train_e,
+    method = "rpart", trControl = ctrl, metric = "ROC",
+    tuneGrid = expand.grid(cp = c(0.00001, 0.00005, 0.0001, 0.0005, 0.001))
+)
+```
+
+```{r s1-enrich-metrics}
+score_e <- function(model, X_eval, name) {
+    cls  <- predict(model, X_eval)
+    prob <- predict(model, X_eval, type = "prob")
+    cm   <- confusionMatrix(cls, y_test_e, positive = "Win")
+    calc_metrics(cm, prob, y_test_e, name)
+}
+
+metrics_enriched <- bind_rows(
+    score_e(lr_e,   X_test_e_scaled, "Logistic Regression"),
+    score_e(rf_e,   X_test_e,        "Random Forest"),
+    score_e(cart_e, X_test_e,        "CART"),
+    score_e(nb_e,   X_test_e,        "Naive Bayes"),
+    score_e(knn_e,  X_test_e_scaled, "KNN")
+)
+
+knitr::kable(metrics_enriched, digits = 1,
+             caption = "Enriched feature set: same five models, H1 + 30 per-role @15 features")
+```
+
+```{r s1-enrich-delta}
+enrich_delta <- metrics %>%
+    select(Model, H1_Acc = Accuracy, H1_AUC = AUC_ROC, H1_F1 = F1) %>%
+    inner_join(
+        metrics_enriched %>% select(Model,
+                                    Enr_Acc = Accuracy,
+                                    Enr_AUC = AUC_ROC,
+                                    Enr_F1  = F1),
+        by = "Model"
+    ) %>%
+    mutate(
+        Acc_delta = Enr_Acc - H1_Acc,
+        AUC_delta = Enr_AUC - H1_AUC,
+        F1_delta  = Enr_F1  - H1_F1
+    )
+
+knitr::kable(enrich_delta, digits = 2,
+             caption = "Same models, enriched data: deltas vs H1 (positive = enrichment helped)")
+```
+
+```{r s1-enrich-roc, fig.width=10, fig.height=6}
+roc_lr_e   <- roc(y_test_e, predict(lr_e,   X_test_e_scaled, type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
+roc_rf_e   <- roc(y_test_e, predict(rf_e,   X_test_e,        type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
+roc_cart_e <- roc(y_test_e, predict(cart_e, X_test_e,        type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
+roc_nb_e   <- roc(y_test_e, predict(nb_e,   X_test_e,        type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
+roc_knn_e  <- roc(y_test_e, predict(knn_e,  X_test_e_scaled, type = "prob")[, "Win"], levels = c("Loss","Win"), quiet = TRUE)
+
+ggroc(list(
+    "LR (H1)"     = roc_lr,   "LR (enriched)"   = roc_lr_e,
+    "RF (H1)"     = roc_rf,   "RF (enriched)"   = roc_rf_e,
+    "CART (H1)"   = roc_cart, "CART (enriched)" = roc_cart_e,
+    "NB (H1)"     = roc_nb,   "NB (enriched)"   = roc_nb_e,
+    "KNN (H1)"    = roc_knn,  "KNN (enriched)"  = roc_knn_e
+)) +
+    geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray40") +
+    labs(title = "ROC: H1 baseline vs enriched (per-role) feature set",
+         x = "Specificity", y = "Sensitivity", color = "Model") +
+    theme_minimal()
+```
+
+```{r s1-enrich-summary}
+mean_auc <- mean(enrich_delta$AUC_delta)
+mean_acc <- mean(enrich_delta$Acc_delta)
+n_better <- sum(enrich_delta$AUC_delta > 0)
+n_models <- nrow(enrich_delta)
+
+cat(sprintf(
+    "Mean AUC change across %d models: %+.2f pp\nMean accuracy change: %+.2f pp\nModels improved by enrichment (AUC delta > 0): %d / %d\n",
+    n_models, mean_auc, mean_acc, n_better, n_models
+))
+```
+
+The enrichment does not pay off. Mean AUC falls by 0.18 pp and mean accuracy by 0.49 pp; only Logistic Regression (+0.22 AUC) and Random Forest (+0.43 AUC) improve, both by amounts inside the 5-fold CV split-noise band. CART loses 0.85 AUC and 1.4 pp of accuracy - the classic single-tree overfit when the feature count more than doubles. Naive Bayes loses 0.66 AUC because the 30 new per-role columns are by construction correlated with their team-level sums, and the violated independence assumption costs more than the granularity gains. KNN is flat at 49 dimensions: the smoothing dictated by `k = 345` absorbs both the noise and any signal. RF's tuned `mtry` rising from 4 to 7 confirms the diagnosis: the model has to search a wider space for the same amount of usable information. The team aggregates already capture the @15 signal, so H1 stays as the S1 reference set for the downstream pipeline (S3 selection and the exported Shiny model). The per-role view is examined below under H2, which asks the sharper question - whether bot lane specifically, rather than the role matrix as a whole, carries extra signal beyond the team aggregate.
 
 ## H1 vs H2 comparison
 
