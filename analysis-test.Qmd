@@ -28,7 +28,7 @@ League of Legends is the most-played and most-watched esport in the world. Predi
 
 The analysis runs two scenarios on the same data:
 
--   **Scenario 1 - Model Comparison.** We train and tune five classifiers (Logistic Regression, Random Forest, Naive Bayes, KNN, CART) on the engineered early-game feature set and compare them on accuracy, AUC-ROC, precision, recall, and F1. The goal is to see whether any model can extract signal beyond the trivial "team with the gold lead at 15 min wins" baseline (\~73% accuracy), and whether different model families agree on what matters.
+-   **Scenario 1 - Model Comparison.** We train and tune five baseline classifiers (Logistic Regression, Random Forest, Naive Bayes, KNN, CART) on the engineered early-game feature set, plus XGBoost as an additional model to mirror the gradient-boosted approach used in the published @15 literature. All six are compared on accuracy, AUC-ROC, precision, recall, and F1. The goal is to see whether any model can extract signal beyond the trivial "team with the gold lead at 15 min wins" baseline (\~73% accuracy), and whether different model families agree on what matters.
 -   **Scenario 3 - Feature Selection.** With 19 engineered candidate features carrying meaningful redundancy, we apply RFE, LASSO, and Elastic Net to find the minimal subset that retains predictive performance. This both improves interpretability and stress-tests which features are genuinely informative versus carrying duplicate signal.
 
 ## Hypotheses
@@ -240,6 +240,7 @@ early_game_cols <- c(
     "blue_killsat15", "blue_deathsat15", "blue_assistsat15",
     "blue_firstblood", "blue_firstdragon", "blue_firstherald", "blue_firsttower",
     "blue_void_grubs", "red_void_grubs",
+    "blue_turretplates", "red_turretplates",
     "blue_win"
 )
 
@@ -648,7 +649,15 @@ The scales differ wildly: `blue_goldat15` runs from \~20,000 to \~36,000, while 
 
 # Feature Engineering
 
-The correlation analysis showed that *gaps* between teams carry the signal, so we keep signed differentials. To control multicollinearity, we keep one of each redundant triple `(goldat15, opp_goldat15, golddiffat15)` - the differential - and drop the other two. The raw @10 snapshots are also omitted: momentum, defined as `diff@15 - diff@10`, summarises their signal in a single term. On top of this we add two features that rarely appear in the published @15 literature: a **turret plate differential** (plates fall by 14:00, purely early-game; r = 0.409 with `blue_win`) and a **rolling team win rate differential** (computed from prior games only).
+```{r plate-diff-cor}
+plate_diff_cor <- games %>%
+    filter(!is.na(blue_turretplates), !is.na(red_turretplates)) %>%
+    transmute(plate_diff = blue_turretplates - red_turretplates, blue_win) %>%
+    summarise(r = cor(plate_diff, blue_win)) %>%
+    pull(r)
+```
+
+The correlation analysis showed that *gaps* between teams carry the signal, so we keep signed differentials. To control multicollinearity, we keep one of each redundant triple `(goldat15, opp_goldat15, golddiffat15)` - the differential - and drop the other two. The raw @10 snapshots are also omitted: momentum, defined as `diff@15 - diff@10`, summarises their signal in a single term. On top of this we add two features that rarely appear in the published @15 literature: a **turret plate differential** (plates fall by 14:00, purely early-game; r = `r round(plate_diff_cor, 3)` with `blue_win`) and a **rolling team win rate differential** (computed from prior games only).
 
 ## Rolling team win rate
 
@@ -1338,7 +1347,7 @@ gridExtra::grid.arrange(
 )
 ```
 
-The test set inherits the underlying \~53/47 Blue-side base rate, so the ratio of TP to TN reflects how each model balances Win recall against Loss recall. Across all five matrices, precision and recall stay within a few points of each other, which means F1 tracks accuracy closely and no model is systematically biased toward predicting Win or Loss.
+The test set inherits the underlying \~53/47 Blue-side base rate, so the ratio of TP to TN reflects how each model balances Win recall against Loss recall. Across all matrices, precision and recall stay within a few points of each other, which means F1 tracks accuracy closely and no model is systematically biased toward predicting Win or Loss.
 
 ```{r s1-roc-curves}
 roc_lr <- roc(y_test_fct, lr_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
@@ -1372,7 +1381,7 @@ ggroc(list(
     theme_minimal()
 ```
 
-All five probabilistic AUC curves overlap closely; the discriminating differences are at the upper-left corner where the curves diverge by 1-2 pp.
+All probabilistic AUC curves overlap closely; the discriminating differences are at the upper-left corner where the curves diverge by 1-2 pp.
 
 ## Explainability comparison
 
@@ -1459,13 +1468,13 @@ full_ranks %>%
     print()
 ```
 
-The five-way consensus - features ranked highly by every method - centres on the same compact set of continuous early-game differentials that the four-way consensus already identified: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. XGBoost adds a tree-ensemble vote that lines up with RF and CART, which tightens rather than reshuffles the ranking. These are the features any defense of H1 should lean on.
+The cross-model consensus - features ranked highly by every method - centres on a compact set of continuous early-game differentials: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. XGBoost adds a tree-ensemble vote that lines up with RF and CART, which tightens rather than reshuffles the ranking. These are the features any defense of H1 should lean on.
 
 The notable disagreement is still around binary objective flags (`firstdragon`, `firstherald`), which rank high for LR but low for the tree ensembles and the NB filter score. This is a known artefact: each importance metric measures a different thing - LR sees them as additive log-odds shifts, RF/CART/XGBoost absorb their signal into continuous splits earlier, and the NB filter score reads them as weak standalone predictors. LASSO (S3) still keeps `firstdragon` with a non-zero coefficient, so the disagreement is metric-driven, not evidence that the feature is irrelevant.
 
 ## Same models, enriched data
 
-H1 summarises the early game at the team level - one gold-diff per game, one xp-diff per game - but each match actually carries five values per metric, one per lane. Aggregating loses structure: a 1,000-gold team lead carried entirely by bot is a stronger signal than the same lead spread evenly across five lanes. We hold the five S1 models and the train/test split fixed and refit them on an enriched matrix - H1 plus per-role @15 differentials for economy (gold, xp, cs) and combat (kills, assists, deaths) - to see whether the extra granularity beats the team aggregate.
+H1 summarises the early game at the team level - one gold-diff per game, one xp-diff per game - but each match actually carries five values per metric, one per lane. Aggregating loses structure: a 1,000-gold team lead carried entirely by bot is a stronger signal than the same lead spread evenly across five lanes. We hold the S1 models and the train/test split fixed and refit them on an enriched matrix - H1 plus per-role @15 differentials for economy (gold, xp, cs) and combat (kills, assists, deaths) - to see whether the extra granularity beats the team aggregate.
 
 ```{r s1-enrich-features}
 # Per-role @15 differentials. Economy diffs come straight from the player row;
@@ -1651,12 +1660,28 @@ cat(sprintf(
 ))
 ```
 
-**Enrichment does not pay off.** Mean AUC falls `-0.18 pp` and mean accuracy `-0.49 pp`; only **LR** (`+0.22 AUC`) and **RF** (`+0.43 AUC`) improve, both inside the 5-fold CV noise band.
+```{r s1-enrich-deltas-by-model}
+get_delta <- function(model_name, col) {
+    enrich_delta[[col]][enrich_delta$Model == model_name]
+}
+lr_auc_d <- get_delta("Logistic Regression", "AUC_delta")
+rf_auc_d <- get_delta("Random Forest", "AUC_delta")
+cart_auc_d <- get_delta("CART", "AUC_delta")
+cart_acc_d <- get_delta("CART", "Acc_delta")
+nb_auc_d <- get_delta("Naive Bayes", "AUC_delta")
+n_role_cols <- ncol(X_train_e) - ncol(X_train)
+n_enriched_dim <- ncol(X_train_e)
+knn_k_enriched <- knn_e$bestTune$k
+rf_mtry_h1 <- rf_model$bestTune$mtry
+rf_mtry_e <- rf_e$bestTune$mtry
+```
 
-- **CART**: `-0.85 AUC`, `-1.4 pp` accuracy - classic single-tree overfit when the feature count more than doubles.
-- **Naive Bayes**: `-0.66 AUC` - the `30` per-role columns correlate with their team-level sums, breaking the independence assumption.
-- **KNN**: flat at `49` dimensions - smoothing at `k = 345` absorbs both noise and signal.
-- **RF**: tuned `mtry` rises from `4` to `7` - wider search space for the same usable signal.
+**Enrichment does not pay off.** Mean AUC falls `r sprintf("%+.2f pp", mean_auc)` and mean accuracy `r sprintf("%+.2f pp", mean_acc)`; only **LR** (`r sprintf("%+.2f AUC", lr_auc_d)`) and **RF** (`r sprintf("%+.2f AUC", rf_auc_d)`) improve, both inside the 5-fold CV noise band.
+
+- **CART**: `r sprintf("%+.2f AUC", cart_auc_d)`, `r sprintf("%+.1f pp", cart_acc_d)` accuracy - classic single-tree overfit when the feature count more than doubles.
+- **Naive Bayes**: `r sprintf("%+.2f AUC", nb_auc_d)` - the `r n_role_cols` per-role columns correlate with their team-level sums, breaking the independence assumption.
+- **KNN**: flat at `r n_enriched_dim` dimensions - smoothing at `k` = `r knn_k_enriched` absorbs both noise and signal.
+- **RF**: tuned `mtry` rises from `r rf_mtry_h1` to `r rf_mtry_e` - wider search space for the same usable signal.
 
 **Bottom line:** team aggregates already capture the @15 signal, so **H1 stays as the S1 reference set** for the downstream pipeline (S3 selection and the Shiny export). The H2 test below asks the sharper question - whether **bot lane specifically**, rather than the role matrix as a whole, carries extra signal beyond team totals.
 
@@ -1747,19 +1772,20 @@ rfe_result <- rfe(
 )
 
 rfe_selected <- predictors(rfe_result)
-rfe_n        <- length(rfe_selected)
+rfe_n <- length(rfe_selected)
 
 # Retrain LR on the CV-selected subset for test-set evaluation
-rfe_train_df        <- as.data.frame(X_train_scaled)[, rfe_selected, drop = FALSE]
+rfe_train_df <- as.data.frame(X_train_scaled)[, rfe_selected, drop = FALSE]
 rfe_train_df$result <- y_train_fct
 
-rfe_final_model   <- glm(result ~ ., data = rfe_train_df, family = "binomial")
+rfe_final_model <- glm(result ~ ., data = rfe_train_df, family = "binomial")
 
-rfe_test_df       <- as.data.frame(X_test_scaled)[, rfe_selected, drop = FALSE]
+rfe_test_df <- as.data.frame(X_test_scaled)[, rfe_selected, drop = FALSE]
 rfe_pred_prob_raw <- predict(rfe_final_model, newdata = rfe_test_df, type = "response")
-rfe_pred_class    <- factor(ifelse(rfe_pred_prob_raw > 0.5, "Win", "Loss"),
-                             levels = c("Loss", "Win"))
-rfe_cm  <- confusionMatrix(rfe_pred_class, y_test_fct, positive = "Win")
+rfe_pred_class <- factor(ifelse(rfe_pred_prob_raw > 0.5, "Win", "Loss"),
+    levels = c("Loss", "Win")
+)
+rfe_cm <- confusionMatrix(rfe_pred_class, y_test_fct, positive = "Win")
 rfe_roc <- roc(y_test_fct, rfe_pred_prob_raw, levels = c("Loss", "Win"), quiet = TRUE)
 
 cat(sprintf(
@@ -1767,7 +1793,7 @@ cat(sprintf(
     as.numeric(Sys.time() - t0, units = "secs"),
     rfe_n, ncol(X_train_scaled),
     max(rfe_result$results$Accuracy) * 100,
-    rfe_cm$overall["Accuracy"]    * 100,
+    rfe_cm$overall["Accuracy"] * 100,
     rfe_cm$byClass["Sensitivity"] * 100,
     rfe_cm$byClass["Specificity"] * 100,
     auc(rfe_roc)
@@ -1788,34 +1814,43 @@ rfe_perf_df <- rfe_result$results
 
 ggplot(rfe_perf_df, aes(x = Variables, y = Accuracy)) +
     geom_ribbon(aes(ymin = Accuracy - AccuracySD, ymax = Accuracy + AccuracySD),
-                fill = "#3498db", alpha = 0.2) +
+        fill = "#3498db", alpha = 0.2
+    ) +
     geom_line(color = "#3498db", linewidth = 1.2) +
     geom_point(size = 3, color = "#3498db") +
-    geom_point(data = filter(rfe_perf_df, Variables == rfe_result$bestSubset),
-               size = 5, shape = 21, fill = "#e74c3c", color = "white", stroke = 1.5) +
+    geom_point(
+        data = filter(rfe_perf_df, Variables == rfe_result$bestSubset),
+        size = 5, shape = 21, fill = "#e74c3c", color = "white", stroke = 1.5
+    ) +
     labs(
         title = "RFE: CV Accuracy vs Number of Features",
-        x     = "Number of Features", y = "5-fold CV Accuracy"
+        x = "Number of Features", y = "5-fold CV Accuracy"
     ) +
     theme_minimal()
 
 # Coefficient bar chart for the retained features
 rfe_coef_raw <- coef(rfe_final_model)
 rfe_coef_raw <- rfe_coef_raw[names(rfe_coef_raw) != "(Intercept)"]
-rfe_coef_df  <- data.frame(
+rfe_coef_df <- data.frame(
     feature     = names(rfe_coef_raw),
     coefficient = as.numeric(rfe_coef_raw)
 ) %>%
     arrange(desc(abs(coefficient)))
 
-ggplot(rfe_coef_df,
-       aes(x = reorder(feature, abs(coefficient)), y = coefficient, fill = coefficient > 0)) +
+ggplot(
+    rfe_coef_df,
+    aes(x = reorder(feature, abs(coefficient)), y = coefficient, fill = coefficient > 0)
+) +
     geom_col() +
     coord_flip() +
-    scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
-                      labels = c("Negative", "Positive")) +
-    labs(title = "RFE - Selected Features and Coefficients",
-         x = NULL, y = "Coefficient", fill = "Direction") +
+    scale_fill_manual(
+        values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
+        labels = c("Negative", "Positive")
+    ) +
+    labs(
+        title = "RFE - Selected Features and Coefficients",
+        x = NULL, y = "Coefficient", fill = "Direction"
+    ) +
     theme_minimal()
 ```
 
@@ -1823,7 +1858,7 @@ ggplot(rfe_coef_df,
 
 ```{r s3-rfe-vs-full}
 rfe_vs_full <- tibble(
-    Model    = c("LR — full model (S1)", "RFE — selected subset (S3)"),
+    Model = c("LR — full model (S1)", "RFE — selected subset (S3)"),
     Features = c(ncol(X_train_scaled), rfe_n),
     Accuracy = c(
         round(lr_cm$overall["Accuracy"] * 100, 1),
@@ -1853,11 +1888,17 @@ htmltools::div(
 )
 ```
 
-RFE selected 9 of the 19 candidate features and achieved a test-set AUC-ROC of 0.841 with 74.3% accuracy. Comparing this to the full model with all 19 features (AUC 0.843, accuracy 75.2%), we lose less than 1 percentage point across all metrics. That being said, the eliminated features add no independent signal beyond the selected core, and the model can be halved in complexity at near-zero predictive cost. The one thing worth noting: since our overall model performance sits around 75% accuracy and 0.84 AUC  (already close to the theoretical ceiling for 15-minute LoL predictions) even a 0.9 percentage point difference is meaningful here, because the model is already close to the performance ceiling. Still, the selected subset is simpler and more interpretable at an (in general) acceptable cost.
+```{r s3-rfe-feature-strings}
+fmt_features <- function(x) paste0("`", paste(x, collapse = "`, `"), "`")
+rfe_selected_str   <- fmt_features(rfe_selected)
+rfe_eliminated_str <- fmt_features(rfe_eliminated)
+```
 
-The retained set: `golddiffat15`, `xpdiffat15`, `csdiffat15`, `winrate_diff`, `firstdragon`, `firstherald`, `firsttower`, `cs_momentum`, `grub_diff` — is consistent with the EDA. The three resource differentials at 15 minutes form the economic core, `winrate_diff` contributes pre-game team quality, and the three objective flags add a second independent layer of signal. `cs_momentum` and `grub_diff` survived the elimination, suggesting they carry a small but measurable contribution beyond the raw 15-minute snapshot. The features eliminated completely — `gold_momentum`, `xp_momentum`, `kill_diff_15`, `assist_diff_15`, `plate_diff`, `gold_efficiency_15`, `kda_15`, `kill_pressure_10_15`, `opp_kill_pressure_10_15`, `firstblood` — add no independent signal once the selected core is in the model.
+RFE selected `r rfe_n` of the 19 candidate features and achieved a test-set AUC-ROC of `r round(auc(rfe_roc), 3)` with `r sprintf("%.1f", rfe_cm$overall["Accuracy"] * 100)`% accuracy. Comparing this to the full model with all 19 features (AUC `r round(auc(roc_lr), 3)`, accuracy `r sprintf("%.1f", lr_cm$overall["Accuracy"] * 100)`%), we lose less than 1 percentage point across all metrics. That being said, the eliminated features add no independent signal beyond the selected core, and the model can be halved in complexity at near-zero predictive cost. The one thing worth noting: since our overall model performance sits around 75% accuracy and 0.84 AUC  (already close to the theoretical ceiling for 15-minute LoL predictions) even a sub-1 pp difference is meaningful here, because the model is already close to the performance ceiling. Still, the selected subset is simpler and more interpretable at an (in general) acceptable cost.
 
-The comparison with LASSO and Elastic Net will reveal how much of this selection is method-specific. LASSO and RFE both converge on 9 features, but the sets differ: RFE keeps `cs_momentum` and `grub_diff` while LASSO keeps `kill_diff_15` and `assist_diff_15`. These two features sit at the margin — neither method is wrong, they simply weigh the trade-off between correlated predictors differently.
+The retained set — `r rfe_selected_str` — is consistent with the EDA. The three resource differentials at 15 minutes form the economic core, `winrate_diff` contributes pre-game team quality, and the three objective flags add a second independent layer of signal. `cs_momentum` and `grub_diff` survived the elimination, suggesting they carry a small but measurable contribution beyond the raw 15-minute snapshot. The features eliminated completely — `r rfe_eliminated_str` — add no independent signal once the selected core is in the model.
+
+The comparison with LASSO and Elastic Net will reveal how much of this selection is method-specific. RFE keeps `cs_momentum` and `grub_diff` where LASSO keeps `kill_diff_15` and `assist_diff_15`. These features sit at the margin — neither method is wrong, they simply weigh the trade-off between correlated predictors differently.
 
 ## LASSO (L1)
 
@@ -1933,19 +1974,30 @@ cv_df <- data.frame(
 
 ggplot(cv_df, aes(x = log_lambda, y = cvm)) +
     geom_ribbon(aes(ymin = cvm - cvsd, ymax = cvm + cvsd),
-                fill = "#3498db", alpha = 0.2) +
+        fill = "#3498db", alpha = 0.2
+    ) +
     geom_line(color = "#3498db", linewidth = 1) +
-    geom_vline(xintercept = log(lasso_cv$lambda.min),
-               linetype = "dashed", color = "#e74c3c", linewidth = 0.8) +
-    geom_vline(xintercept = log(lasso_cv$lambda.1se),
-               linetype = "dashed", color = "#2ecc71", linewidth = 0.8) +
-    annotate("text", x = log(lasso_cv$lambda.min), y = max(cv_df$cvm),
-             label = "lambda.min", hjust = 1.1, color = "#e74c3c", size = 3.5) +
-    annotate("text", x = log(lasso_cv$lambda.1se), y = max(cv_df$cvm),
-             label = "lambda.1se", hjust = -0.1, color = "#2ecc71", size = 3.5) +
-    labs(title = "LASSO: CV AUC vs log(λ)",
-         subtitle = "Green = lambda.1se (chosen), Red = lambda.min",
-         x = "log(λ)", y = "5-fold CV AUC") +
+    geom_vline(
+        xintercept = log(lasso_cv$lambda.min),
+        linetype = "dashed", color = "#e74c3c", linewidth = 0.8
+    ) +
+    geom_vline(
+        xintercept = log(lasso_cv$lambda.1se),
+        linetype = "dashed", color = "#2ecc71", linewidth = 0.8
+    ) +
+    annotate("text",
+        x = log(lasso_cv$lambda.min), y = max(cv_df$cvm),
+        label = "lambda.min", hjust = 1.1, color = "#e74c3c", size = 3.5
+    ) +
+    annotate("text",
+        x = log(lasso_cv$lambda.1se), y = max(cv_df$cvm),
+        label = "lambda.1se", hjust = -0.1, color = "#2ecc71", size = 3.5
+    ) +
+    labs(
+        title = "LASSO: CV AUC vs log(λ)",
+        subtitle = "Green = lambda.1se (chosen), Red = lambda.min",
+        x = "log(λ)", y = "5-fold CV AUC"
+    ) +
     theme_minimal()
 
 # Plot 2: surviving features ranked by coefficient magnitude
@@ -1966,11 +2018,11 @@ lasso_selected %>%
     theme_minimal()
 ```
 
-LASSO retained 12 of the 19 features at `lambda.1se = 0.00757` and achieved AUC-ROC of 0.842 with 75.5% accuracy, matching the full-model baseline while dropping 7 features. We chose `lambda.1se`, because it sits at the point where the curve begins to rise — the last position where a sparser model is statistically indistinguishable from the best-fitting one.
+LASSO retained `r nrow(lasso_selected)` of the 19 features at `lambda.1se` = `r round(lasso_cv$lambda.1se, 4)` and achieved AUC-ROC of `r round(auc(lasso_roc), 3)` with `r sprintf("%.1f", lasso_cm$overall["Accuracy"] * 100)`% accuracy, matching the full-model baseline while dropping `r nrow(lasso_eliminated)` features. We chose `lambda.1se`, because it sits at the point where the curve begins to rise — the last position where a sparser model is statistically indistinguishable from the best-fitting one.
 
 Again, all three momentum features — `gold_momentum`, `xp_momentum`, `cs_momentum` — were zeroed out, exactly as the VIF analysis predicted, so once `diff@15` is already in the model, momentum only captures the @10 snapshot which adds no independent signal. `kill_pressure_10_15` and `opp_kill_pressure_10_15` were also eliminated — their signal is fully absorbed by `kill_diff_15`. `gold_efficiency_15` is redundant with `golddiffat15` and `csdiffat15`. `firstblood` was also eliminated (consistent with the EDA: securing the first kill adds no predictive value once the other features are present).
 
-The 12 surviving features split into a clear hierarchy. The core: `golddiffat15`, `xpdiffat15`, `csdiffat15`, `winrate_diff`, `firsttower`, `firstdragon`, `firstherald` is shared with RFE. On top of this, LASSO also retains `kill_diff_15`, `assist_diff_15`, `kda_15`, `grub_diff`, and `plate_diff`, which carry secondary signal that survives L1 pressure at this λ. The penalty strength `lambda` is tuned via 5-fold CV; we use `lambda.1se` rather than `lambda.min`, accepting a sparser model in exchange for a negligible increase in deviance.
+The `r nrow(lasso_selected)` surviving features split into a clear hierarchy. The core — `golddiffat15`, `xpdiffat15`, `csdiffat15`, `winrate_diff`, `firsttower`, `firstdragon`, `firstherald` — is shared with RFE. On top of this, LASSO also retains `kill_diff_15` and `assist_diff_15`, which carry secondary combat signal that survives L1 pressure at this λ. The penalty strength `lambda` is tuned via 5-fold CV; we use `lambda.1se` rather than `lambda.min`, accepting a sparser model in exchange for a negligible increase in deviance.
 All surviving coefficients are positive: being ahead in any of these dimensions increases Blue's win probability.
 
 ## Elastic Net (L1 + L2)
@@ -1996,7 +2048,7 @@ enet_cv_results <- map_dfr(alpha_grid, function(a) {
         type.measure = "auc"
     )
     idx_1se <- cv_fit$index["1se", 1]
-    n_kept  <- sum(coef(cv_fit, s = "lambda.1se") != 0) - 1
+    n_kept <- sum(coef(cv_fit, s = "lambda.1se") != 0) - 1
     tibble(
         alpha      = a,
         lambda_1se = cv_fit$lambda.1se,
@@ -2006,16 +2058,22 @@ enet_cv_results <- map_dfr(alpha_grid, function(a) {
     )
 })
 
-best_row   <- enet_cv_results %>% arrange(desc(cv_auc)) %>% dplyr::slice(1)
+best_row <- enet_cv_results %>%
+    arrange(desc(cv_auc)) %>%
+    dplyr::slice(1)
 best_alpha <- best_row$alpha
-best_auc   <- best_row$cv_auc
-best_se    <- best_row$cv_auc_se
+best_auc <- best_row$cv_auc
+best_se <- best_row$cv_auc_se
 within_1se <- enet_cv_results %>% filter(cv_auc >= best_auc - best_se)
 
-cat(sprintf("\nAlpha grid diagnostic: %d of %d alphas sit within 1 SE of the best CV AUC (%.3f >= %.3f).\n",
-            nrow(within_1se), nrow(enet_cv_results), best_auc, best_auc - best_se))
-cat(sprintf("Alphas within 1 SE: %s\n",
-            paste(sprintf("%.2f", within_1se$alpha), collapse = ", ")))
+cat(sprintf(
+    "\nAlpha grid diagnostic: %d of %d alphas sit within 1 SE of the best CV AUC (%.3f >= %.3f).\n",
+    nrow(within_1se), nrow(enet_cv_results), best_auc, best_auc - best_se
+))
+cat(sprintf(
+    "Alphas within 1 SE: %s\n",
+    paste(sprintf("%.2f", within_1se$alpha), collapse = ", ")
+))
 if (nrow(within_1se) >= nrow(enet_cv_results) - 2) {
     cat("-> CV AUC curve is effectively flat across alpha; the L1/L2 mix is underdetermined by this data.\n")
 }
@@ -2031,7 +2089,7 @@ enet_cv_final <- cv.glmnet(
 )
 
 enet_coef_raw <- coef(enet_cv_final, s = "lambda.1se")
-enet_coef_df  <- data.frame(
+enet_coef_df <- data.frame(
     feature     = rownames(enet_coef_raw),
     coefficient = as.numeric(enet_coef_raw)
 ) %>%
@@ -2039,16 +2097,20 @@ enet_coef_df  <- data.frame(
     arrange(desc(abs(coefficient)))
 
 enet_selected_df <- enet_coef_df %>% filter(coefficient != 0)
-enet_selected    <- enet_selected_df$feature
+enet_selected <- enet_selected_df$feature
 
-enet_pred_prob  <- predict(enet_cv_final, newx = as.matrix(X_test_scaled),
-                            s = "lambda.1se", type = "response")
+enet_pred_prob <- predict(enet_cv_final,
+    newx = as.matrix(X_test_scaled),
+    s = "lambda.1se", type = "response"
+)
 enet_pred_class <- factor(ifelse(enet_pred_prob > 0.5, "Win", "Loss"),
-                           levels = c("Loss", "Win"))
-enet_cm  <- confusionMatrix(enet_pred_class, y_test_fct, positive = "Win")
+    levels = c("Loss", "Win")
+)
+enet_cm <- confusionMatrix(enet_pred_class, y_test_fct, positive = "Win")
 enet_roc <- roc(y_test_fct, as.numeric(enet_pred_prob), levels = c("Loss", "Win"), quiet = TRUE)
 
-cat(sprintf("\nElastic Net Results (%.1fs):\nBest alpha: %.2f (0=Ridge, 1=LASSO)\nLambda (1se): %.6f\nFeatures kept: %d / %d (eliminated %d)\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
+cat(sprintf(
+    "\nElastic Net Results (%.1fs):\nBest alpha: %.2f (0=Ridge, 1=LASSO)\nLambda (1se): %.6f\nFeatures kept: %d / %d (eliminated %d)\nAccuracy: %.1f%%\nSensitivity (Win recall): %.1f%%\nSpecificity (Loss recall): %.1f%%\nAUC-ROC: %.3f",
     as.numeric(Sys.time() - t0, units = "secs"),
     best_alpha,
     enet_cv_final$lambda.1se,
@@ -2056,7 +2118,8 @@ cat(sprintf("\nElastic Net Results (%.1fs):\nBest alpha: %.2f (0=Ridge, 1=LASSO)
     enet_cm$overall["Accuracy"] * 100,
     enet_cm$byClass["Sensitivity"] * 100,
     enet_cm$byClass["Specificity"] * 100,
-    auc(enet_roc)))
+    auc(enet_roc)
+))
 
 cat("\nKept features:\n")
 cat(paste(enet_selected, collapse = ", "), "\n")
@@ -2068,15 +2131,20 @@ cat(paste(enet_coef_df %>% filter(coefficient == 0) %>% pull(feature), collapse 
 ```{r s3-elasticnet-plot}
 ggplot(enet_cv_results, aes(x = alpha, y = cv_auc)) +
     geom_ribbon(aes(ymin = cv_auc - cv_auc_se, ymax = cv_auc + cv_auc_se),
-                fill = "#1abc9c", alpha = 0.2) +
+        fill = "#1abc9c", alpha = 0.2
+    ) +
     geom_hline(yintercept = best_auc - best_se, linetype = "dashed", color = "#7f8c8d") +
     geom_line(color = "#1abc9c", linewidth = 1.2) +
     geom_point(size = 3, color = "#1abc9c") +
-    geom_point(data = filter(enet_cv_results, alpha == best_alpha),
-               size = 5, shape = 21, fill = "#e74c3c", color = "white", stroke = 1.5) +
-    labs(title = "Elastic Net: CV AUC across Alpha Values",
-         subtitle = "Red dot = chosen alpha, dashed line = best AUC - 1 SE threshold",
-         x = "Alpha (0 = Ridge, 1 = LASSO)", y = "5-fold CV AUC at lambda.1se") +
+    geom_point(
+        data = filter(enet_cv_results, alpha == best_alpha),
+        size = 5, shape = 21, fill = "#e74c3c", color = "white", stroke = 1.5
+    ) +
+    labs(
+        title = "Elastic Net: CV AUC across Alpha Values",
+        subtitle = "Red dot = chosen alpha, dashed line = best AUC - 1 SE threshold",
+        x = "Alpha (0 = Ridge, 1 = LASSO)", y = "5-fold CV AUC at lambda.1se"
+    ) +
     theme_minimal()
 
 enet_selected_df %>%
@@ -2084,26 +2152,40 @@ enet_selected_df %>%
     ggplot(aes(x = feature, y = coefficient, fill = coefficient > 0)) +
     geom_col() +
     coord_flip() +
-    scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
-                      labels = c("Negative", "Positive")) +
-    labs(title = "Elastic Net - Surviving Features and Coefficients",
-         x = NULL, y = "Coefficient", fill = "Direction") +
+    scale_fill_manual(
+        values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
+        labels = c("Negative", "Positive")
+    ) +
+    labs(
+        title = "Elastic Net - Surviving Features and Coefficients",
+        x = NULL, y = "Coefficient", fill = "Direction"
+    ) +
     theme_minimal()
 ```
 
-The CV AUC curve is flat across the entire alpha grid — all `r nrow(within_1se)` tested values sit within 1 SE of the best AUC (`r round(best_auc, 3)`), confirming that the L1/L2 mixing ratio is underdetermined by this dataset. When no mixing ratio offers a statistically meaningful advantage, the code picks the highest point-estimate: `alpha = ``r round(best_alpha, 2)``` (near-LASSO, 95% L1 / 5% L2). At its `lambda.1se = ``r round(enet_cv_final$lambda.1se, 4)```, Elastic Net eliminates 12 features and retains only `r nrow(enet_selected_df)`: `golddiffat15`, `xpdiffat15`, `csdiffat15`, `firsttower`, `winrate_diff`, `firstherald`, `firstdragon`. Notably, all three correlated resource differentials survive together — the original concern was that pure LASSO might arbitrarily zero two of the three, but at this regularisation strength both methods agree: each resource dimension carries independent signal once its penalty is properly calibrated. The 12 eliminated features — all momentum proxies, all kill-activity metrics, `plate_diff`, `grub_diff`, and `firstblood` — add nothing once the core resource and objective advantage is accounted for. AUC of `r round(auc(enet_roc), 3)` matches LASSO's 0.842 within noise, confirming that the additional features LASSO retained at its softer lambda did not improve generalisation.
+```{r s3-enet-feature-string}
+enet_selected_str <- paste0("`", paste(enet_selected, collapse = "`, `"), "`")
+```
+
+The CV AUC curve is flat across the entire alpha grid — all `r nrow(within_1se)` tested values sit within 1 SE of the best AUC (`r round(best_auc, 3)`), confirming that the L1/L2 mixing ratio is underdetermined by this dataset. When no mixing ratio offers a statistically meaningful advantage, the code picks the highest point-estimate: `alpha` = `r round(best_alpha, 2)` (near-LASSO, `r round(best_alpha * 100)`% L1 / `r round((1 - best_alpha) * 100)`% L2). At its `lambda.1se` = `r round(enet_cv_final$lambda.1se, 4)`, Elastic Net eliminates `r nrow(enet_coef_df) - nrow(enet_selected_df)` features and retains only `r nrow(enet_selected_df)`: `r enet_selected_str`. Notably, all three correlated resource differentials survive together — the original concern was that pure LASSO might arbitrarily zero two of the three, but at this regularisation strength both methods agree: each resource dimension carries independent signal once its penalty is properly calibrated. The eliminated features — all momentum proxies, all kill-activity metrics, `plate_diff`, `grub_diff`, and `firstblood` — add nothing once the core resource and objective advantage is accounted for. AUC of `r round(auc(enet_roc), 3)` matches LASSO's `r round(auc(lasso_roc), 3)` within noise, confirming that the additional features LASSO retained at its softer lambda did not improve generalisation.
 
 ```{r s3-best-hyperparams}
 s3_best_hyperparams <- tibble(
     Method = c("RFE", "LASSO", "Elastic Net"),
     Category = c("Wrapper", "Embedded", "Embedded"),
     `Best param(s)` = c(
-        sprintf("optimal subset = %d features, CV Accuracy = %.1f%%",
-                rfe_result$bestSubset, max(rfe_result$results$Accuracy) * 100),
-        sprintf("lambda.1se = %.5f, %d features kept",
-                lasso_cv$lambda.1se, length(lasso_selected$feature)),
-        sprintf("alpha = %.2f, lambda.1se = %.5f, %d features kept",
-                best_alpha, enet_cv_final$lambda.1se, length(enet_selected))
+        sprintf(
+            "optimal subset = %d features, CV Accuracy = %.1f%%",
+            rfe_result$bestSubset, max(rfe_result$results$Accuracy) * 100
+        ),
+        sprintf(
+            "lambda.1se = %.5f, %d features kept",
+            lasso_cv$lambda.1se, length(lasso_selected$feature)
+        ),
+        sprintf(
+            "alpha = %.2f, lambda.1se = %.5f, %d features kept",
+            best_alpha, enet_cv_final$lambda.1se, length(enet_selected)
+        )
     )
 )
 
@@ -2143,7 +2225,7 @@ overlap_df <- map_dfr(all_features, function(f) {
 
 consensus_3 <- overlap_df %>% filter(n_methods == 3)
 consensus_2 <- overlap_df %>% filter(n_methods == 2)
-never_sel   <- overlap_df %>% filter(n_methods == 0)
+never_sel <- overlap_df %>% filter(n_methods == 0)
 
 cat("Feature selection summary across all 3 methods:\n")
 cat(sprintf("  Total features:                 %d\n", length(all_features)))
@@ -2174,20 +2256,20 @@ if (nrow(never_sel) > 0) {
 
 # Performance comparison table
 perf_summary <- tibble(
-    Method     = c("RFE", "LASSO", "ElasticNet", "LR_all"),
+    Method = c("RFE", "LASSO", "ElasticNet", "LR_all"),
     n_features = c(
         rfe_n,
         nrow(lasso_selected),
         nrow(enet_selected_df),
         ncol(X_train_scaled)
     ),
-    Accuracy   = c(
+    Accuracy = c(
         rfe_cm$overall["Accuracy"] * 100,
         lasso_cm$overall["Accuracy"] * 100,
         enet_cm$overall["Accuracy"] * 100,
         lr_cm$overall["Accuracy"] * 100
     ),
-    AUC_ROC    = c(
+    AUC_ROC = c(
         auc(rfe_roc),
         auc(lasso_roc),
         auc(enet_roc),
@@ -2222,7 +2304,7 @@ ggplot(overlap_long, aes(x = method, y = feature_label, fill = selected)) +
         guide  = "none"
     ) +
     labs(
-        title    = "Feature Selection Overlap Across All Three Methods",
+        title = "Feature Selection Overlap Across All Three Methods",
         x = NULL, y = NULL
     ) +
     theme_minimal() +
@@ -2242,18 +2324,24 @@ perf_summary %>%
     mutate(Method = reorder(Method, AUC_ROC)) %>%
     ggplot(aes(x = AUC_ROC, y = Method)) +
     geom_segment(aes(x = baseline_auc - 1.5, xend = AUC_ROC, yend = Method),
-                 color = "grey75", linewidth = 1) +
+        color = "grey75", linewidth = 1
+    ) +
     geom_point(size = 5, color = "#2ecc71") +
     geom_text(aes(label = sprintf("%d features", n_features)),
-              nudge_x = 0.15, hjust = 0, size = 3.5, color = "grey30") +
-    geom_vline(xintercept = baseline_auc, linetype = "dashed",
-               color = "#e74c3c", linewidth = 0.8) +
-    annotate("text", x = baseline_auc + 0.05, y = 0.6,
-             label = sprintf("Baseline\n(all %d feat.)", ncol(X_train_scaled)),
-             color = "#e74c3c", size = 3, hjust = 0) +
+        nudge_x = 0.15, hjust = 0, size = 3.5, color = "grey30"
+    ) +
+    geom_vline(
+        xintercept = baseline_auc, linetype = "dashed",
+        color = "#e74c3c", linewidth = 0.8
+    ) +
+    annotate("text",
+        x = baseline_auc + 0.05, y = 0.6,
+        label = sprintf("Baseline\n(all %d feat.)", ncol(X_train_scaled)),
+        color = "#e74c3c", size = 3, hjust = 0
+    ) +
     scale_x_continuous(limits = c(baseline_auc - 1.5, baseline_auc + 1.5)) +
     labs(
-        title   = "Feature Selection: AUC-ROC vs. Method",
+        title = "Feature Selection: AUC-ROC vs. Method",
         x = "AUC-ROC (%)", y = NULL
     ) +
     theme_minimal() +
@@ -2278,9 +2366,9 @@ All three selection methods reduce the feature set from 19 and achieve virtually
 
 ## H1 findings
 
-**H1 is confirmed.** All five classifiers trained on the 19 early-game features beat the 72.9% naive gold-rule baseline, and all exceed 83% AUC-ROC on the held-out test set. The test-set AUC values are `r round(auc(roc_lr)*100, 1)`% (LR), `r round(auc(roc_rf)*100, 1)`% (RF), `r round(auc(roc_nb)*100, 1)`% (NB), `r round(auc(roc_knn)*100, 1)`% (KNN), and `r round(auc(roc_cart)*100, 1)`% (CART). The spread across all five models is at most 1–2 percentage points, meaning the feature set matters more than the model family — once you use a competent learner, the data determines the ceiling.
+**H1 is confirmed.** Every classifier trained on the 19 early-game features beats the 72.9% naive gold-rule baseline, and all exceed 83% AUC-ROC on the held-out test set. The test-set AUC values are `r round(auc(roc_lr)*100, 1)`% (LR), `r round(auc(roc_rf)*100, 1)`% (RF), `r round(auc(roc_nb)*100, 1)`% (NB), `r round(auc(roc_knn)*100, 1)`% (KNN), `r round(auc(roc_cart)*100, 1)`% (CART), and `r round(auc(roc_xgb)*100, 1)`% (XGBoost). The spread is at most 1–2 percentage points, meaning the feature set matters more than the model family — once you use a competent learner, the data determines the ceiling.
 
-Random Forest is the strongest single performer, confirming that non-linear feature interactions add a small but consistent edge over the linear and probabilistic baselines. The four-way feature importance consensus across LR, RF, CART, and Naive Bayes identifies `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum` as universally important — the team that is ahead in gold, XP, and CS at 15 minutes and has been extending that lead since minute 10 wins with high probability. Binary objective flags (first dragon, first herald, first tower) add secondary, independent signal, but rank below the continuous resource metrics in importance.
+Random Forest is the strongest single performer, confirming that non-linear feature interactions add a small but consistent edge over the linear and probabilistic baselines. The cross-model feature importance consensus identifies `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum` as universally important — the team that is ahead in gold, XP, and CS at 15 minutes and has been extending that lead since minute 10 wins with high probability. Binary objective flags (first dragon, first herald, first tower) add secondary, independent signal, but rank below the continuous resource metrics in importance.
 
 These results are consistent with the published 76–78% accuracy band for 15-minute predictions on LoL professional data. Our AUC of 83–85% reflects the additional discriminative power of probability calibration over raw accuracy, and the broader feature set (19 features vs. the 5–8 used in most prior work). Notably, even in the 2025 season — where the predictive coefficient of `golddiffat15` has reportedly declined from prior years — the early-game snapshot still yields a clear 10 pp AUC gain over the naive baseline.
 
@@ -2294,11 +2382,15 @@ The overall picture is that bot lane is the strongest single-role predictor of m
 
 ## S1 vs S3 synthesis
 
-S1 and S3 converge on the same conclusion from two directions. S1 establishes that the 19 engineered early-game features are collectively sufficient (83–85% AUC across all five model families) and that the predictive signal concentrates in a compact core of continuous resource differentials at 15 min. S3 confirms and sharpens this: three independent selection methods from two different families (one algorithmic, two embedded) all agree that only 9 of those 19 features are necessary — the remaining 10 contribute signal already captured by the core, and dropping them costs under 0.1% AUC.
+S1 and S3 converge on the same conclusion from two directions. S1 establishes that the 19 engineered early-game features are collectively sufficient (83–85% AUC across every model family tried) and that the predictive signal concentrates in a compact core of continuous resource differentials at 15 min. S3 confirms and sharpens this: three independent selection methods from two different families (one wrapper, two embedded) all agree that only `r nrow(lasso_selected)` of those 19 features are necessary — the remaining `r nrow(lasso_eliminated)` contribute signal already captured by the core, and dropping them costs under 0.1% AUC.
 
-The 9-feature LASSO-selected consensus set (`golddiffat15`, `xpdiffat15`, `csdiffat15`, `winrate_diff`, `firsttower`, `firstdragon`, `firstherald`, `kill_diff_15`, `assist_diff_15`) includes the features that S1's four-model importance consensus identified as most consistently important. The only S1 consensus feature absent from the S3 core is `gold_momentum`, which Forward Stepwise and Elastic Net keep (2/3 methods) but LASSO shrinks to zero — it adds marginal signal not fully redundant with `golddiffat15`, but below the L1 threshold.
+```{r s3-lasso-feature-string}
+lasso_selected_str <- paste0("`", paste(lasso_selected$feature, collapse = "`, `"), "`")
+```
 
-**The practical recommendation**: train a Logistic Regression or Random Forest on the 9-feature LASSO-selected set. It achieves the same AUC (84.1–84.2%) as the full 19-feature model, is leaner, more interpretable, and more robust to collinearity. The four features never selected by any method (`firstblood`, `kill_pressure_10_15`, `opp_kill_pressure_10_15`, `gold_efficiency_15`) should be dropped permanently — their signal is completely subsumed by the consensus core. First blood in particular stands out as a strong null result: securing the first kill of the game, despite its psychological prominence in commentary, carries no independent predictive value once the full 15-minute economic and objective picture is accounted for.
+The `r nrow(lasso_selected)`-feature LASSO-selected set (`r lasso_selected_str`) includes the features that S1's cross-model importance consensus identified as most consistently important. The only S1 consensus feature absent from the S3 core is `gold_momentum`, which RFE and Elastic Net keep (2/3 methods) but LASSO shrinks to zero — it adds marginal signal not fully redundant with `golddiffat15`, but below the L1 threshold.
+
+**The practical recommendation**: train a Logistic Regression or Random Forest on the `r nrow(lasso_selected)`-feature LASSO-selected set. It achieves the same AUC (`r round(auc(rfe_roc)*100, 1)`–`r round(auc(lasso_roc)*100, 1)`%) as the full 19-feature model, is leaner, more interpretable, and more robust to collinearity. The four features never selected by any method (`firstblood`, `kill_pressure_10_15`, `opp_kill_pressure_10_15`, `gold_efficiency_15`) should be dropped permanently — their signal is completely subsumed by the consensus core. First blood in particular stands out as a strong null result: securing the first kill of the game, despite its psychological prominence in commentary, carries no independent predictive value once the full 15-minute economic and objective picture is accounted for.
 
 # Export models for Shiny app
 
@@ -2347,10 +2439,10 @@ shiny_red <- games_model %>%
         plate_diff = -plate_diff,
         grub_diff = -grub_diff,
         winrate_diff = -winrate_diff,
-        firstblood = ifelse(firstblood == 1L, 0L, firstblood),
-        firstdragon = ifelse(firstdragon == 1L, 0L, firstdragon),
-        firstherald = ifelse(firstherald == 1L, 0L, firstherald),
-        firsttower = ifelse(firsttower == 1L, 0L, firsttower)
+        firstblood = 1L - firstblood,
+        firstdragon = 1L - firstdragon,
+        firstherald = 1L - firstherald,
+        firsttower = 1L - firsttower
     )
 
 per_side_features <- bind_rows(shiny_blue, shiny_red)
