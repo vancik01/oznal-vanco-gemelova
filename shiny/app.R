@@ -1212,16 +1212,16 @@ ui <- navbarPage(
                 p(style = "color:#c8d0e0; line-height:1.8; margin-bottom:16px;",
                     "The EDA revealed high multicollinearity between raw stats and their differentials",
                     " (e.g. ", tags$code("goldat15"), " vs ", tags$code("golddiffat15"),
-                    ") and between @10 and @15 versions of the same metric. With ~46 candidate features",
+                    ") and between @10 and @15 versions of the same metric. With 19 engineered features",
                     " many are redundant — carrying the same signal in different forms.",
-                    " We applied ", tags$b("five feature selection methods"),
-                    " to find the minimal subset that retains full predictive performance."
+                    " We apply one algorithmic method (Forward Stepwise) and two embedded methods",
+                    " (LASSO, Elastic Net) to find the minimal subset that retains full predictive performance."
                 ),
                 fluidRow(
                     column(3,
                         div(class = "prob-box",
                             div(class = "prob-label", "Input features"),
-                            div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "21")
+                            div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "19")
                         )
                     ),
                     column(3,
@@ -1233,7 +1233,7 @@ ui <- navbarPage(
                     column(3,
                         div(class = "prob-box",
                             div(class = "prob-label", "Methods compared"),
-                            div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "5")
+                            div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "3")
                         )
                     ),
                     column(3,
@@ -1250,50 +1250,35 @@ ui <- navbarPage(
                 p(class = "sidebar-section-title", "Selection Methods"),
                 fluidRow(
                     column(4,
-                        div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px; margin-bottom:12px;",
-                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "RFE"),
-                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Recursive Feature Elimination"),
-                            p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
-                                "Trains Logistic Regression repeatedly, ranks features by coefficient magnitude,",
-                                " removes the weakest, and repeats. 5-fold CV selects the optimal subset size."
-                            )
-                        ),
                         div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px;",
                             div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "Forward Stepwise"),
-                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "AIC-Based Greedy Selection"),
+                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Algorithmic — AIC-Based Greedy Selection"),
                             p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
                                 "Starts with an intercept-only model, greedily adds the feature that most improves",
-                                " AIC at each step. Once added a feature stays — no shrinkage of redundant coefficients."
+                                " AIC at each step. Once added, a feature stays — no shrinkage of redundant coefficients.",
+                                " Stops when no addition improves model fit."
                             )
                         )
                     ),
                     column(4,
-                        div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px; margin-bottom:12px;",
+                        div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px;",
                             div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "LASSO (L1)"),
-                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Least Absolute Shrinkage and Selection"),
+                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Embedded — L1 Regularisation"),
                             p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
                                 "Logistic Regression with an L1 penalty that shrinks redundant coefficients to exactly zero.",
                                 " From correlated groups, keeps the strongest signal and eliminates the rest.",
-                                " Lambda tuned via 5-fold CV."
-                            )
-                        ),
-                        div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px;",
-                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "Elastic Net (L1+L2)"),
-                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Ridge + LASSO Combined"),
-                            p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
-                                "Combines LASSO (sparsity) and Ridge (coefficient shrinkage). Unlike LASSO, can retain",
-                                " several correlated features at reduced coefficients. Alpha (L1/L2 mix) searched across 0–1."
+                                " Lambda tuned via 5-fold CV; lambda.1se used for a sparser, more interpretable model."
                             )
                         )
                     ),
                     column(4,
                         div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px;",
-                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "RF Importance"),
-                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Random Forest Filter"),
+                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "Elastic Net (L1+L2)"),
+                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Embedded — Mixed Regularisation"),
                             p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
-                                "Uses importance scores from the Scenario 1 Random Forest as a filter — features above the",
-                                " mean importance threshold are retained. No extra training needed.",
-                                " Distributes importance among correlated features rather than zeroing them out (unlike LASSO)."
+                                "Combines LASSO (sparsity) and Ridge (coefficient shrinkage). Unlike LASSO, can retain",
+                                " several correlated features at reduced coefficients rather than zeroing all but one.",
+                                " Alpha (L1/L2 mix) searched across 0–1; best alpha selected by 5-fold CV deviance."
                             )
                         )
                     )
@@ -1304,7 +1289,7 @@ ui <- navbarPage(
             div(class = "card",
                 p(class = "sidebar-section-title", "Performance Comparison"),
                 p(style = "color:#9aaccc; font-size:13px; margin-bottom:16px;",
-                    "All five methods achieve nearly the same AUC-ROC as the full-feature baseline despite using only a subset.",
+                    "All three methods achieve nearly the same AUC-ROC as the full-feature baseline despite using only a subset.",
                     " The lollipop chart shows how many features each method kept (label) and where it lands relative to the LR-all baseline (dashed line)."
                 ),
                 DTOutput("feat_perf_table"),
@@ -1318,7 +1303,7 @@ ui <- navbarPage(
                 p(style = "color:#9aaccc; font-size:13px; margin-bottom:4px;",
                     "Each row is a feature; each column is a selection method.",
                     " Green = selected by that method, dark = eliminated.",
-                    " The number (x/5) shows how many of the five methods agreed on that feature."
+                    " The number (x/3) shows how many of the three methods agreed on that feature."
                 ),
                 plotOutput("heatmap_plot", height = "500px")
             ),
@@ -1330,36 +1315,36 @@ ui <- navbarPage(
                     column(4,
                         div(style = "background:#13131e; border:1px solid #27ae60; border-radius:8px; padding:16px; min-height:120px;",
                             div(style = "color:#27ae60; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;",
-                                "Consensus Core — selected by all 5 methods"),
+                                "Consensus Core — selected by all 3 methods"),
                             uiOutput("fs_consensus_5")
                         )
                     ),
                     column(4,
                         div(style = "background:#13131e; border:1px solid #5383e8; border-radius:8px; padding:16px; min-height:120px;",
                             div(style = "color:#5383e8; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;",
-                                "Near-Consensus — selected by 4 / 5 methods"),
+                                "Partial — selected by 2 / 3 methods"),
                             uiOutput("fs_consensus_4")
                         )
                     ),
                     column(4,
                         div(style = "background:#13131e; border:1px solid #e84057; border-radius:8px; padding:16px; min-height:120px;",
                             div(style = "color:#e84057; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;",
-                                "Never Selected — eliminated by all 5 methods"),
+                                "Never Selected — eliminated by all 3 methods"),
                             uiOutput("fs_consensus_0")
                         )
                     )
                 ),
                 br(),
                 p(style = "color:#c8d0e0; line-height:1.8; margin-bottom:10px;",
-                    "All five methods converge on the same answer: the predictive signal in this dataset is highly concentrated.",
-                    " Starting from 21 features, every method reduces the set substantially — LASSO and RF Importance down to",
-                    " just 9 — with almost ", tags$b("no loss in AUC-ROC"), " (84.3–84.4% vs. 84.4% full-feature baseline).",
-                    " Roughly half the features are redundant."
+                    "All three methods converge on a 9-feature consensus core — exactly LASSO's full selected set — with almost",
+                    tags$b(" no loss in AUC-ROC"), " (84.1–84.2% vs. 84.2% full-feature baseline).",
+                    " The algorithmic method (Forward Stepwise) and both embedded methods agree on which features carry genuine signal."
                 ),
                 p(style = "color:#9aaccc; line-height:1.8; margin:0;",
-                    tags$b("firstblood"), " was never selected by any method — consistent with published LoL research",
-                    " where first blood has weak win-rate correlation compared to tower or gold leads.",
-                    " Kill pressure metrics similarly add no independent signal once economic and objective features are accounted for."
+                    tags$b("firstblood"), ", ", tags$b("kill_pressure_10_15"), ", ", tags$b("opp_kill_pressure_10_15"),
+                    ", and ", tags$b("gold_efficiency_15"),
+                    " were never selected by any method — early kill counts and gold efficiency add no independent signal",
+                    " once the 15-minute resource differentials and objective flags are accounted for."
                 )
             ),
 
@@ -2173,10 +2158,10 @@ server <- function(input, output, session) {
         if (!file.exists(roc_path)) {
             par(bg = "#1c1c2e", col.main = "#ffffff", col.axis = "#9aaccc",
                 col.lab = "#9aaccc", fg = "#2a2a3e")
-            plot(1, type = "n", xlim = c(1,0), ylim = c(0,1),
+            plot(1, type = "n", xlim = c(0,1), ylim = c(0,1),
                  xlab = "1 - Specificity", ylab = "Sensitivity",
                  main = "ROC Curves — re-run analysis.Rmd to generate")
-            abline(a = 1, b = -1, lty = 2, col = "#2a2a3e")
+            abline(a = 0, b = 1, lty = 2, col = "#2a2a3e")
             return(invisible(NULL))
         }
         rocs <- readRDS(roc_path)
@@ -2192,13 +2177,13 @@ server <- function(input, output, session) {
         par(mar = c(5, 5, 4, 2), family = "sans", bg = "#1c1c2e",
             col.main = "#ffffff", col.axis = "#9aaccc", col.lab = "#9aaccc",
             fg = "#2a2a3e")
-        plot(0, type = "n", xlim = c(1, 0), ylim = c(0, 1),
+        plot(0, type = "n", xlim = c(0, 1), ylim = c(0, 1),
              xlab = "1 - Specificity (False Positive Rate)",
              ylab = "Sensitivity (True Positive Rate)",
              main = "ROC Curves — All Models",
              cex.main = 1.3, cex.lab = 1.05,
              las = 1, bty = "l")
-        abline(a = 1, b = -1, lty = 3, col = "#2a2a3e", lwd = 1.2)
+        abline(a = 0, b = 1, lty = 3, col = "#2a2a3e", lwd = 1.2)
 
         for (m in models) {
             lines(1 - m$roc$specificities, m$roc$sensitivities,
@@ -2232,14 +2217,14 @@ server <- function(input, output, session) {
     })
 
     output$fs_consensus_5 <- renderUI({
-        feats <- overlap_df %>% filter(n_methods == 5) %>% pull(feature)
+        feats <- overlap_df %>% filter(n_methods == 3) %>% pull(feature)
         if (length(feats) == 0) return(p(style = "color:#9aaccc; font-size:13px;", "None"))
         tags$ul(style = "color:#c8d0e0; font-size:13px; margin:0; padding-left:16px; line-height:1.9;",
             lapply(feats, tags$li))
     })
 
     output$fs_consensus_4 <- renderUI({
-        feats <- overlap_df %>% filter(n_methods == 4) %>% pull(feature)
+        feats <- overlap_df %>% filter(n_methods == 2) %>% pull(feature)
         if (length(feats) == 0) return(p(style = "color:#9aaccc; font-size:13px;", "None"))
         tags$ul(style = "color:#c8d0e0; font-size:13px; margin:0; padding-left:16px; line-height:1.9;",
             lapply(feats, tags$li))

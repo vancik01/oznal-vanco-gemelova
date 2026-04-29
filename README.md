@@ -17,7 +17,7 @@ Predicting professional League of Legends match outcomes from early-game perform
 ## Scenarios
 
 - **S1**: Model Comparison (LR, RF, Naive Bayes, KNN, CART) + feature-space partitioning
-- **S3**: Feature Selection (RFE, Forward Stepwise, LASSO, Elastic Net, RF importance)
+- **S3**: Feature Selection — 1 algorithmic (Forward Stepwise) + 2 embedded (LASSO, Elastic Net)
 
 ## Setup
 
