@@ -1,6 +1,6 @@
 ---
 title: "OZNAL Capstone - LoL Esports Early-Game Prediction"
-author: "Martin Vanco, Adriana Gemeľová"
+author: "Martin Vančo, Adriana Gemeľová"
 date: "`r Sys.Date()`"
 format:
   html:

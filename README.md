@@ -42,7 +42,7 @@ visualizations/ - EDA plots
 
 ## Team
 
-- Martin Vanco
+- Martin Vančo
 - Adriana Gemeľová
 
 ## Course
