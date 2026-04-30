@@ -6,7 +6,7 @@
 <style>
   @page {
     size: A4;
-    margin: 18mm 20mm 18mm 20mm;
+    margin: 16mm 20mm 16mm 20mm;
 
     @top-left {
       content: "OZNAL Capstone \00B7  STU FIIT  \00B7  2026";
@@ -24,7 +24,7 @@
       color: #555;
     }
     @bottom-left {
-      content: "Martin Vanco  \00B7  Adriana Gemeľová";
+      content: "Martin Vančo  \00B7  Adriana Gemeľová";
       font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
       font-size: 7.6pt;
       color: #555;
@@ -41,6 +41,7 @@
     --ink: #111;
     --muted: #555;
     --line: #c8c8c8;
+    --accent: #1f4e79;
   }
 
   * { box-sizing: border-box; }
@@ -51,10 +52,12 @@
     color: var(--ink);
     background: #fff;
     font-family: "Charter", "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif;
-    font-size: 9.6pt;
-    line-height: 1.42;
+    font-size: 9.5pt;
+    line-height: 1.38;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .page {
@@ -63,7 +66,6 @@
     padding: 18px 24px;
   }
 
-  /* On-screen surrogate for the print page header */
   .screen-header {
     display: flex;
     justify-content: space-between;
@@ -71,7 +73,7 @@
     font-size: 7.6pt;
     color: var(--muted);
     letter-spacing: 0.04em;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
   }
   .screen-header .left {
     letter-spacing: 0.16em;
@@ -81,40 +83,49 @@
   header.title {
     text-align: center;
     border-bottom: 1.2px solid var(--ink);
-    padding-bottom: 8px;
-    margin-bottom: 12px;
+    padding-bottom: 7px;
+    margin-bottom: 10px;
   }
 
   h1 {
     font-family: "Charter", "Iowan Old Style", Georgia, serif;
     font-weight: 700;
-    font-size: 20pt;
-    line-height: 1.13;
+    font-size: 18pt;
+    line-height: 1.12;
     margin: 0;
     letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    font-family: "Inter", -apple-system, sans-serif;
+    font-size: 8pt;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-top: 4px;
+    text-transform: uppercase;
   }
 
   .lede {
     font-style: italic;
     color: #222;
     text-align: justify;
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
   }
 
   h2 {
     font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
     font-weight: 700;
-    font-size: 8.2pt;
+    font-size: 8pt;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--ink);
-    margin: 9px 0 3px 0;
+    margin: 8px 0 3px 0;
     break-after: avoid;
     page-break-after: avoid;
   }
 
   p {
-    margin: 0 0 6px 0;
+    margin: 0 0 5px 0;
     text-align: justify;
     hyphens: auto;
     -webkit-hyphens: auto;
@@ -122,9 +133,55 @@
     widows: 3;
   }
 
-  /* On-screen surrogate for the print page footer */
+  /* Inline accuracy chart */
+  .chart {
+    margin: 6px 0 8px 0;
+    font-family: "Inter", -apple-system, sans-serif;
+    font-size: 7.8pt;
+    color: var(--ink);
+  }
+  .chart .row {
+    display: grid;
+    grid-template-columns: 110px 1fr 44px;
+    align-items: center;
+    margin: 1px 0;
+  }
+  .chart .label { color: #222; }
+  .chart .bar-wrap {
+    background: #eee;
+    height: 8px;
+    border-radius: 1px;
+    position: relative;
+    border: 0.4px solid #d4d4d4;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .chart .bar {
+    display: block;
+    background: var(--accent);
+    height: 100%;
+    border-radius: 1px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .chart .bar.muted { background: #888; }
+  .chart .bar.lit { background: var(--accent); }
+  .chart .val {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #222;
+  }
+  .chart .caption {
+    font-family: "Charter", Georgia, serif;
+    font-style: italic;
+    font-size: 8.4pt;
+    color: var(--muted);
+    margin-top: 3px;
+    text-align: center;
+  }
+
   .screen-footer {
-    margin-top: 14px;
+    margin-top: 12px;
     padding-top: 6px;
     border-top: 0.5px solid var(--line);
     font-family: "Inter", -apple-system, sans-serif;
@@ -135,9 +192,13 @@
   }
 
   @media print {
-    body { font-size: 9.4pt; line-height: 1.4; }
+    body { font-size: 9.3pt; line-height: 1.36; }
     .page { margin: 0; padding: 0; max-width: none; }
     .screen-header, .screen-footer { display: none; }
+    .chart .bar-wrap, .chart .bar {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
   }
 </style>
 </head>
@@ -151,107 +212,130 @@
 
   <header class="title">
     <h1>Predicting League of Legends Match Outcomes from the First 15 Minutes</h1>
+    <div class="subtitle">Martin Vančo &middot; Adriana Gemeľová</div>
   </header>
 
-  <p class="lede">
-    Can a computer guess who is going to win a professional video-game match just by looking
-    at the first 15 minutes? That was the question we set out to answer &mdash; and the
-    short version is: usually yes, but the close games stay genuinely hard.
+  <h2>Introduction</h2>
+  <p>
+    For this year's project we decided to work with a League of Legends dataset.
+    League of Legends is the most-played and most-watched esport in the world - a 5v5
+    team game in which two teams (Blue and Red) try to destroy each other's base, with
+    professional matches lasting roughly 30 minutes. By the 15-minute mark, well before
+    half of a typical game has elapsed, gold, experience and objective leads have
+    already started to compound, and pro viewers often develop a strong feel for when
+    a game is &ldquo;already over&rdquo;. Our project was to take real professional
+    match data and find out how reliably this 15-minute snapshot forecasts the
+    eventual winner, and whether machine learning can do better than the simple
+    intuition the community already relies on.
   </p>
 
-  <h2>What we looked at</h2>
+  <h2>The data we worked with</h2>
   <p>
-    League of Legends is a team game where two squads of 5 players try to destroy each
-    other's base. A match usually lasts around half an hour. We wanted to know how much of
-    the eventual outcome is already visible from what happens in just the first 15 minutes
-    &mdash; the early gold collected, who took the first tower, who killed the first
-    monster, and so on. To do that, we used a public archive containing every professional
-    match played in 2025, which gave us roughly 10,000 games from 45 different leagues.
-    For each game we wrote down about 46 small facts about its early stage and asked the
-    computer to learn the connection between those facts and the final result.
+    The official, community-trusted source of professional match data is Oracle's
+    Elixir, which collects every game played in every major regional league. We used
+    the 2025 season export - 10,053 professional matches across 45 leagues (LPL, LCK,
+    LEC, &hellip;). For each game it records detailed numbers for both teams and both
+    map sides at the 10- and 15-minute marks: gold, experience, kills, farm and early
+    objectives like first tower, first dragon and first blood. We reshaped the raw
+    team rows into one row per match, removed mirrored columns and kept a focused
+    set of 14 early-game features for the main models. We later tested 30 extra
+    role-level features to check whether lane-specific information changed the result.
   </p>
 
-  <h2>How we tried to answer it</h2>
+  <h2>Models we trained</h2>
   <p>
-    There is no single best way to teach a computer to make predictions, so we tried 5
-    different methods side by side. Some are simple and easy to explain, like a decision
-    tree that asks a chain of yes-or-no questions. Others are more elaborate, like a
-    "random forest" that combines hundreds of small trees and lets them vote on the answer.
-    Each method has its own strengths and blind spots, and comparing them on the exact same
-    data is the fairest way to see which kind of thinking actually works for this problem.
-  </p>
-  <p>
-    We also asked a second question: out of all those 46 clues we gave the computer, which
-    ones really matter? Some turned out to be repeating the same information in slightly
-    different forms, and others added almost nothing. 3 independent techniques were used to
-    trim the list down to the truly useful clues, and we kept only the ones that all 3
-    techniques agreed on.
+    We trained six classifiers on the same 14-feature set (Logistic Regression, Random
+    Forest, XGBoost, Naive Bayes, KNN, Decision Tree), and used three feature-selection
+    methods (Recursive Feature Elimination, LASSO, Elastic Net) to find which early-game
+    signals are stable enough to keep in a practical model.
   </p>
 
   <h2>What we found</h2>
   <p>
-    The early game does forecast the late game, but it does not lock it in. Our best models
-    were correct about 3 out of every 4 times (around 75%). That sounds impressive, but a
-    much simpler rule &mdash; "whichever team has more gold at the 15-minute mark wins"
-    &mdash; is already correct nearly 73% of the time on its own. So the machine learning
-    we did adds a real but modest improvement on top of common sense.
-  </p>
-  <p>
-    A more interesting picture appears when we split the games by how lopsided they are.
-    When one team is already very far ahead at minute 15, almost any rule will guess the
-    winner correctly &mdash; the game is essentially over. When the two teams are roughly
-    even, even the best models hover near a coin flip. The real value of the prediction
-    work shows up in the middle band: the close games where the lead is small but real.
-    That is also, not coincidentally, where the games are most exciting to watch.
-  </p>
-  <p>
-    We also tested whether one role on the team matters more than the others. Players often
-    say that the bot lane &mdash; the position responsible for sustained damage in the late
-    game &mdash; is the most important. Our data agreed, but only slightly. Bot-lane leads
-    at 15 minutes were the most strongly connected to victory of any single role, yet the
-    gap between bot, jungle and mid was much smaller than the popular intuition would
-    suggest. It is a team game, and the data is firm on that.
-  </p>
-  <p>
-    The clues that survived our trimming were the obvious economic ones: which team had
-    more gold, more experience, and more minions killed at the 15-minute mark, plus which
-    team took the first tower. Things like first blood, while dramatic, were less
-    informative than they look &mdash; they usually translate into a small gold lead, and
-    once you already know about the gold lead, the kill itself adds little. We also
-    confirmed a long-running rumour about the game: playing on the blue side of the map is
-    genuinely a small advantage, with blue winning about 53% of professional matches.
+    Machine learning helps, but only by a few percentage points. The naive rule
+    &ldquo;the team with more gold at minute 15 wins&rdquo; already predicts 72.9% of
+    matches on its own. Our best model (Logistic Regression) reaches 75.5%. A real
+    improvement, but a modest one.
   </p>
 
-  <h2>What did not work</h2>
+  <div class="chart">
+    <div class="row">
+      <span class="label">Always-Blue</span>
+      <span class="bar-wrap"><span class="bar muted" style="width: 53.3%"></span></span>
+      <span class="val">53.3%</span>
+    </div>
+    <div class="row">
+      <span class="label">Gold-leader rule</span>
+      <span class="bar-wrap"><span class="bar muted" style="width: 72.9%"></span></span>
+      <span class="val">72.9%</span>
+    </div>
+    <div class="row">
+      <span class="label">CART</span>
+      <span class="bar-wrap"><span class="bar lit" style="width: 72.9%"></span></span>
+      <span class="val">72.9%</span>
+    </div>
+    <div class="row">
+      <span class="label">Random Forest</span>
+      <span class="bar-wrap"><span class="bar lit" style="width: 74.1%"></span></span>
+      <span class="val">74.1%</span>
+    </div>
+    <div class="row">
+      <span class="label">Naive Bayes</span>
+      <span class="bar-wrap"><span class="bar lit" style="width: 74.9%"></span></span>
+      <span class="val">74.9%</span>
+    </div>
+    <div class="row">
+      <span class="label">KNN</span>
+      <span class="bar-wrap"><span class="bar lit" style="width: 75.2%"></span></span>
+      <span class="val">75.2%</span>
+    </div>
+    <div class="row">
+      <span class="label">XGBoost</span>
+      <span class="bar-wrap"><span class="bar lit" style="width: 75.2%"></span></span>
+      <span class="val">75.2%</span>
+    </div>
+    <div class="row">
+      <span class="label">Logistic Reg.</span>
+      <span class="bar-wrap"><span class="bar lit" style="width: 75.5%"></span></span>
+      <span class="val">75.5%</span>
+    </div>
+    <div class="caption">Test-set accuracy: baselines (grey) vs. trained models (blue).</div>
+  </div>
+
   <p>
-    Plenty of things we tried did not pan out, and that is worth reporting too. Adding 20
-    extra detailed measurements about each individual player's kills and deaths sounded
-    promising on paper but barely moved the accuracy and was abandoned. Forcing more clues
-    into the simpler models often made them worse, not better, because several of the clues
-    were just rephrasings of each other. Published academic work on this same problem tops
-    out around 77&ndash;78% accuracy, so our 75&ndash;76% is within a couple of points of
-    what anyone has ever achieved. The remaining gap is not bad modelling &mdash; it is the
-    genuine drama of the game itself.
+    We also tried pushing accuracy higher by adding per-role data: separate gold,
+    experience and farm differentials for each lane (top, jungle, mid, bot, support)
+    on top of the team totals. Bot lane was the strongest role-specific signal, but
+    the improvement from adding all role features was small. In practice, the team-level
+    totals already captured most of the useful information.
+  </p>
+  <p>
+    Feature selection gave the clearest practical answer. A compact seven-feature
+    model kept almost the same predictive power as the full model: gold, experience
+    and farm differences at 15 minutes, prior team win-rate difference, first tower,
+    first herald and first dragon. Features such as first blood, plate difference
+    and grub difference looked useful on their own, but did not add much once the
+    main economic picture was already known.
+  </p>
+  <p>
+    To put our numbers in context, published studies on the same problem report 76-78%
+    accuracy at the 15-minute mark across model families and dataset types. Our 75.5%
+    sits right alongside them, less than a point off the published numbers, which
+    suggests the ceiling is the problem itself rather than our modelling choices.
   </p>
 
-  <h2>What we built</h2>
+  <h2>Conclusion</h2>
   <p>
-    Alongside the written analysis, we built a small interactive web app where anyone can
-    explore the dataset, switch between the different prediction methods we tried, and
-    type in a hypothetical fifteen-minute snapshot of a game to see what the model would
-    predict. Everything is reproducible: the same data, run through the same steps,
-    produces the same results.
-  </p>
-
-  <h2>The takeaway in one line</h2>
-  <p>
-    A professional League of Legends match is not decided at minute 15, but it is heavily
-    foreshadowed. About 3 in 4 games can be called from the early minutes alone &mdash; and
-    the remaining quarter is where the actual sport lives.
+    Early-game numbers predict the winner fairly well, but not with certainty. LoL is
+    a complex, fast-evolving team game in which many decisions after minute 15 still
+    matter. Machine learning extracts a small but real edge over the gold-leader
+    baseline, and our best solution is not the largest model, but the compact
+    seven-feature version: it is almost as accurate, easier to explain, and better
+    suited for a Shiny tool where users need to understand why the prediction changes.
   </p>
 
   <div class="screen-footer">
-    <span>Martin Vanco &middot; Adriana Gemeľová</span>
+    <span>Martin Vančo &middot; Adriana Gemeľová</span>
     <span>Project summary &middot; one page</span>
   </div>
 

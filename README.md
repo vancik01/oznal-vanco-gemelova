@@ -9,9 +9,9 @@ Predicting professional League of Legends match outcomes from early-game perform
 
 ## Dataset
 
-- **Source**: [Oracle's Elixir](https://oracleselixir.com/tools/downloads) - 2025 Professional LoL Esports Match Data
+- **Public source (credit)**: [Oracle's Elixir](https://oracleselixir.com/tools/downloads) - 2025 Professional LoL Esports Match Data, maintained by Tim Sevenhuysen
 - **Size**: 120,636 rows, 165 columns, 10,053 games across 45 leagues
-- **Download**: [2025_LoL_esports_match_data_from_OraclesElixir.csv](https://oracleselixir.com/tools/downloads/2025_LoL_esports_match_data_from_OraclesElixir.csv) - place in `data/`
+- **Download (project copy)**: [Google Drive folder](https://drive.google.com/drive/folders/1uuM-gygXmHzwMYiqkopjeESIBH1moDaR?usp=sharing) - this is a copy of the Oracle's Elixir dataset; download `2025_LoL_esports_match_data_from_OraclesElixir.csv` and place it in the same folder as the R code (alongside the app and analysis files)
 - **Note**: CSV not tracked in git due to size
 
 ## Scenarios

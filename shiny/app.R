@@ -12,6 +12,7 @@ rf_model     <- readRDS("models/rf_model.rds")
 nb_model     <- readRDS("models/nb_model.rds")
 knn_model    <- readRDS("models/knn_model.rds")
 cart_model   <- readRDS("models/cart_model.rds")
+xgb_model    <- readRDS("models/xgb_model.rds")
 preproc      <- readRDS("models/preproc.rds")
 perf_summary <- readRDS("models/perf_summary.rds")
 overlap_df   <- readRDS("models/overlap_df.rds")
@@ -24,6 +25,15 @@ games_data   <- tryCatch(readRDS("models/games.rds"),      error = function(e) N
 
 feature_names <- names(X_train)
 train_means   <- colMeans(X_train)
+
+# Some rows in game_lookup carry NA for late-stage features (e.g. gold_efficiency_15,
+# kda_15). Substitute training-set means so models never see NAs in newdata.
+fill_feature_nas <- function(row) {
+    for (f in feature_names) {
+        if (is.na(row[[f]])) row[[f]] <- train_means[[f]]
+    }
+    row
+}
 
 # ── Model metadata ─────────────────────────────────────────────────────────────
 ACCENT <- "#5383e8"
@@ -39,7 +49,7 @@ model_meta <- list(
         name  = "Random Forest",
         color = ACCENT,
         param = "mtry",
-        desc  = "Ensemble of 500 decision trees. mtry controls how many features are randomly considered at each split. Tested: 5, 7, 10, 15, 20."
+        desc  = "Ensemble of 500 decision trees. mtry controls how many features are randomly considered at each split. Tested: 3, 5, 7, 10, 14."
     ),
     NB = list(
         name  = "Naive Bayes",
@@ -58,6 +68,12 @@ model_meta <- list(
         color = ACCENT,
         param = "cp (complexity parameter)",
         desc  = "Recursive binary splitting tree. cp penalizes tree growth — small cp allows deep trees, large cp forces early stopping. Tested on log scale."
+    ),
+    XGB = list(
+        name  = "XGBoost",
+        color = ACCENT,
+        param = "nrounds + max_depth + eta",
+        desc  = "Gradient-boosted trees. Tunes nrounds (boosting iterations), max_depth (tree depth) and eta (learning rate). Tested: 2 × 2 × 2 = 8 combinations. Other params (gamma, colsample_bytree, min_child_weight, subsample) held fixed."
     )
 )
 
@@ -824,7 +840,7 @@ ui <- navbarPage(
                     p(style = "color:#9aaccc; font-size:15px; max-width:580px; margin:0 auto;",
                         "Can the first 15 minutes of a professional League of Legends match",
                         "predict the final winner?",
-                        "We trained five classification models on real competitive match data to find out.")
+                        "We trained six classification models on real competitive match data to find out.")
                 ),
 
                 br(),
@@ -970,7 +986,7 @@ ui <- navbarPage(
                         tags$tbody(
                             tags$tr(
                                 tags$td(style = "padding:10px 12px 10px 0; color:#5383e8; font-weight:600; font-size:13px; border-bottom:1px solid #2a2a3e;", "Match Predictor"),
-                                tags$td(style = "padding:10px 0; color:#c8d0e0; font-size:13px; border-bottom:1px solid #2a2a3e;", "Enter early-game stats and get a live win-probability prediction from all five models.")
+                                tags$td(style = "padding:10px 0; color:#c8d0e0; font-size:13px; border-bottom:1px solid #2a2a3e;", "Enter early-game stats and get a live win-probability prediction from all six models.")
                             ),
                             tags$tr(
                                 tags$td(style = "padding:10px 12px 10px 0; color:#5383e8; font-weight:600; font-size:13px; border-bottom:1px solid #2a2a3e;", "Hyperparameter Tuning"),
@@ -978,7 +994,7 @@ ui <- navbarPage(
                             ),
                             tags$tr(
                                 tags$td(style = "padding:10px 12px 10px 0; color:#5383e8; font-weight:600; font-size:13px; border-bottom:1px solid #2a2a3e;", "Model Comparison"),
-                                tags$td(style = "padding:10px 0; color:#c8d0e0; font-size:13px; border-bottom:1px solid #2a2a3e;", "Compare all five models on accuracy, AUC, precision, recall, and ROC curves.")
+                                tags$td(style = "padding:10px 0; color:#c8d0e0; font-size:13px; border-bottom:1px solid #2a2a3e;", "Compare all six models on accuracy, AUC, precision, recall, and ROC curves.")
                             ),
                             tags$tr(
                                 tags$td(style = "padding:10px 12px 10px 0; color:#5383e8; font-weight:600; font-size:13px; border-bottom:1px solid #2a2a3e;", "Feature Selection"),
@@ -1002,7 +1018,8 @@ ui <- navbarPage(
                         tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "Random Forest"),
                         tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "Naive Bayes"),
                         tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "K-Nearest Neighbors"),
-                        tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "Decision Tree (CART)")
+                        tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "Decision Tree (CART)"),
+                        tags$span(style = "background:#1a2340; border:1px solid #5383e8; color:#5383e8; font-size:12px; font-weight:600; padding:5px 14px; border-radius:20px;", "XGBoost")
                     )
                 ),
 
@@ -1142,9 +1159,10 @@ ui <- navbarPage(
                                     "Random Forest",
                                     "Naive Bayes",
                                     "KNN",
-                                    "CART"
+                                    "CART",
+                                    "XGBoost"
                                 ),
-                                choiceValues = c("LR","RF","NB","KNN","CART"))
+                                choiceValues = c("LR","RF","NB","KNN","CART","XGB"))
                         )
                     ),
                     # Model description
@@ -1212,22 +1230,22 @@ ui <- navbarPage(
                 p(style = "color:#c8d0e0; line-height:1.8; margin-bottom:16px;",
                     "The EDA revealed high multicollinearity between raw stats and their differentials",
                     " (e.g. ", tags$code("goldat15"), " vs ", tags$code("golddiffat15"),
-                    ") and between @10 and @15 versions of the same metric. With 19 engineered features",
-                    " many are redundant — carrying the same signal in different forms.",
-                    " We apply one algorithmic method (Forward Stepwise) and two embedded methods",
+                    ") and between @10 and @15 versions of the same metric. With 14 candidate features",
+                    " several are redundant — carrying the same signal in different forms.",
+                    " We apply one wrapper method (RFE) and two embedded methods",
                     " (LASSO, Elastic Net) to find the minimal subset that retains full predictive performance."
                 ),
                 fluidRow(
                     column(3,
                         div(class = "prob-box",
                             div(class = "prob-label", "Input features"),
-                            div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "19")
+                            div(class = "prob-value", style = "color:#5383e8; font-size:26px;", "14")
                         )
                     ),
                     column(3,
                         div(class = "prob-box",
                             div(class = "prob-label", "Min. features out"),
-                            div(class = "prob-value", style = "color:#27ae60; font-size:26px;", "9")
+                            div(class = "prob-value", style = "color:#27ae60; font-size:26px;", "7")
                         )
                     ),
                     column(3,
@@ -1251,12 +1269,12 @@ ui <- navbarPage(
                 fluidRow(
                     column(4,
                         div(style = "background:#13131e; border:1px solid #2a2a3e; border-radius:8px; padding:16px;",
-                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "Forward Stepwise"),
-                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Algorithmic — AIC-Based Greedy Selection"),
+                            div(style = "color:#5383e8; font-weight:700; font-size:14px; margin-bottom:4px;", "RFE (Recursive Feature Elimination)"),
+                            div(style = "color:#6a7590; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;", "Wrapper — CV-Driven Backward Elimination"),
                             p(style = "color:#9aaccc; font-size:12px; line-height:1.7; margin:0;",
-                                "Starts with an intercept-only model, greedily adds the feature that most improves",
-                                " AIC at each step. Once added, a feature stays — no shrinkage of redundant coefficients.",
-                                " Stops when no addition improves model fit."
+                                "Starts with all features, repeatedly fits Logistic Regression, ranks features by absolute coefficient magnitude,",
+                                " removes the weakest, and re-evaluates 5-fold CV AUC-ROC at every subset size.",
+                                " The optimal size is the point where removing further features would cost predictive performance."
                             )
                         )
                     ),
@@ -1329,22 +1347,23 @@ ui <- navbarPage(
                     column(4,
                         div(style = "background:#13131e; border:1px solid #e84057; border-radius:8px; padding:16px; min-height:120px;",
                             div(style = "color:#e84057; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;",
-                                "Never Selected — eliminated by all 3 methods"),
-                            uiOutput("fs_consensus_0")
+                                "RFE-Only — kept only by RFE"),
+                            uiOutput("fs_consensus_1")
                         )
                     )
                 ),
                 br(),
                 p(style = "color:#c8d0e0; line-height:1.8; margin-bottom:10px;",
-                    "All three methods converge on a 9-feature consensus core — exactly LASSO's full selected set — with almost",
-                    tags$b(" no loss in AUC-ROC"), " (84.1–84.2% vs. 84.2% full-feature baseline).",
-                    " The algorithmic method (Forward Stepwise) and both embedded methods agree on which features carry genuine signal."
+                    "All three methods converge on a 7-feature consensus core — exactly LASSO's full selected set — with almost",
+                    tags$b(" no loss in AUC-ROC"), " (83.9–84.2% vs. 84.2% full-feature baseline).",
+                    " The wrapper method (RFE) and both embedded methods agree on which features carry genuine signal."
                 ),
                 p(style = "color:#9aaccc; line-height:1.8; margin:0;",
-                    tags$b("firstblood"), ", ", tags$b("kill_pressure_10_15"), ", ", tags$b("opp_kill_pressure_10_15"),
-                    ", and ", tags$b("gold_efficiency_15"),
-                    " were never selected by any method — early kill counts and gold efficiency add no independent signal",
-                    " once the 15-minute resource differentials and objective flags are accounted for."
+                    tags$b("firstblood"), ", ", tags$b("assist_diff_15"), ", ", tags$b("kda_15"), ", ",
+                    tags$b("gold_efficiency_15"), ", ", tags$b("plate_diff"), ", and ", tags$b("grub_diff"),
+                    " sit in the marginal-contribution band — RFE keeps them, LASSO and Elastic Net drop them.",
+                    " Their univariate signal is real but already absorbed by the dominant resource differentials and objective flags,",
+                    " so they cannot clear the L1 penalty threshold."
                 )
             ),
 
@@ -1454,7 +1473,8 @@ server <- function(input, output, session) {
             rv$input_row <- demo %>%
                 rename(side = side_encoded) %>%
                 select(all_of(feature_names)) %>%
-                as.data.frame()
+                as.data.frame() %>%
+                fill_feature_nas()
             updateRadioButtons(session, "side",        selected = as.character(demo$side_encoded))
             updateSliderInput(session, "golddiffat15", value = round(demo$golddiffat15))
             updateSliderInput(session, "xpdiffat15",   value = round(demo$xpdiffat15))
@@ -1534,7 +1554,8 @@ server <- function(input, output, session) {
         rv$input_row <- selected %>%
             rename(side = side_encoded) %>%
             select(all_of(feature_names)) %>%
-            as.data.frame()
+            as.data.frame() %>%
+            fill_feature_nas()
         updateRadioButtons(session, "side",    selected = as.character(selected$side_encoded))
         updateSliderInput(session, "golddiffat15", value = round(selected$golddiffat15))
         updateSliderInput(session, "xpdiffat15",   value = round(selected$xpdiffat15))
@@ -1594,7 +1615,8 @@ server <- function(input, output, session) {
         rv$input_row <- gi %>%
             rename(side = side_encoded) %>%
             select(all_of(feature_names)) %>%
-            as.data.frame()
+            as.data.frame() %>%
+            fill_feature_nas()
     }, ignoreInit = TRUE)
 
     # ── Prediction ──────────────────────────────────────────────────────────────
@@ -1681,6 +1703,11 @@ server <- function(input, output, session) {
             updateRadioButtons(session, "nb_kernel", selected = as.character(nb_model$bestTune$usekernel))
             updateSliderInput(session,  "nb_adjust", value    = nb_model$bestTune$adjust)
         }
+        if (m == "XGB") {
+            updateSelectInput(session, "xgb_nrounds",   selected = as.character(xgb_model$bestTune$nrounds))
+            updateSelectInput(session, "xgb_max_depth", selected = as.character(xgb_model$bestTune$max_depth))
+            updateSelectInput(session, "xgb_eta",       selected = as.character(xgb_model$bestTune$eta))
+        }
     })
 
     # Left panel: model description
@@ -1716,6 +1743,11 @@ server <- function(input, output, session) {
         if (m == "NB")   return(tagList(
             best_line("Density", if (nb_model$bestTune$usekernel) "Kernel density" else "Gaussian"),
             best_line("Adjust",  nb_model$bestTune$adjust)
+        ))
+        if (m == "XGB")  return(tagList(
+            best_line("nrounds",   xgb_model$bestTune$nrounds),
+            best_line("max_depth", xgb_model$bestTune$max_depth),
+            best_line("eta",       xgb_model$bestTune$eta)
         ))
     })
 
@@ -1805,6 +1837,33 @@ server <- function(input, output, session) {
                     min = 0.5, max = 1.5, value = nb_model$bestTune$adjust,
                     step = 0.5, width = "100%")
             )
+        } else if (m == "XGB") {
+            tested_n   <- sort(unique(xgb_model$results$nrounds))
+            tested_d   <- sort(unique(xgb_model$results$max_depth))
+            tested_eta <- sort(unique(xgb_model$results$eta))
+            tagList(
+                reset_btn,
+                tags$label(style = "font-size:12px; color:#9aaccc; font-weight:500;",
+                           "nrounds — boosting iterations"),
+                selectInput("xgb_nrounds", NULL,
+                    choices  = as.character(tested_n),
+                    selected = as.character(xgb_model$bestTune$nrounds),
+                    width    = "100%"),
+                tags$label(style = "font-size:12px; color:#9aaccc; font-weight:500; margin-top:6px; display:block;",
+                           "max_depth — tree depth"),
+                selectInput("xgb_max_depth", NULL,
+                    choices  = as.character(tested_d),
+                    selected = as.character(xgb_model$bestTune$max_depth),
+                    width    = "100%"),
+                tags$label(style = "font-size:12px; color:#9aaccc; font-weight:500; margin-top:6px; display:block;",
+                           "eta — learning rate"),
+                selectInput("xgb_eta", NULL,
+                    choices  = as.character(tested_eta),
+                    selected = as.character(xgb_model$bestTune$eta),
+                    width    = "100%"),
+                div(style = "font-size:11px; color:#6a7590; margin-top:6px;",
+                    "Lower eta = slower but smoother learning · Deeper trees = higher capacity")
+            )
         }
     })
 
@@ -1844,6 +1903,12 @@ server <- function(input, output, session) {
             uk  <- as.logical(if (is.null(input$nb_kernel)) as.character(nb_model$bestTune$usekernel) else input$nb_kernel)
             adj <- if (is.null(input$nb_adjust)) nb_model$bestTune$adjust else as.numeric(input$nb_adjust)
             return(nb_model$results %>% filter(usekernel == uk, abs(adjust - adj) < 0.01))
+        }
+        if (m == "XGB") {
+            nr  <- as.integer(if (is.null(input$xgb_nrounds))   xgb_model$bestTune$nrounds   else input$xgb_nrounds)
+            md  <- as.integer(if (is.null(input$xgb_max_depth)) xgb_model$bestTune$max_depth else input$xgb_max_depth)
+            et  <- as.numeric(if (is.null(input$xgb_eta))       xgb_model$bestTune$eta       else input$xgb_eta)
+            return(xgb_model$results %>% filter(nrounds == nr, max_depth == md, abs(eta - et) < 1e-9))
         }
     })
 
@@ -1958,6 +2023,39 @@ server <- function(input, output, session) {
             )
         }
 
+        if (m == "XGB") {
+            sel_nr <- as.integer(if (is.null(input$xgb_nrounds))   xgb_model$bestTune$nrounds   else input$xgb_nrounds)
+            sel_md <- as.integer(if (is.null(input$xgb_max_depth)) xgb_model$bestTune$max_depth else input$xgb_max_depth)
+            sel_et <- as.numeric(if (is.null(input$xgb_eta))       xgb_model$bestTune$eta       else input$xgb_eta)
+            best_nr <- xgb_model$bestTune$nrounds
+            best_md <- xgb_model$bestTune$max_depth
+            best_et <- xgb_model$bestTune$eta
+
+            return(
+                xgb_model$results %>%
+                mutate(
+                    Depth   = factor(paste0("max_depth = ", max_depth)),
+                    Rounds  = factor(paste0("nrounds = ", nrounds)),
+                    is_sel  = nrounds == sel_nr  & max_depth == sel_md  & abs(eta - sel_et)  < 1e-9,
+                    is_best = nrounds == best_nr & max_depth == best_md & abs(eta - best_et) < 1e-9
+                ) %>%
+                ggplot(aes(x = factor(eta), y = ROC * 100, color = Depth, group = Depth)) +
+                geom_line(linewidth = 1.2, alpha = 0.6) +
+                geom_point(size = 3.5, alpha = 0.6) +
+                geom_point(data = . %>% filter(is_sel),
+                           size = 10, shape = 21, fill = col, color = "white", stroke = 2) +
+                geom_point(data = . %>% filter(is_best & !is_sel),
+                           size = 10, shape = 21, fill = "white", color = "#e8a838", stroke = 2) +
+                facet_wrap(~ Rounds) +
+                scale_color_manual(values = c("max_depth = 4" = col, "max_depth = 6" = "#e8a838"), name = NULL) +
+                labs(title    = "XGBoost — CV AUC-ROC",
+                     subtitle = "Filled = selected · Gold ring = CV best",
+                     x = "eta (learning rate)", y = "CV AUC-ROC (%)") +
+                dark_theme() +
+                theme(legend.position = "top")
+            )
+        }
+
         # RF, KNN, CART
         d <- switch(m,
             RF   = rf_model$results   %>% mutate(param = mtry, is_best = mtry == rf_model$bestTune$mtry),
@@ -2047,6 +2145,19 @@ server <- function(input, output, session) {
                                       abs(adjust - nb_model$bestTune$adjust) < 0.01, "★","")
                 ) %>%
                 transmute(Density, Adjust=adjust,
+                          `CV AUC-ROC`=sprintf("%.2f%%",ROC*100),
+                          Sensitivity=sprintf("%.2f%%",Sens*100),
+                          Specificity=sprintf("%.2f%%",Spec*100), Selected, Best),
+            XGB = xgb_model$results %>%
+                mutate(
+                    Selected = ifelse(nrounds == sr$nrounds[1] & max_depth == sr$max_depth[1] &
+                                      abs(eta - sr$eta[1]) < 1e-9, "▶", ""),
+                    Best     = ifelse(nrounds == xgb_model$bestTune$nrounds &
+                                      max_depth == xgb_model$bestTune$max_depth &
+                                      abs(eta - xgb_model$bestTune$eta) < 1e-9, "★", "")
+                ) %>%
+                arrange(nrounds, max_depth, eta) %>%
+                transmute(nrounds, max_depth, eta,
                           `CV AUC-ROC`=sprintf("%.2f%%",ROC*100),
                           Sensitivity=sprintf("%.2f%%",Sens*100),
                           Specificity=sprintf("%.2f%%",Spec*100), Selected, Best)
@@ -2230,8 +2341,8 @@ server <- function(input, output, session) {
             lapply(feats, tags$li))
     })
 
-    output$fs_consensus_0 <- renderUI({
-        feats <- overlap_df %>% filter(n_methods == 0) %>% pull(feature)
+    output$fs_consensus_1 <- renderUI({
+        feats <- overlap_df %>% filter(n_methods == 1) %>% pull(feature)
         if (length(feats) == 0) return(p(style = "color:#9aaccc; font-size:13px;", "None"))
         tags$ul(style = "color:#c8d0e0; font-size:13px; margin:0; padding-left:16px; line-height:1.9;",
             lapply(feats, tags$li))
@@ -2262,21 +2373,20 @@ server <- function(input, output, session) {
 
     output$heatmap_plot <- renderPlot(bg = "#1c1c2e", {
         overlap_df %>%
-            filter(n_methods > 0) %>%
-            pivot_longer(c(RFE, Forward, LASSO, ElasticNet, RF_Imp),
+            pivot_longer(c(RFE, LASSO, ElasticNet),
                          names_to = "method", values_to = "selected") %>%
             mutate(
-                feature_label = paste0(feature, "  (", n_methods, "/5)"),
+                feature_label = paste0(feature, "  (", n_methods, "/3)"),
                 feature_label = reorder(feature_label, n_methods),
                 method = factor(method,
-                    levels = c("RFE","Forward","LASSO","ElasticNet","RF_Imp"))
+                    levels = c("RFE","LASSO","ElasticNet"))
             ) %>%
             ggplot(aes(x = method, y = feature_label, fill = selected)) +
             geom_tile(color = "#13131e", linewidth = 0.5) +
             scale_fill_manual(values = c("TRUE" = "#27ae60", "FALSE" = "#22223a"),
                               guide = "none") +
             labs(title    = "Feature Selection Overlap Across All Methods",
-                 subtitle = "Green = selected  ·  (x/5) = how many methods selected this feature",
+                 subtitle = "Green = selected  ·  (x/3) = how many methods selected this feature",
                  x = NULL, y = NULL) +
             dark_theme() +
             theme(panel.grid  = element_blank(),

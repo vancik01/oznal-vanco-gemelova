@@ -1,0 +1,252 @@
+---
+title: "LoL Early-Game Win Predictor"
+author: "OZNAL — Capstone"
+format:
+  dashboard:
+    orientation: columns
+    nav-buttons: [github]
+    theme: cosmo
+server: shiny
+---
+
+```{r}
+#| context: setup
+#| message: false
+#| warning: false
+
+library(shiny)
+library(tidyverse)
+library(caret)
+
+models_dir <- "../shiny/models"
+lr_model    <- readRDS(file.path(models_dir, "lr_model.rds"))
+rf_model    <- readRDS(file.path(models_dir, "rf_model.rds"))
+nb_model    <- readRDS(file.path(models_dir, "nb_model.rds"))
+knn_model   <- readRDS(file.path(models_dir, "knn_model.rds"))
+cart_model  <- readRDS(file.path(models_dir, "cart_model.rds"))
+preproc     <- readRDS(file.path(models_dir, "preproc.rds"))
+X_train     <- readRDS(file.path(models_dir, "X_train.rds"))
+
+feature_names <- names(X_train)
+train_means   <- colMeans(X_train)
+
+build_input_row <- function(input) {
+    row <- as.data.frame(as.list(train_means))
+    row$side          <- as.numeric(input$side)
+    row$golddiffat15  <- input$golddiffat15
+    row$xpdiffat15    <- input$xpdiffat15
+    row$csdiffat15    <- input$csdiffat15
+    row$firstblood    <- as.numeric(input$firstblood)
+    row$firstdragon   <- as.numeric(input$firstdragon)
+    row$firstherald   <- as.numeric(input$firstherald)
+    row$firsttower    <- as.numeric(input$firsttower)
+    row$grub_diff     <- input$grub_diff
+    row$winrate_diff  <- input$wr_diff / 100
+    row[, feature_names, drop = FALSE]
+}
+
+predict_prob <- function(model, newdata) {
+    p <- tryCatch(
+        predict(model, newdata = newdata, type = "prob"),
+        error = function(e) NULL
+    )
+    if (is.null(p)) return(NA_real_)
+    if ("Win" %in% colnames(p)) p[["Win"]] else p[, ncol(p)]
+}
+
+probs <- reactive({
+    row <- build_input_row(input)
+    row_scaled <- predict(preproc, row)
+    list(
+        LR   = predict_prob(lr_model,   row_scaled),
+        RF   = predict_prob(rf_model,   row_scaled),
+        NB   = predict_prob(nb_model,   row_scaled),
+        KNN  = predict_prob(knn_model,  row_scaled),
+        CART = predict_prob(cart_model, row_scaled)
+    )
+})
+
+fmt_pct <- function(x) if (is.na(x)) "—" else sprintf("%.1f%%", x * 100)
+```
+
+# Match Predictor
+
+## Column {.sidebar width="320px"}
+
+**Map side & objectives**
+
+```{r}
+radioButtons("side", "Map side",
+             choices = c("Blue" = 1, "Red" = 0),
+             selected = 1, inline = TRUE)
+
+checkboxInput("firstblood",  "First blood",  TRUE)
+checkboxInput("firstdragon", "First dragon", TRUE)
+checkboxInput("firstherald", "First herald", FALSE)
+checkboxInput("firsttower",  "First tower",  FALSE)
+
+sliderInput("grub_diff", "Void grub advantage",
+            min = -6, max = 6, value = 2, step = 1)
+
+sliderInput("wr_diff", "Pre-game win rate advantage (%)",
+            min = -50, max = 50, value = 10, step = 1)
+```
+
+**Economy at 15 minutes**
+
+```{r}
+sliderInput("golddiffat15", "Gold difference",
+            min = -10000, max = 10000, value = 1500, step = 100)
+
+sliderInput("xpdiffat15", "Experience difference",
+            min = -6000, max = 6000, value = 800, step = 100)
+
+sliderInput("csdiffat15", "CS difference",
+            min = -80, max = 80, value = 12, step = 1)
+```
+
+## Column
+
+### Row {height="22%"}
+
+```{r}
+#| content: valuebox
+#| title: "Logistic Regression"
+list(
+    color = "primary",
+    value = textOutput("vb_lr")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Random Forest"
+list(
+    color = "primary",
+    value = textOutput("vb_rf")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Naive Bayes"
+list(
+    color = "primary",
+    value = textOutput("vb_nb")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "K-Nearest Neighbors"
+list(
+    color = "primary",
+    value = textOutput("vb_knn")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Decision Tree (CART)"
+list(
+    color = "primary",
+    value = textOutput("vb_cart")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Average"
+list(
+    color = "success",
+    value = textOutput("vb_avg")
+)
+```
+
+```{r}
+#| context: server
+
+output$vb_lr   <- renderText(fmt_pct(probs()$LR))
+output$vb_rf   <- renderText(fmt_pct(probs()$RF))
+output$vb_nb   <- renderText(fmt_pct(probs()$NB))
+output$vb_knn  <- renderText(fmt_pct(probs()$KNN))
+output$vb_cart <- renderText(fmt_pct(probs()$CART))
+output$vb_avg  <- renderText({
+    p <- unlist(probs())
+    fmt_pct(mean(p, na.rm = TRUE))
+})
+
+output$prob_plot <- renderPlot({
+    p <- probs()
+    df <- tibble(
+        model = c("LR", "RF", "NB", "KNN", "CART"),
+        prob  = c(p$LR, p$RF, p$NB, p$KNN, p$CART)
+    )
+    ggplot(df, aes(x = reorder(model, prob), y = prob)) +
+        geom_col(fill = "#5b8def", width = 0.6) +
+        geom_hline(yintercept = 0.5, linetype = "dashed", color = "grey50") +
+        geom_text(aes(label = sprintf("%.0f%%", prob * 100)),
+                  hjust = -0.1, size = 4) +
+        coord_flip() +
+        scale_y_continuous(labels = scales::percent, limits = c(0, 1.05)) +
+        labs(x = NULL, y = "Predicted win probability") +
+        theme_minimal(base_size = 13) +
+        theme(panel.grid.major.y = element_blank())
+}, res = 96)
+
+output$prob_table <- renderTable({
+    p <- probs()
+    data.frame(
+        Model = c("Logistic Regression", "Random Forest", "Naive Bayes",
+                  "K-Nearest Neighbors", "Decision Tree (CART)", "Average"),
+        `Win probability` = c(
+            fmt_pct(p$LR), fmt_pct(p$RF), fmt_pct(p$NB),
+            fmt_pct(p$KNN), fmt_pct(p$CART),
+            fmt_pct(mean(unlist(p), na.rm = TRUE))
+        ),
+        check.names = FALSE
+    )
+}, striped = TRUE, hover = TRUE, width = "100%", align = "lr")
+```
+
+### Row {height="78%"}
+
+#### Column {width="60%"}
+
+```{r}
+#| title: Win probability by model
+plotOutput("prob_plot", height = "100%")
+```
+
+#### Column {width="40%"}
+
+```{r}
+#| title: Summary table
+tableOutput("prob_table")
+```
+
+# About
+
+::: {.card title="What is this?"}
+
+Five classification models trained on the first 15 minutes of professional
+**League of Legends** matches. Adjust the early-game state on the **Match Predictor**
+page to see each model's predicted win probability live.
+
+The full app additionally covers hyperparameter tuning, cross-validated model
+comparison, feature selection, and dataset exploration. This dashboard is a
+stripped-down preview to evaluate the visual style.
+
+:::
+
+::: {.card title="Models"}
+
+| Model | Hyperparameter | Description |
+|------|----------------|-------------|
+| Logistic Regression | none | Standard GLM, all features standardized. |
+| Random Forest | `mtry` | 500 trees, `mtry` controls features per split. |
+| Naive Bayes | `usekernel`, `adjust` | Probabilistic classifier with kernel density tuning. |
+| K-Nearest Neighbors | `k` | Majority vote among `k` nearest scaled neighbors. |
+| Decision Tree (CART) | `cp` | Recursive binary splitting, `cp` controls pruning. |
+
+:::

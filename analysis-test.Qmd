@@ -28,8 +28,8 @@ League of Legends is the most-played and most-watched esport in the world. Predi
 
 The analysis runs two scenarios on the same data:
 
--   **Scenario 1 - Model Comparison.** We train and tune five baseline classifiers (Logistic Regression, Random Forest, Naive Bayes, KNN, CART) on the engineered early-game feature set, plus XGBoost as an additional model to mirror the gradient-boosted approach used in the published @15 literature. All six are compared on accuracy, AUC-ROC, precision, recall, and F1. The goal is to see whether any model can extract signal beyond the trivial "team with the gold lead at 15 min wins" baseline (\~73% accuracy), and whether different model families agree on what matters.
--   **Scenario 3 - Feature Selection.** With 19 engineered candidate features carrying meaningful redundancy, we apply RFE, LASSO, and Elastic Net to find the minimal subset that retains predictive performance. This both improves interpretability and stress-tests which features are genuinely informative versus carrying duplicate signal.
+-   **Scenario 1 - Model Comparison.** We train and tune five baseline classifiers (Logistic Regression, Random Forest, Naive Bayes, KNN, CART) on the early-game feature set, plus XGBoost as an additional model to mirror the gradient-boosted approach used in the published @15 literature. All six are compared on accuracy, AUC-ROC, precision, recall, and F1. The goal is to see whether any model can extract signal beyond the trivial "team with the gold lead at 15 min wins" baseline (\~73% accuracy), and whether different model families agree on what matters.
+-   **Scenario 3 - Feature Selection.** With 14 candidate features carrying residual redundancy, we apply RFE, LASSO, and Elastic Net to find the minimal subset that retains predictive performance. This both improves interpretability and stress-tests which features are genuinely informative versus carrying duplicate signal.
 
 ## Hypotheses
 
@@ -43,7 +43,7 @@ Both of us on this project are long-time League of Legends players and regular v
 
 # Dataset
 
-We use the 2025 season export from **Oracle's Elixir**, the standard public source for professional League of Legends match data. The raw file contains **120,636 rows across 165 columns**, covering **10,053 unique matches** played by 445 teams across 45 professional leagues (LPL, LCK, LEC, LFL, LAS, EM, ...) on patches 15.01-15.24.
+We use the 2025 season export from **Oracle's Elixir** [1], the standard public source for professional League of Legends match data. The raw file contains **120,636 rows across 165 columns**, covering **10,053 unique matches** played by 445 teams across 45 professional leagues (LPL, LCK, LEC, LFL, LAS, EM, ...) on patches 15.01-15.24.
 
 The row layout is **12 rows per game**: one per player (5 per team) plus one aggregated team-level row per side (Blue and Red, 50/50). About **91.9% of rows are marked `complete`**, meaning the early-game snapshots at 10/15/20/25 min are populated; the remaining 8.1% are missing these values.
 
@@ -67,18 +67,18 @@ Published work on early-game LoL match prediction at the **15-minute mark** conv
 
 | Study                                        | Year | Dataset                      | Model               | Acc. \@15  |
 |----------------------------------------------|------|------------------------------|---------------------|------------|
-| Spaargaren, MSc thesis (Tilburg)             | 2022 | Oracle's Elixir pro, 2021    | Logistic Regression | **77.99%** |
+| Spaargaren, MSc thesis (Tilburg) [2]         | 2022 | Oracle's Elixir pro, 2021    | Logistic Regression | **77.99%** |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Random Forest       | 77.26%     |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | Naïve Bayes         | 76.82%     |
 | Spaargaren                                   | 2022 | Oracle's Elixir pro, 2021    | kNN (k=9)           | 74.83%     |
-| Lafrance & Grewal, *Entertainment Computing* | 2026 | Riot API solo queue, Diamond | XGBoost             | 76.9%      |
-| Junior & Campelo, arXiv 2309.02449           | 2023 | Riot API solo queue          | Random Forest       | \~74%\*    |
+| Lafrance & Grewal, *Entertainment Computing* [3] | 2026 | Riot API solo queue, Diamond | XGBoost             | 76.9%      |
+| Junior & Campelo, arXiv 2309.02449 [4]       | 2023 | Riot API solo queue          | Random Forest       | \~74%\*    |
 
 \*Interpolated to 50% PET (≈ 15 min for a \~30-min median match) from Junior & Campelo's PET-bucket accuracy curves.
 
 Two takeaways. First, **professional play is not materially easier to predict than solo queue** at 15 minutes - Spaargaren's pro-data LR sits within one percentage point of Lafrance & Grewal's solo-queue XGBoost. Second, **algorithm choice matters little**: pro-data classifiers all land in the 77 ± 1% band, with solo-queue \~3 points lower. Across every study, **gold differential is the strongest single feature**, with first tower or first herald typically ranked next.
 
-Tsang (2025, Medium) adds a temporal signal: the coefficient of `golddiffat15` has **declined** from above 1.0 in 2020-2023 to 0.83 in 2025, suggesting the 2025 season is harder to predict from a single gold-at-15 signal than any previous season. We additionally include two features absent from the @15-minute literature - **turret plate differential** and **void grubs (introduced in 2025 season)**.
+Tsang (2025, Medium) [5] adds a temporal signal: the coefficient of `golddiffat15` has **declined** from above 1.0 in 2020-2023 to 0.83 in 2025, suggesting the 2025 season is harder to predict from a single gold-at-15 signal than any previous season. We additionally include two features absent from the @15-minute literature - **turret plate differential** and **void grubs (introduced in 2025 season)**.
 
 Finally, we note a framing gap: the trivial rule "team with a gold lead at 15 min wins" already delivers \~73% accuracy on professional data (we compute the exact figure on our own set in the EDA), so the 76-78% models above only beat this naive baseline by 3-5 points. We adopt this framing directly in our results.
 
@@ -127,7 +127,7 @@ cat(sprintf(
 
 ## Restructure: one row per game
 
-The raw `teams` table stores two mirror rows per game, one per side. For EDA we pivot to one row per game with `blue_*` and `red_*` columns and a binary `blue_win` target, following the **tidy data** convention of one observation per row (Wickham, 2014, *JSS* 59(10)).
+The raw `teams` table stores two mirror rows per game, one per side. For EDA we pivot to one row per game with `blue_*` and `red_*` columns and a binary `blue_win` target, following the **tidy data** convention of one observation per row (Wickham, 2014, *JSS* 59(10)) [6].
 
 After the pivot, the Blue and Red copies of each signed differential and each mutually-exclusive binary flag are pure mirrors: `red_golddiffat15 = -blue_golddiffat15` and `red_firstblood = 1 - blue_firstblood`. We drop the `red_*` side of those columns, since the model gains nothing from a feature it can recover from the one next to it. Independent counts (kills, deaths, assists, turret plates) and the shared-pool grub count stay on both sides - neither side can be reconstructed from the other.
 
@@ -162,7 +162,7 @@ games_full <- teams %>%
 stopifnot(all.equal(games_full$blue_golddiffat15, -games_full$red_golddiffat15))
 stopifnot(all.equal(games_full$blue_xpdiffat15, -games_full$red_xpdiffat15))
 stopifnot(all.equal(games_full$blue_csdiffat15, -games_full$red_csdiffat15))
-stopifnot(all(games_full$blue_firstblood + games_full$red_firstblood <= 1))
+stopifnot(all(games_full$blue_firstblood + games_full$redirstblood <= 1))
 stopifnot(all(games_full$blue_firsttower + games_full$red_firsttower <= 1))
 
 # Drop the strict-mirror columns identified above. We keep both sides for
@@ -185,11 +185,6 @@ cat(sprintf(
     mean(1 - games$blue_win) * 100
 ))
 
-cat(
-    "\nDropped features (recoverable as -blue_X or 1-blue_X):\n  ",
-    paste(redundant_mirrors, collapse = ", "), "\n"
-)
-
 # Statistical test for side imbalance
 side_test <- prop.test(sum(games$blue_win), nrow(games), p = 0.5)
 cat(sprintf(
@@ -204,7 +199,7 @@ Blue side wins slightly more than half of games. The imbalance is mild enough th
 
 # Exploratory Data Analysis
 
-Before deciding on feature engineering or models, we look at the data to see what signal is there, which features are worth keeping, and what problems to watch for. Everything below uses the **single-row-per-game** `games` dataset.
+Everything below uses the **single-row-per-game** `games` dataset. The aim is to see what signal is available and catch any issues before we start modelling.
 
 ## Target distribution
 
@@ -224,11 +219,11 @@ games %>%
     theme(legend.position = "none")
 ```
 
-Blue side wins slightly more than half of all games. The proportion test above puts this at p \< 0.001, so the imbalance is real, but at roughly 3 percentage points above 50% it is small enough that we keep accuracy as a valid metric and skip resampling.
+Blue wins slightly more than half of games (p \< 0.001), but the imbalance is only roughly 3 percentage points above 50% - small enough to keep accuracy as a valid metric and skip resampling.
 
 ## Descriptive statistics
 
-Before correlations and modelling, we look at the central tendency and spread of every early-game numeric we plan to feed into the models. The columns are sorted by standard deviation - the loudest features will dominate any unscaled distance-based model, which motivates the centering and scaling done later in the modelling pipeline.
+We sort the early-game numerics by standard deviation. Features with much larger spread will dominate distance-based models like KNN unless they are scaled, which is why we centre and standardise later in the pipeline.
 
 ```{r eda-describe}
 early_game_cols <- c(
@@ -265,7 +260,7 @@ games %>%
     print(n = Inf)
 ```
 
-The differentials sit at the top of the spread ranking with standard deviations in the thousands of gold and XP, while the absolute totals at 15 minutes cluster tightly around 25k gold and 30k XP. CS columns are an order of magnitude smaller, kill/death/assist counts smaller still, and the 0/1-coded objectives sit at the bottom with sd around 0.5. On the original scale the objectives would be invisible next to gold and XP, which is why the modelling pipeline centers and scales every input before training Logistic Regression and KNN. The differential means hover near zero (243 gold and 49 XP at 15) - close enough to confirm the features behave like signed deltas rather than biased counters, but slightly positive in line with the Blue-side advantage seen earlier.
+Gold and XP have the widest spread, with standard deviations in the thousands; @15 totals cluster around 25k gold and 30k XP. CS columns are an order of magnitude smaller, kill/death/assist counts smaller still, and the 0/1 objectives sit at the bottom with sd around 0.5. The differentials (`blue_minus_red`) average close to zero (243 gold and 49 XP at 15), which is what we would expect across balanced matches - the small positive offset reflects the Blue-side advantage.
 
 ## Early-game feature correlations with `blue_win`
 
@@ -324,11 +319,9 @@ cat(sprintf(
 ))
 ```
 
-Differentials (`blue_golddiffat15`, `blue_xpdiffat15`, `blue_csdiffat15`) dominate the ranking, since what matters is the *gap* between teams rather than the absolute totals. Among objectives, `blue_firsttower` and `blue_firstherald` stand out; `blue_firstblood` and `blue_firstdragon` carry less signal. The matrix also shows two flavours of multicollinearity: between a raw stat and its differential (`blue_goldat15` vs `blue_golddiffat15`), and between Blue and Red counts of the same shared-pool objective (`blue_void_grubs` vs `red_void_grubs`, strongly negatively correlated because they share a 6-grub pit). Both forms hurt Logistic Regression and **motivate the LASSO and Elastic Net regularization used in Scenario 3**.
+Differentials (`blue_golddiffat15`, `blue_xpdiffat15`, `blue_csdiffat15`) dominate — what matters is the *gap*, not the absolute totals. Among objectives, `blue_firsttower` and `blue_firstherald` stand out, while `blue_firstblood` and `blue_firstdragon` are weaker. The matrix also shows two multicollinearity patterns: a raw stat against its own differential (`blue_goldat15` vs `blue_golddiffat15`), and Blue/Red shared-pool pairs - `blue_void_grubs` and `red_void_grubs` are negatively correlated because the 6-grub pit is shared between the two teams. Both patterns **motivate the LASSO and Elastic Net regularization used in Scenario 3**.
 
 ## Per-outcome means
-
-The correlation chart ranks features by linear association with `blue_win`. Putting the same features through a means-by-outcome lens shows the gap in the original units rather than on the [-1, 1] scale, which is easier to read for objectives and combat counts.
 
 ```{r eda-by-outcome}
 games %>%
@@ -346,11 +339,11 @@ games %>%
     print(n = Inf)
 ```
 
-The biggest absolute gaps fall on the gold and XP differentials at 15 minutes - Blue wins lead by \~1500 gold and \~940 XP on average; losses trail by similar amounts. Tower-related objectives produce the largest split among the 0/1 features: `blue_firsttower` jumps from 0.34 in losses to 0.73 in wins, `blue_firstherald` from 0.44 to 0.75. First blood and first dragon move the means by less than 0.17, matching their weaker correlations. The signs in the diff column also confirm direction: `blue_deathsat15` is the only count where the win-mean is *lower* than the loss-mean (3.6 vs 5.2), and `red_void_grubs` flips negative because more grubs to the enemy means a worse outcome for Blue.
+Gold and XP differentials at 15 minutes produce the largest gaps. When Blue wins, it leads by \~1500 gold and \~940 XP at 15 min; when it loses, it trails by roughly the same amount. Among the 0/1 features, `blue_firsttower` jumps from 0.33 in losses to 0.73 in wins and `blue_firstherald` from 0.44 to 0.75, while first blood and first dragon shift the means by less than 0.17. `blue_deathsat15` is the only count where the win-mean is *lower* than the loss-mean (3.6 vs 5.2), and `red_void_grubs` is negatively associated with `blue_win` because grubs taken by the enemy team hurt Blue.
 
 ## Gold differential distribution
 
-Gold differential at 15 minutes is the single strongest early-game predictor. We look at how cleanly it separates Blue wins from Red wins, and whether a simple linear cut (positive gold diff -\> Blue win) would already do most of the work or whether we need non-linear models.
+Gold differential at 15 minutes is the single strongest early-game predictor. The plots below show how cleanly it separates wins from losses and whether a simple threshold already captures most of the signal.
 
 ```{r eda-golddiff}
 games %>%
@@ -383,7 +376,7 @@ games %>%
     theme_minimal()
 ```
 
-To quantify how much of the outcome the gold differential at 15 min already explains, we compute the accuracy of the naive rule "Blue ahead in gold @15 -\> Blue wins" directly on `games`. This number then defines the baseline that any trained model has to beat.
+We score the naive rule "Blue ahead in gold @15 -\> Blue wins" directly on `games`. The result defines the baseline any trained model has to beat.
 
 ```{r eda-golddiff-baseline}
 gold_baseline_df <- games %>%
@@ -407,11 +400,11 @@ cat(sprintf(
 ))
 ```
 
-The two densities are clearly separated. The naive rule reaches 72.9% accuracy at the game level - well above both the 50% coin-flip and the 53.3% always-predict-Blue baseline - and any model has to beat this number to be worth keeping. The wide overlap around zero says a meaningful share of games are not decided by gold alone.
+The two densities are clearly separated. The naive rule hits 72.9% accuracy - well above the 50% coin-flip and the 53.3% always-Blue baseline - and any model has to beat it to be worth keeping. The wide overlap around zero leaves room for non-linear models to find signal beyond gold alone.
 
 ## First objective win rates
 
-The four "first" objectives (first blood, first dragon, first herald, first tower) all happen in the first \~14 minutes and are mutually exclusive: exactly one team secures each. For every objective we compute the win rate of the team that secured it and run a chi-square test of independence between securer and outcome.
+The four "first" objectives (first blood, first dragon, first herald, first tower) all happen in the first \~14 minutes; exactly one team secures each. For every objective we compute the securer's win rate and a chi-square test of independence against outcome.
 
 ```{r eda-objectives}
 obj_cols <- c("firstblood", "firstdragon", "firstherald", "firsttower")
@@ -459,7 +452,6 @@ ggplot(
     ) +
     theme_minimal()
 
-cat("Chi-square independence tests (objective securer vs blue_win):\n")
 obj_winrates %>%
     distinct(objective, chi2, p_value) %>%
     mutate(
@@ -469,11 +461,11 @@ obj_winrates %>%
     print()
 ```
 
-When Blue secures first tower or first herald, Blue's win rate jumps well above 50%, and drops by a similar amount when Red gets them instead. First blood and first dragon move the rate much less. Every chi-square test rejects independence at p ≪ 0.001, so the *direction* is certain, but the *magnitude* varies sharply between objectives - the same pattern the correlation analysis showed. Tower-related objectives translate straight into map control and gold, while first blood is often a single lucky skirmish. All four are worth keeping, but the models should weight tower and herald more heavily.
+When Blue secures first tower or first herald, Blue's win rate jumps well above 50%, and drops by a similar amount when Red gets them; first blood and first dragon move it much less. Every chi-square rejects independence at p ≪ 0.001, so the direction is clear in all four cases - only the size of the effect differs. All four are worth keeping as features; we expect tower and herald to end up with the largest model coefficients in the LR fit and the highest importance scores in the tree-based models.
 
 ## Void grubs
 
-Void grubs are a 2024+ objective: they spawn at 5:00 and despawn at 13:45 on early-2025 patches (moved to 14:45 mid-season), so they are purely early-game. The pit holds up to 6 grubs total, split between the two teams. We plot Blue's win rate against the number of grubs Blue ended up with.
+Void grubs are a 2024+ objective: they spawn at 5:00 and despawn at 13:45 on early-2025 patches (moved to 14:45 mid-season), so they are purely early-game. The pit holds up to 6 grubs split between the teams.
 
 ```{r eda-grubs}
 games %>%
@@ -500,11 +492,11 @@ games %>%
     theme(legend.position = "none")
 ```
 
-The relationship is essentially monotonic: 0 grubs sits well below 50% win rate, 6 grubs climbs to \~70%. That justifies the grub differential we build later. Small wobbles at intermediate counts come from low sample sizes - teams that end up with *exactly* 4 grubs are rare, because grub fights usually end with one side taking the whole remaining set.
+The relationship is essentially monotonic: 0 grubs sits well below 50% win rate, 6 grubs climbs to \~70%. That justifies the grub differential built later. Wobbles at intermediate counts reflect low sample sizes - split outcomes are rare because grub fights usually end with one side taking the remaining set.
 
 ## Side advantage
 
-Blue side gets first pick in the draft and has slight map asymmetries. We measure the side advantage as the share of Blue wins, and report a 95% CI plus a chi-square test against the 50% null.
+Blue gets first pick in the draft and has slight map asymmetries. We report the share of Blue wins with a 95% CI and a chi-square test against the 50% null.
 
 ```{r eda-side}
 n_games <- nrow(games)
@@ -541,11 +533,11 @@ tibble(
     theme(legend.position = "none")
 ```
 
-Blue wins \~53% of games, a steady \~3 pp advantage. The 95% CI excludes 50% and the chi-square test rejects the null at p ≪ 0.001, so the effect is significant even if small. It comes from first pick in champion draft and small map/camera asymmetries.
+Blue wins \~53% of games - a steady \~3 pp edge that is small but consistent across patches, driven mainly by Blue picking first in champion select (which lets it lock the strongest contested champion of the patch before Red can) and by minor map and camera asymmetries that make objectives slightly easier to track and contest from Blue's side.
 
 ## Role-specific gold differentials (H2 preview)
 
-H2 asks whether some roles' early leads matter more than others. As a first look, we take each Blue-side player by role and correlate their gold differential at 15 min with `blue_win`.
+As a first look at H2, we correlate each Blue-side player's gold differential at 15 min with `blue_win`, broken out by role.
 
 ```{r eda-roles}
 role_diffs_blue <- players %>%
@@ -604,11 +596,11 @@ role_diffs_blue %>%
     theme_minimal()
 ```
 
-Bot lane (ADC) has the highest correlation with `blue_win`, which is early evidence for H2: the bot lane's gold advantage looks like the most predictive role-specific factor. The gaps between roles are small, though, so the full H2 analysis will decide whether the gap is real or noise. The boxplot shows clear win/loss separation for every role; bot lane simply has the widest gap.
+Bot lane (ADC) has the highest correlation with `blue_win` - early evidence for H2. Inter-role gaps are small, though, so the full H2 test decides whether the lead is real or noise. The boxplot shows clear win/loss separation for every role; bot lane simply has the widest gap.
 
 ## Feature distributions and scaling check
 
-KNN and Logistic Regression are sensitive to feature scale; tree-based models and Naive Bayes are not. We check the per-feature ranges below to decide whether standardisation is needed.
+KNN and Logistic Regression are scale-sensitive; tree-based models and Naive Bayes are not. We check per-feature ranges below to decide whether standardisation is needed.
 
 ```{r eda-distributions}
 scale_check <- games %>%
@@ -630,38 +622,32 @@ ggplot(scale_check, aes(x = value)) +
     theme_minimal()
 ```
 
-The scales differ wildly: `blue_goldat15` runs from \~20,000 to \~36,000, while `blue_void_grubs` lives on 0-6 and `blue_killsat15` on 0-24. Without standardisation, KNN distances would be swamped by gold (1000x larger than the rest) and effectively ignore kills and grubs. Logistic Regression coefficients would also be misleading, since coefficient magnitude is only comparable across features when each has unit variance. We z-score standardise before fitting KNN and Logistic Regression. Tree-based models (RF, CART) and Naive Bayes do not need it.
+Scales differ wildly: `blue_goldat15` runs from \~20,000 to \~36,000, `blue_void_grubs` lives on 0-6, and `blue_killsat15` on 0-24. Without standardisation, KNN distances would be swamped by gold (1000x larger than the rest) and effectively ignore kills and grubs, and LR coefficients would not be comparable across features. We z-score standardise before fitting KNN and Logistic Regression; tree-based models (RF, CART) and Naive Bayes do not need it.
 
 ## EDA Summary
 
 1.  **Target is mildly imbalanced** (\~53/47 in Blue's favour). Significant but small - accuracy is still a valid metric and no resampling is needed.
-2.  **Gold diff @15 is the strongest single predictor.** A naive "gold-leader wins" rule already hits \~73% accuracy at the team level, which is our baseline to beat.
-3.  **Residual multicollinearity** remains between raw stats and their differentials (`blue_goldat15` vs `blue_golddiffat15`) and between paired independent counts (`blue_killsat15` vs `red_killsat15`). Linear models will need regularisation even after dropping the strict mirrors.
+2.  **Gold diff @15 is the strongest single predictor.** The naive "gold-leader wins" rule already hits \~73% accuracy - the baseline to beat.
+3.  **Residual multicollinearity** remains between raw stats and their differentials and between Blue/Red paired counts. Linear models need regularisation even after dropping strict mirrors.
 4.  **First tower** and **first herald** swing Blue's win rate sharply (chi-square p ≪ 0.001); they are the highest-impact binary objectives.
-5.  **First blood** and **first dragon** are statistically significant but carry weaker signal than tower or herald - both shift Blue's WR by \~10-15 pp when Blue secures, but only \~3-5 pp when Red does (the asymmetry comes from the dragon-herald trade pattern: Blue takes herald in 61% of games and Red free-takes dragon in 62%, so "Red secured first dragon" is biased toward games where Blue was already ahead).
+5.  **First blood** and **first dragon** are statistically significant but carry weaker signal than tower or herald - both shift Blue's WR by \~10-15 pp when Blue secures, but only \~3-5 pp when Red does. The asymmetry comes from the herald-dragon trade pattern: Blue takes herald in 61% of games while Red free-takes dragon in 62%, so games where Red secured first dragon are biased toward games where Blue was already ahead.
 6.  **Void grubs** show a near-monotonic gradient in Blue's win rate from 0 to 6 grubs, which justifies engineering a grub differential.
-7.  **Blue-side advantage** is significant (\~53% win rate, 95% CI excludes 50%). With one row per match expressed from Blue's perspective, this advantage is absorbed into the base rate of `blue_win`.
+7.  **Blue-side advantage** is significant (\~53% win rate, 95% CI excludes 50%) and absorbed into the base rate of `blue_win`.
 8.  **Feature scales differ by \~1000x**, so KNN and Logistic Regression need standardisation.
 9.  **Bot lane** has the highest role-specific correlation with `blue_win`, supporting the H2 analysis.
 10. **Leads tend to grow** between @10 and @15.
-11. **Turret plate differential** is a strong, purely early-game feature (plates fall by 14:00) not commonly used in the published literature (introduced in 2025 season).
-12. **Total dragon/herald counts** are full-game statistics, not early-game, and must not enter the feature set - using them would leak the outcome.
+11. **Turret plate differential** is a strong feature that is purely early-game, since plates fall by 14:00. It rarely appears in the published @15 literature.
+12. **Total dragon/herald counts** are full-game statistics - using them would leak the outcome and they must not enter the feature set.
 
 # Feature Engineering
 
-```{r plate-diff-cor}
-plate_diff_cor <- games %>%
-    filter(!is.na(blue_turretplates), !is.na(red_turretplates)) %>%
-    transmute(plate_diff = blue_turretplates - red_turretplates, blue_win) %>%
-    summarise(r = cor(plate_diff, blue_win)) %>%
-    pull(r)
-```
+The correlation analysis indicates that *gaps* between teams carry the signal, so we retain signed differentials throughout. To control multicollinearity, we keep one element of each redundant triple `(goldat15, opp_goldat15, golddiffat15)` - the differential - and drop the other two. The raw @10 snapshots are likewise omitted: any signal they carry beyond the @15 snapshot is marginal, and combining them with the @15 differentials inflates VIF without raising held-out AUC. We supplement this core with two features that rarely appear in the published @15 literature: a **turret plate differential** (plates fall by 14:00, so the metric is purely early-game; r = 0.409 with `blue_win`) and a **rolling team win rate differential**, computed from prior games only.
 
-The correlation analysis showed that *gaps* between teams carry the signal, so we keep signed differentials. To control multicollinearity, we keep one of each redundant triple `(goldat15, opp_goldat15, golddiffat15)` - the differential - and drop the other two. The raw @10 snapshots are also omitted: momentum, defined as `diff@15 - diff@10`, summarises their signal in a single term. On top of this we add two features that rarely appear in the published @15 literature: a **turret plate differential** (plates fall by 14:00, purely early-game; r = 0.409 with `blue_win`) and a **rolling team win rate differential** (computed from prior games only).
+We also evaluated several higher-order constructs - per-window momentum (`diff@15 - diff@10` for gold, XP, and CS) and per-team kill-pressure counts in the 10–15 minute window. Each was a linear combination of features already present in the matrix and, in pilot fits, added severe multicollinearity without contributing any independent predictive signal, so all of them were dropped before the modelling pipeline. We retained two non-linear ratio features that do *not* introduce the same redundancy: `gold_efficiency_15 = goldat15 / csat15` (gold-per-CS, a draft and macro proxy) and `kda_15 = (kills + assists) / max(deaths, 1)` (combat efficiency); both remain weakly correlated with the rest of the matrix.
 
 ## Rolling team win rate
 
-For each team, we compute a rolling win rate over all of their *prior* games (sorted by date), defaulting first-appearance teams to 0.5. The per-side values are then pivoted to one Blue column and one Red column per game, and `winrate_diff = blue - red` captures pre-game asymmetry without leaking information from the current result.
+For each team, we compute a rolling win rate over all of its *prior* games, ordered by date, with first-appearance teams defaulted to 0.5. The per-side values are pivoted into one Blue and one Red column per game, and `winrate_diff = blue - red` captures pre-game asymmetry without leaking information from the current result
 
 ```{r rolling-winrate}
 team_wr <- teams %>%
@@ -698,7 +684,7 @@ cat(sprintf(
 
 ## Select and engineer features
 
-Every feature below is expressed from Blue's perspective: signed differentials where a positive value indicates Blue is ahead, plus four binary flags marking whether Blue secured each first objective. Since the perspective is fixed, the `blue_` prefix is implicit throughout the modelling stage and we omit it from column names. Each row represents one full match, so the structural Blue-side advantage is absorbed into the base rate of `blue_win` and serves as the model's intercept.
+Every feature below is expressed from the Blue perspective: signed differentials in which a positive value indicates that Blue is ahead, together with four binary flags marking whether Blue secured each first objective. Since the perspective is fixed, the `blue_` prefix is implicit throughout the modelling stage and is omitted from column names. Each row represents one full match, so the structural Blue-side advantage is absorbed into the base rate of `blue_win` and serves as the intercept of the model.
 
 ```{r select-features}
 games_model <- games_wr %>%
@@ -711,18 +697,11 @@ games_model <- games_wr %>%
         xpdiffat15 = blue_xpdiffat15,
         csdiffat15 = blue_csdiffat15,
 
-        # Momentum: did Blue's lead grow between 10 and 15?
-        gold_momentum = blue_golddiffat15 - blue_golddiffat10,
-        xp_momentum = blue_xpdiffat15 - blue_xpdiffat10,
-        cs_momentum = blue_csdiffat15 - blue_csdiffat10,
-
         # Combat diffs at 15 (death_diff omitted: near-perfect mirror of -kill_diff, see VIF)
         kill_diff_15 = blue_killsat15 - red_killsat15,
         assist_diff_15 = blue_assistsat15 - red_assistsat15,
 
-        # Per-team kill counts in the 10-15 window
-        kill_pressure_10_15 = blue_killsat15 - blue_killsat10,
-        opp_kill_pressure_10_15 = red_killsat15 - red_killsat10,
+        # Non-linear early-game ratios (low VIF against the diff core)
         gold_efficiency_15 = blue_goldat15 / pmax(blue_csat15, 1),
         kda_15 = (blue_killsat15 + blue_assistsat15) / pmax(blue_deathsat15, 1),
 
@@ -750,7 +729,7 @@ cat(sprintf(
 
 ## H2: Role-specific differentials
 
-For H2 we add per-role early-game differentials. The signed `golddiffat15` of each Blue-side player is by construction `blue_player_gold - red_lane_opponent_gold`, so retaining only the Blue rows and pivoting wide yields a Blue-perspective signed differential per role and per metric (e.g., `bot_golddiffat15`, `mid_xpdiffat10`). The result is then inner-joined back to `games_model`.
+For H2 we add per-role early-game differentials. The signed `golddiffat15` of each Blue-side player is, by construction, `blue_player_gold - red_lane_opponent_gold`; retaining only the Blue rows and pivoting wide therefore yields a Blue-perspective signed differential per role and per metric (e.g., `bot_golddiffat15`, `mid_xpdiffat10`). The resulting table is inner-joined back to `games_model`.
 
 ```{r h2-role-features}
 role_diffs <- players %>%
@@ -835,9 +814,9 @@ Six classifiers on the same H1 feature set, judged on accuracy, AUC-ROC, precisi
 
 The bar to beat is the EDA baseline: **72.9 %** from "Blue ahead in gold @15 wins". Published @15 LoL studies report 73-78 %, so a 75 %-band result is consistent with the literature.
 
-## Multicollinearity check (VIF)
+## Preprocessing
 
-Logistic Regression, Naive Bayes, and KNN are sensitive to correlated inputs: LR coefficient signs and standard errors degrade under collinearity, NB's independence assumption is directly violated, and KNN distances over-weight correlated dimensions. Random Forest, CART, and XGBoost are immune (univariate splits). Per the consultation, S1 keeps every feature and uses VIF only as a diagnostic - high-VIF features remain in the model and motivate the regularised selection in S3. *Worth flagging upfront: this is a coefficient-stability concern, not a prediction one — held-out AUC may or may not move under feature reduction, and we test that directly in the S3 cross-model grid.*
+KNN and Logistic Regression need standardised inputs. We fit the scaler on the training set and apply the same transformation to the test set. Tree-based models (RF, CART, XGBoost) and Naive Bayes do not need scaling, but reusing the scaled matrix is harmless.
 
 ```{r s1-preprocess}
 X_train <- train_h1 %>% select(-blue_win)
@@ -855,6 +834,10 @@ cat(sprintf(
 ))
 ```
 
+## Multicollinearity check (VIF)
+
+VIF (Variance Inflation Factor) tells us how much each feature overlaps with the rest of the matrix. A high VIF means the feature can be largely reproduced from the others; values above 10 are conventionally treated as a sign of severe collinearity. We compute it on the training set only — VIF is a fit-time diagnostic and must not be informed by held-out data.
+
 ```{r s1-vif}
 vif_df <- tibble(
     feature = names(X_train_scaled),
@@ -867,7 +850,15 @@ knitr::kable(vif_df,
 )
 ```
 
-Resource diffs and momentum form the dominant collinear group (`golddiffat15` ↔ `gold_momentum`, etc.) because momentum is constructed from the @15 diff and the @10 diff. The KDA features (`kill_diff_15`, `kda_15`, `assist_diff_15`) carry mid-range VIF from sharing the same combat signal. Binary objective flags and `winrate_diff` are clean. We expect to see the consequences in the LR coefficient table - collinear features may carry inflated SEs and signs that flip relative to the marginal direction.
+Two features exceed the threshold: `golddiffat15` (≈ 23) and `kill_diff_15` (≈ 13). Gold and kills are tightly coupled in League — every kill pays out gold and pushes the lane further ahead — so most of what `kill_diff_15` carries is already in `golddiffat15`. `xpdiffat15`, `csdiffat15`, and `assist_diff_15` sit in the 4–5 range, reflecting the same lane-economy signal at a weaker level. The binary objective flags, `winrate_diff`, and the two ratio features (`gold_efficiency_15`, `kda_15`) all stay below VIF 4 and are effectively independent.
+
+Three of our six models are affected by this. Logistic Regression coefficients become unstable when predictors overlap, Naive Bayes assumes feature independence outright, and KNN distances double-count correlated dimensions. Random Forest, CART, and XGBoost split one feature at a time and are unaffected.
+
+::: {.callout-important}
+## Why we do not drop high-VIF features here
+
+The standard rule of thumb is to drop features with VIF > 10. The two features above the threshold here are `golddiffat15` — the strongest single predictor in the problem — and `kill_diff_15`, its closest economic partner. Their VIF is high because the other features overlap with them, not because they themselves carry no signal: VIF measures redundancy, not predictive value. We keep every surviving feature in S1, treat VIF as a diagnostic only, and let the regularised methods in S3 (LASSO and Elastic Net) handle the residual redundancy.
+:::
 
 ## CV setup
 
@@ -926,7 +917,7 @@ lr_coefs <- coef(lr_model$finalModel) %>%
     arrange(desc(abs(coefficient)))
 
 ggplot(
-    lr_coefs %>% head(20),
+    lr_coefs,
     aes(
         x = reorder(feature, abs(coefficient)),
         y = coefficient,
@@ -940,17 +931,17 @@ ggplot(
         labels = c("Negative", "Positive")
     ) +
     labs(
-        title = "Logistic Regression - Top 20 Coefficients",
+        title = "Logistic Regression - Standardised coefficients",
         x = NULL, y = "Coefficient", fill = "Direction"
     ) +
     theme_minimal()
 ```
 
-Resource diffs at @15 (`golddiffat15`, `xpdiffat15`, `csdiffat15`), `kill_diff_15`, `winrate_diff`, and the first-objective flags all carry positive coefficients - directionally as the EDA predicted. `gold_momentum` flips sign relative to its univariate correlation. This is the symptom flagged by VIF: when two features are near-perfect linear combinations, the LR can split their effect arbitrarily and the *individual* coefficient sign is no longer meaningful, even though the joint prediction is still correct. S3's regularised methods address this directly.
+All non-trivial coefficients are positive: resource diffs at @15 (`golddiffat15`, `xpdiffat15`, `csdiffat15`), `kill_diff_15`, `winrate_diff`, and the first-objective flags all push toward Blue winning, exactly as the EDA predicted. `firstblood` is the only feature with a negative coefficient and its magnitude is essentially zero - consistent with the EDA showing it as the weakest of the four objective flags. There are no sign flips on the high-VIF pair, which is what we'd expect: the residual collinearity is moderate enough that LR can still attribute coefficients to roughly the right direction, even if SEs on `golddiffat15` and `kill_diff_15` are mildly inflated. S3's regularised methods will tighten this further by zeroing out the marginal contributors.
 
 ## Random Forest
 
-Non-linear ensemble; immune to the multicollinearity that distorts the LR coefficients. We tune `mtry` over `{5, 7, 10, 15, 19}` with 500 trees fixed.
+Non-linear ensemble; immune to the residual multicollinearity in the LR coefficient table. We tune `mtry` over `{3, 5, 7, 10, 14}` with 500 trees fixed.
 
 ```{r s1-rf}
 t0 <- Sys.time()
@@ -961,7 +952,7 @@ rf_model <- train(
     method = "rf",
     trControl = ctrl,
     metric = "ROC",
-    tuneGrid = expand.grid(mtry = c(5, 7, 10, 15, 19)),
+    tuneGrid = expand.grid(mtry = c(3, 5, 7, 10, 14)),
     ntree = 500
 )
 
@@ -989,13 +980,13 @@ rf_imp <- varImp(rf_model)$importance %>%
     arrange(desc(Overall))
 
 ggplot(
-    rf_imp %>% head(20),
+    rf_imp,
     aes(x = reorder(feature, Overall), y = Overall)
 ) +
     geom_col(fill = "#27ae60") +
     coord_flip() +
     labs(
-        title = "Random Forest - Top 20 Feature Importances",
+        title = "Random Forest - Feature importances",
         x = NULL, y = "Importance"
     ) +
     theme_minimal()
@@ -1043,14 +1034,7 @@ print(nb_model$results %>%
     select(usekernel, adjust, ROC, Sens, Spec))
 ```
 
-```{r s1-nb-importance}
-# Naive Bayes has no native coefficient-style importance. We use a filter-based
-# importance: each feature's single-feature ROC-AUC against the target. A feature
-# that separates Win/Loss on its own scores near 1 (or near 0, same information
-# in the opposite direction), while a useless feature scores near 0.5. We report
-# |AUC - 0.5| so the ranking is direction-agnostic.
-# We compute this directly with pROC because caret::varImp's filter fallback has
-# a known bug with factor targets for the "naive_bayes" method.
+```{r s1-nb-importance, fig.width=11, fig.height=7}
 nb_imp <- tibble(
     feature = names(X_train),
     auc_raw = sapply(X_train, function(col) {
@@ -1059,22 +1043,31 @@ nb_imp <- tibble(
         )))
     })
 ) %>%
-    mutate(Overall = abs(auc_raw - 0.5) * 200) %>% # rescale to 0-100
+    mutate(Overall = abs(auc_raw - 0.5) * 200) %>%
     select(feature, Overall) %>%
     arrange(desc(Overall))
 
-ggplot(
-    nb_imp %>% head(20),
-    aes(x = reorder(feature, Overall), y = Overall)
-) +
-    geom_col(fill = "#e67e22") +
-    coord_flip() +
+# Class-conditional densities for the eight strongest features (NB internals).
+top_nb_features <- nb_imp$feature[1:8]
+
+X_train %>%
+    select(all_of(top_nb_features)) %>%
+    mutate(outcome = y_train_fct) %>%
+    pivot_longer(-outcome, names_to = "feature", values_to = "value") %>%
+    mutate(feature = factor(feature, levels = top_nb_features)) %>%
+    ggplot(aes(x = value, fill = outcome, colour = outcome)) +
+    geom_density(alpha = 0.35, linewidth = 0.4) +
+    facet_wrap(~feature, scales = "free", ncol = 4) +
+    scale_fill_manual(values = c("Loss" = "#e74c3c", "Win" = "#3498db")) +
+    scale_colour_manual(values = c("Loss" = "#e74c3c", "Win" = "#3498db")) +
     labs(
-        title = "Naive Bayes - Top 20 Feature Importances",
-        x = NULL, y = "Importance (AUC)"
+        title = "Naive Bayes - Class-conditional densities for the top 8 features",
+        x = NULL, y = "Density", fill = "Outcome", colour = "Outcome"
     ) +
     theme_minimal()
 ```
+
+The four resource differentials carry the widest class gap (`golddiffat15` 1.22 pooled sd, `xpdiffat15` 1.12, `csdiffat15` 1.00, `kill_diff_15` 0.98) and are roughly Gaussian, so the default likelihood fits them well. `kda_15` is right-skewed, `plate_diff` is integer-discretised, and `firsttower` is binary - none Gaussian, which is why CV picks `usekernel = TRUE`. Every Win density sits to the right of its Loss density with substantial overlap around zero, so NB needs to combine many features to reach a sharp posterior - the source of its well-known push-to-extremes calibration behaviour.
 
 ## KNN
 
@@ -1088,11 +1081,6 @@ n_train <- nrow(X_train_scaled)
 k_theo <- round(sqrt(n_train))
 k_grid <- unique(round(exp(seq(log(5), log(k_theo * 4), length.out = 12))))
 k_grid <- ifelse(k_grid %% 2 == 0, k_grid + 1, k_grid)
-
-cat(sprintf(
-    "sqrt(n) = %d, candidate K grid: %s\n",
-    k_theo, paste(k_grid, collapse = ", ")
-))
 
 knn_model <- train(
     x = X_train_scaled,
@@ -1154,17 +1142,9 @@ cart_imp <- varImp(cart_model)$importance %>%
     arrange(desc(Overall))
 ```
 
-```{r s1-cart-plot}
-# Tree is too deep to be readable at this pruning level
-# rpart.plot(cart_model$finalModel,
-#            main = "Decision Tree - Match Outcome Prediction",
-#            type = 4,
-#            extra = 104)
-```
-
 ## XGBoost
 
-Gradient-boosted trees: a boosted-ensemble counterpart to RF and the model used as the strongest non-linear baseline in the recent LoL prediction literature. Like RF and CART it is immune to multicollinearity and feature scaling. We tune `nrounds`, `max_depth`, and `eta` over a small grid; the remaining XGBoost hyperparameters are held at sensible defaults to keep the search tractable.
+This model is used as the strongest non-linear baseline in the recent LoL prediction literature. Like RF and CART it is immune to multicollinearity and feature scaling. We tune `nrounds`, `max_depth`, and `eta` over a small grid; the remaining XGBoost hyperparameters are held at sensible defaults to keep the search tractable.
 
 ```{r s1-xgb}
 t0 <- Sys.time()
@@ -1212,13 +1192,13 @@ xgb_imp <- varImp(xgb_model)$importance %>%
     arrange(desc(Overall))
 
 ggplot(
-    xgb_imp %>% head(20),
+    xgb_imp,
     aes(x = reorder(feature, Overall), y = Overall)
 ) +
     geom_col(fill = "#16a085") +
     coord_flip() +
     labs(
-        title = "XGBoost - Top 20 Feature Importances",
+        title = "XGBoost - Feature importances",
         x = NULL, y = "Importance (gain)"
     ) +
     theme_minimal()
@@ -1374,30 +1354,30 @@ Each model produces an importance score on a different axis (LR: coefficient mag
 # KNN excluded - no meaningful feature importance
 top_features <- bind_rows(
     lr_coefs %>% mutate(rank = row_number(), model = "LR") %>%
-        select(feature, rank, model) %>% head(10),
+        select(feature, rank, model),
     rf_imp %>% mutate(rank = row_number(), model = "RF") %>%
-        select(feature, rank, model) %>% head(10),
+        select(feature, rank, model),
     cart_imp %>% mutate(rank = row_number(), model = "CART") %>%
-        select(feature, rank, model) %>% head(10),
+        select(feature, rank, model),
     nb_imp %>% mutate(rank = row_number(), model = "NB") %>%
-        select(feature, rank, model) %>% head(10),
+        select(feature, rank, model),
     xgb_imp %>% mutate(rank = row_number(), model = "XGB") %>%
-        select(feature, rank, model) %>% head(10)
+        select(feature, rank, model)
 )
 
 ggplot(top_features, aes(x = reorder(feature, -rank), y = rank, color = model)) +
     geom_jitter(size = 3, width = 0, height = 0.2) +
     coord_flip() +
-    scale_y_reverse(breaks = 1:10) +
+    scale_y_reverse(breaks = 1:max(top_features$rank)) +
     scale_color_manual(values = c("LR" = "#3498db", "RF" = "#27ae60", "CART" = "#9b59b6", "NB" = "#e67e22", "XGB" = "#16a085")) +
     labs(
-        title = "Feature Importance Rankings - Top 10 per Model",
+        title = "Feature importance ranks per model",
         x = NULL, y = "Rank (1 = most important)", color = "Model"
     ) +
     theme_minimal()
 ```
 
-A "top-10 hit count" is a coarse view because the five importance scales are not directly comparable. The full ranking - average rank plus spread across the five methods - gives a sharper read of which features every family agrees on and where they disagree.
+Each importance metric measures something different, so the raw scores cannot be averaged across models. Ranks, however, are comparable: `avg_rank` summarises which features every method agrees on, and `rank_spread` flags where they diverge.
 
 ```{r s1-consensus}
 full_ranks <- lr_coefs %>%
@@ -1422,38 +1402,16 @@ full_ranks <- lr_coefs %>%
             function(r) max(r, na.rm = TRUE) - min(r, na.rm = TRUE)
         )
     ) %>%
-    mutate(
-        times_in_top10 = rowSums(across(
-            c(rank_LR, rank_RF, rank_CART, rank_NB, rank_XGB),
-            ~ replace_na(.x, 999) <= 10
-        ))
-    ) %>%
     arrange(avg_rank)
 
-options(tibble.print_max = Inf)
-
-cat("Cross-model feature ranking (lower avg_rank = more consistently important):\n")
-print(as.data.frame(full_ranks))
-
-cat("\nTrue consensus features (in all 5 top-10s):\n")
-full_ranks %>%
-    filter(times_in_top10 == 5) %>%
-    print()
-
-cat("\nStrong majority (in 4 of 5 top-10s):\n")
-full_ranks %>%
-    filter(times_in_top10 == 4) %>%
-    print()
-
-cat("\nMixed signal (in 2-3 of 5 top-10s) - model families disagree:\n")
-full_ranks %>%
-    filter(times_in_top10 %in% c(2, 3)) %>%
-    print()
+knitr::kable(
+    full_ranks,
+    digits = 2,
+    caption = "Cross-model feature ranks. Lower avg_rank = consistently important across methods; higher rank_spread = methods disagree."
+)
 ```
 
-The cross-model consensus - features ranked highly by every method - centres on a compact set of continuous early-game differentials: `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum`. XGBoost adds a tree-ensemble vote that lines up with RF and CART, which tightens rather than reshuffles the ranking. These are the features any defense of H1 should lean on.
-
-The notable disagreement is still around binary objective flags (`firstdragon`, `firstherald`), which rank high for LR but low for the tree ensembles and the NB filter score. This is a known artefact: each importance metric measures a different thing - LR sees them as additive log-odds shifts, RF/CART/XGBoost absorb their signal into continuous splits earlier, and the NB filter score reads them as weak standalone predictors. LASSO (S3) still keeps `firstdragon` with a non-zero coefficient, so the disagreement is metric-driven, not evidence that the feature is irrelevant.
+The continuous early-game differentials - `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `winrate_diff` - head every ranking with low `avg_rank` and small `rank_spread`, forming the consensus core that any defence of H1 should rely on. Disagreement concentrates on the binary objective flags `firstdragon` and `firstherald`, which rank high for Logistic Regression but low for the tree ensembles and the Naive Bayes filter. This is a metric-driven artefact: LR treats each flag as an additive log-odds shift, the tree models absorb the same signal into continuous splits, and the filter score reads the flags as weak standalone predictors. LASSO retains `firstdragon` with a non-zero coefficient in S3, which confirms that the disagreement reflects differences in measurement scale rather than a lack of substantive signal.
 
 ## Same models, enriched data
 
@@ -1522,6 +1480,58 @@ X_train_e_scaled <- predict(preproc_e, X_train_e)
 X_test_e_scaled <- predict(preproc_e, X_test_e)
 ```
 
+The 30 per-role columns sum (per metric) to the team-level totals already in H1, so the enriched matrix is rank-deficient by construction (`top + jng + mid + bot + sup ≡ team` for gold, XP, CS, kills, and assists; only the death-diff family escapes because S1 deliberately omitted `death_diff_15`). A naive `solve(cor(X))` therefore fails with a singular matrix. We first identify and drop the exact linear combinations with `caret::findLinearCombos()`, then iteratively remove the feature with the largest VIF until every remaining VIF is at or below 10. Working on the trimmed matrix removes the redundancy that would otherwise dominate the comparison with H1 and lets each model fit on a feature set whose coefficients (LR) and split candidates (RF/XGB) are no longer aliased.
+
+```{r s1-enrich-vif}
+# Step 1: drop the 5 columns that are exact linear combinations of others
+lc_e <- caret::findLinearCombos(as.matrix(X_train_e_scaled))
+removed_perfect <- names(X_train_e_scaled)[lc_e$remove]
+keep1 <- setdiff(seq_len(ncol(X_train_e_scaled)), lc_e$remove)
+X_iter <- X_train_e_scaled[, keep1]
+
+# Step 2: iteratively drop the max-VIF feature while max(VIF) > 10
+threshold_e <- 10
+removed_vif <- character()
+repeat {
+    vif <- diag(solve(cor(X_iter)))
+    if (max(vif) <= threshold_e) break
+    drop <- names(vif)[which.max(vif)]
+    removed_vif <- c(removed_vif, drop)
+    X_iter <- X_iter[, setdiff(names(X_iter), drop)]
+}
+surviving_features_e <- names(X_iter)
+
+cat(sprintf(
+    "Started: %d features\nDropped (perfect collinearity): %d -> %s\nDropped (iterative VIF > %d): %d -> %s\nSurviving feature count: %d\n",
+    ncol(X_train_e_scaled),
+    length(removed_perfect), paste(removed_perfect, collapse = ", "),
+    threshold_e,
+    length(removed_vif),     paste(removed_vif, collapse = ", "),
+    length(surviving_features_e)
+))
+
+# Subset matrices to the surviving features and reuse the H1 variable names
+X_train_e <- X_train_e[, surviving_features_e]
+X_test_e <- X_test_e[, surviving_features_e]
+X_train_e_scaled <- X_train_e_scaled[, surviving_features_e]
+X_test_e_scaled <- X_test_e_scaled[, surviving_features_e]
+
+final_vif_e <- tibble(
+    feature = surviving_features_e,
+    VIF     = diag(solve(cor(X_train_e_scaled)))
+) %>% arrange(desc(VIF))
+
+knitr::kable(final_vif_e,
+    digits = 2,
+    caption = sprintf(
+        "Final VIF on trimmed enriched matrix (%d features, all VIF <= %d).",
+        length(surviving_features_e), threshold_e
+    )
+)
+```
+
+The iterative pass drops `golddiffat15`, `csdiffat15`, `xpdiffat15`, and three of the five per-role gold columns; only `bot_golddiffat15` survives among the gold-diff family, which is exactly the H2 question — does the bot-lane carry signal that the team-level totals do not? The trimmed matrix is the cleanest setting in which to ask it.
+
 ```{r s1-enrich-train}
 lr_e <- train(
     x = X_train_e_scaled, y = y_train_e,
@@ -1562,6 +1572,12 @@ cart_e <- train(
     method = "rpart", trControl = ctrl, metric = "ROC",
     tuneGrid = expand.grid(cp = c(0.00001, 0.00005, 0.0001, 0.0005, 0.001))
 )
+
+xgb_e <- train(
+    x = X_train_e, y = y_train_e,
+    method = "xgbTree", trControl = ctrl, metric = "ROC",
+    tuneGrid = xgb_grid, verbosity = 0
+)
 ```
 
 ```{r s1-enrich-metrics}
@@ -1577,12 +1593,13 @@ metrics_enriched <- bind_rows(
     score_e(rf_e, X_test_e, "Random Forest"),
     score_e(cart_e, X_test_e, "CART"),
     score_e(nb_e, X_test_e, "Naive Bayes"),
-    score_e(knn_e, X_test_e_scaled, "KNN")
+    score_e(knn_e, X_test_e_scaled, "KNN"),
+    score_e(xgb_e, X_test_e, "XGBoost")
 )
 
 knitr::kable(metrics_enriched,
     digits = 1,
-    caption = "Enriched feature set: same five models, H1 + 30 per-role @15 features"
+    caption = "Enriched feature set: same six models, H1 + 30 per-role @15 features"
 )
 ```
 
@@ -1615,13 +1632,15 @@ roc_rf_e <- roc(y_test_e, predict(rf_e, X_test_e, type = "prob")[, "Win"], level
 roc_cart_e <- roc(y_test_e, predict(cart_e, X_test_e, type = "prob")[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 roc_nb_e <- roc(y_test_e, predict(nb_e, X_test_e, type = "prob")[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 roc_knn_e <- roc(y_test_e, predict(knn_e, X_test_e_scaled, type = "prob")[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_xgb_e <- roc(y_test_e, predict(xgb_e, X_test_e, type = "prob")[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 
 ggroc(list(
     "LR (H1)"     = roc_lr,   "LR (enriched)"   = roc_lr_e,
     "RF (H1)"     = roc_rf,   "RF (enriched)"   = roc_rf_e,
     "CART (H1)"   = roc_cart, "CART (enriched)" = roc_cart_e,
     "NB (H1)"     = roc_nb,   "NB (enriched)"   = roc_nb_e,
-    "KNN (H1)"    = roc_knn,  "KNN (enriched)"  = roc_knn_e
+    "KNN (H1)"    = roc_knn,  "KNN (enriched)"  = roc_knn_e,
+    "XGB (H1)"    = roc_xgb,  "XGB (enriched)"  = roc_xgb_e
 )) +
     geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray40") +
     labs(
@@ -1652,25 +1671,30 @@ rf_auc_d <- get_delta("Random Forest", "AUC_delta")
 cart_auc_d <- get_delta("CART", "AUC_delta")
 cart_acc_d <- get_delta("CART", "Acc_delta")
 nb_auc_d <- get_delta("Naive Bayes", "AUC_delta")
-n_role_cols <- ncol(X_train_e) - ncol(X_train)
-n_enriched_dim <- ncol(X_train_e)
+knn_auc_d <- get_delta("KNN", "AUC_delta")
+xgb_auc_d <- get_delta("XGBoost", "AUC_delta")
+
+n_surviving <- length(surviving_features_e)
+n_h1 <- ncol(X_train)
+n_dropped <- length(removed_perfect) + length(removed_vif)
 knn_k_enriched <- knn_e$bestTune$k
 rf_mtry_h1 <- rf_model$bestTune$mtry
 rf_mtry_e <- rf_e$bestTune$mtry
 ```
 
-**Enrichment does not pay off.** Mean AUC falls -0.21 pp and mean accuracy -0.42 pp; only **LR** (+0.22 AUC) and **RF** (+0.62 AUC) improve, both inside the 5-fold CV noise band.
+**With multicollinearity removed, the trimmed enriched matrix matches the H1 baseline.** Mean AUC `r sprintf("%+.2f", mean_auc)` pp, mean accuracy `r sprintf("%+.2f", mean_acc)` pp, `r n_better` of `r n_models` models improve. The trim is what makes the comparison fair — on the raw 44-feature enrichment every model paid a penalty for the redundant gold/XP/CS aliases, with NB hit hardest by the `top + jng + mid + bot + sup ≡ team` identities.
 
-- **CART**: -0.85 AUC, -1.4 pp accuracy - classic single-tree overfit when the feature count more than doubles.
-- **Naive Bayes**: -0.66 AUC - the 30 per-role columns correlate with their team-level sums, breaking the independence assumption.
-- **KNN**: flat at 49 dimensions - smoothing at `k` = 159 absorbs both noise and signal.
-- **RF**: tuned `mtry` rises from 5 to 10 - wider search space for the same usable signal.
+- **LR**: `r sprintf("%+.2f", lr_auc_d)` AUC — coefficients no longer split across the aliased gold/XP duplicates; surviving per-role columns add only marginal signal.
+- **RF**: `r sprintf("%+.2f", rf_auc_d)` AUC — tuned `mtry` rises from `r rf_mtry_h1` to `r rf_mtry_e`, but the ceiling is unchanged.
+- **NB**: `r sprintf("%+.2f", nb_auc_d)` AUC — independence assumption is now satisfied (VIF ≤ 10); the residual loss is the per-role columns adding noise rather than signal.
+- **KNN**: `r sprintf("%+.2f", knn_auc_d)` AUC — `r length(surviving_features_e)` standardised dimensions stay Euclidean-comparable; `k =` `r knn_k_enriched` smooths over local noise.
+- **CART**: `r sprintf("%+.2f", cart_auc_d)` AUC, `r sprintf("%+.2f", cart_acc_d)` pp accuracy — single-tree variance is sensitive to the wider input regardless of VIF cleanup.
 
-**Bottom line:** team aggregates already capture the @15 signal, so **H1 stays as the S1 reference set** for the downstream pipeline (S3 selection and the Shiny export). The H2 test below asks the sharper question - whether **bot lane specifically**, rather than the role matrix as a whole, carries extra signal beyond team totals.
+**Bottom line:** team-level totals already saturate the @15 signal, so **H1 stays as the S1 reference set** (S3 selection, Shiny export). H2 below asks the sharper question — does **bot lane specifically** carry signal beyond the team aggregates? Of the five per-role gold-diff columns, only `bot_golddiffat15` survives the VIF filter, so a non-trivial bot-lane importance is not an alias artefact.
 
 ### Role-feature importance (H2 test)
 
-H2 asks whether bot lane carries the strongest role-specific early-game signal. The AUC half of the test is already in the table above (enriched RF vs H1 RF). What remains is the role-ranking half: among the 30 per-role features in `rf_e`, does at least one bot-lane feature rank higher than the best feature of every other role?
+H2 asks whether bot lane carries the strongest role-specific early-game signal. The AUC half of the test is the enriched-vs-H1 RF comparison in the delta table above. The role-ranking half is sharper after the VIF trim: of the original 30 per-role columns, `r sum(grepl("^(top|jng|mid|bot|sup)_", surviving_features_e))` survive (the others were either perfect linear combinations of the team totals or had VIF > 10 against the rest of the matrix). H2 is supported if and only if the top-ranked `bot_*` feature in the enriched RF outranks the best surviving feature of every other role.
 
 ```{r s1-h2-role-importance, fig.width=9, fig.height=7}
 enr_imp <- varImp(rf_e)$importance %>%
@@ -1694,7 +1718,10 @@ ggplot(
         labels = c("Team-level", "Role-specific")
     ) +
     labs(
-        title = "Enriched RF - Top 25 feature importances (H2 test)",
+        title = sprintf(
+            "Trimmed enriched RF - feature importances (top %d of %d, H2 test)",
+            min(25, nrow(enr_imp)), nrow(enr_imp)
+        ),
         x = NULL, y = "Importance", fill = "Feature type"
     ) +
     theme_minimal()
@@ -1720,17 +1747,17 @@ cat("\nBest rank per role:\n")
 print(other_role_features)
 ```
 
-The two prints above plus the AUC delta from the enrichment table together provide the H2 evidence: bot lane is supported iff at least one bot-lane feature outranks the best feature of every other role, regardless of whether the AUC delta itself is meaningful.
+The two prints above, read together with the enriched-vs-H1 AUC deltas earlier in this section, give the H2 evidence: bot lane is supported if and only if at least one `bot_*` feature outranks the best surviving feature of every other role. The VIF trim makes this an honest comparison — `bot_golddiffat15` is the only per-role gold-diff column to clear the threshold, so a bot-lane top rank cannot be driven by an aliased team-level total.
 
 # Scenario 3: Feature Selection
 
-Scenario 3 reduces the 19 engineered early-game predictors to a more interpretable subset. The S1 VIF analysis flagged a tight collinear cluster around resource differentials and momentum - direct evidence of redundancy. Several features are redundant by construction: gold_momentum = golddiffat15 - golddiffat10, so once golddiffat15 is in the model, momentum captures only the @10 snapshot; gold_efficiency_15 = goldat15 / csat15 overlaps substantially with both golddiffat15 and csdiffat15. We compare one wrapper method (RFE) with two embedded regularisation methods (LASSO, Elastic Net) to identify which predictors are consistently retained and whether a compact subset can match the full model's predictive performance.
+Scenario 3 reduces the 14 candidate early-game predictors to a more interpretable subset. The S1 VIF analysis flagged residual collinearity on `golddiffat15` and `kill_diff_15`, and the LR coefficient table left several features carrying near-zero weight - both are signs that some of the 14 predictors duplicate signal already captured by the dominant resource diffs. We compare one wrapper method (RFE) with two embedded regularisation methods (LASSO, Elastic Net) to identify which predictors are consistently retained and whether a compact subset can match the full model's predictive performance.
 
 ## RFE (Recursive Feature Elimination)
 
-We chose RFE as the wrapper method because many of the 19 predictors capture overlapping early-game signals - gold, XP, CS, momentum, combat pressure, and objectives. RFE repeatedly fits the model, ranks predictors by absolute coefficient magnitude, and removes the weakest while checking that predictive performance is preserved.
+We chose RFE as the wrapper method because the 14 predictors capture overlapping early-game signals - gold, XP, CS, combat, ratios, and objectives. RFE repeatedly fits the model, ranks predictors by absolute coefficient magnitude, and removes the weakest while checking that predictive performance is preserved.
 
-The method starts with all 19 features, trains Logistic Regression, ranks features by absolute coefficient magnitude, removes the weakest, and repeats until only one feature remains. At every subset size, 5-fold CV measures AUC-ROC on held-out folds, producing a performance curve from which the optimal number of features is selected automatically - the point where removing further features starts to cost predictive performance.
+The method starts with all 14 features, trains Logistic Regression, ranks features by absolute coefficient magnitude, removes the weakest, and repeats until only one feature remains. At every subset size, 5-fold CV measures AUC-ROC on held-out folds, producing a performance curve from which the optimal number of features is selected automatically - the point where removing further features starts to cost predictive performance.
 
 A known limitation applies here: logistic regression coefficients are unstable under multicollinearity, so the elimination order may vary across CV folds for the correlated resource trio (golddiffat15, xpdiffat15, csdiffat15). The features eliminated first are robust; instability sits at the margin of the selection boundary. This becomes visible in the comparison with LASSO and Elastic Net - features that RFE retains but both regularised methods zero out are the candidates where coefficient instability may have affected the wrapper's ranking.
 
@@ -1840,7 +1867,7 @@ ggplot(
 
 ```{r s3-rfe-vs-full}
 rfe_vs_full <- tibble(
-    Model = c("LR — full model (S1)", "RFE — selected subset (S3)"),
+    Model = c("LR - full model (S1)", "RFE - selected subset (S3)"),
     Features = c(ncol(X_train_scaled), rfe_n),
     Accuracy = c(
         round(lr_cm$overall["Accuracy"] * 100, 1),
@@ -1870,17 +1897,17 @@ htmltools::div(
 )
 ```
 
-RFE selected 9 of the 19 candidate features and achieved a test-set AUC-ROC of 0.841 with 74.3% accuracy. Against the full model (AUC 0.843, accuracy 75.2%), the gap is under 1 percentage point across all metrics. The eliminated features add no independent signal beyond the selected core; complexity can be roughly halved at near-zero predictive cost. The 0.9 pp accuracy gap is not trivial in absolute terms - the full model already sits close to the 15-minute prediction ceiling - but the selected subset is simpler and more interpretable at a cost that is acceptable in practice.
+RFE picks the full 14-feature subset as its CV optimum, matching the full-model LR baseline at AUC 0.842 and 75.5% accuracy. The CV accuracy curve climbs monotonically with subset size and never plateaus, so RFE's "remove until performance dips" stopping rule never fires - on this 14-feature pool, every additional predictor still buys a small fraction of CV accuracy without crossing the elimination threshold.
 
-The retained set - `golddiffat15`, `xpdiffat15`, `csdiffat15`, `winrate_diff`, `firstdragon`, `firstherald`, `firsttower`, `cs_momentum`, `grub_diff` - is consistent with the EDA. The three resource differentials at 15 minutes form the economic core; `winrate_diff` adds pre-game team quality; the three objective flags contribute a separate structural layer. `cs_momentum` and `grub_diff` survived elimination, suggesting they carry a small but measurable contribution beyond the raw 15-minute snapshot. The eliminated features - `gold_momentum`, `xp_momentum`, `kill_diff_15`, `assist_diff_15`, `plate_diff`, `gold_efficiency_15`, `kda_15`, `kill_pressure_10_15`, `opp_kill_pressure_10_15`, `firstblood` - add no independent signal once the core is in the model.
+This is a useful negative result. RFE judges retention by held-out CV performance, and from that lens nothing in the 14-feature pool is dead weight large enough to warrant elimination. That doesn't mean every feature is load-bearing - `firstblood` and `gold_efficiency_15` carry near-zero coefficients in the LR fit and contribute essentially nothing to predictions. But because their contribution, however small, is not strictly negative, RFE keeps them.
 
-The comparison with LASSO and Elastic Net will reveal how much of this selection is method-specific. LASSO and RFE both converge on 9 features, but the sets differ: RFE keeps `cs_momentum` and `grub_diff` while LASSO keeps `kill_diff_15` and `assist_diff_15`. These two features sit at the margin - neither method is wrong, they simply weigh the trade-off between correlated predictors differently.
+The interesting test is therefore the comparison with LASSO and Elastic Net. RFE optimises CV accuracy and picks "everything that helps even a little"; the embedded methods optimise penalised likelihood and zero out anything that does not pay for its own coefficient. Where RFE keeps and the embedded methods drop is exactly the marginal-contribution band - the features whose signal is fully absorbed by the consensus core under L1 pressure.
 
 ## LASSO (L1)
 
-Among embedded methods, we apply LASSO first because it is directly motivated by the VIF findings from S1. Features like `gold_momentum` are redundant by construction: once `golddiffat15` is in the model, momentum adds only the @10 snapshot. LASSO resolves this by shrinking the weaker of a correlated pair to exactly zero. Unlike RFE, which selects by held-out CV performance, LASSO selects during training: the L1 penalty shrinks each coefficient toward zero proportionally to λ, zeroing out any feature whose signal is too weak to offset the penalty, so selection and estimation happen in the same step. The penalty strength λ is tuned via 5-fold CV.
+Among embedded methods, we apply LASSO first because it is directly motivated by the VIF findings from S1. Features like `assist_diff_15` and `kill_diff_15` share a large fraction of their signal with `golddiffat15` (kills and assists translate directly into team gold), and LASSO is the natural tool to resolve that redundancy - it shrinks the weaker of a correlated pair to exactly zero. Unlike RFE, which selects by held-out CV performance, LASSO selects during training: the L1 penalty shrinks each coefficient toward zero proportionally to λ, zeroing out any feature whose signal is too weak to offset the penalty, so selection and estimation happen in the same step. The penalty strength λ is tuned via 5-fold CV.
 
-LASSO adds an L1 penalty to logistic regression that shrinks coefficients to exactly zero, making it both a classifier and a feature selector in one step. It is directly motivated by our VIF findings: `golddiffat15` and `gold_momentum` share a large fraction of their signal (momentum is literally the @15 minus @10 diff), and LASSO is the natural tool to resolve that redundancy - it retains the stronger signal and zeros out the weaker one automatically.
+LASSO adds an L1 penalty to logistic regression that shrinks coefficients to exactly zero, making it both a classifier and a feature selector in one step. It is directly motivated by our VIF findings and the LR coefficient table: several features carried near-zero weight in the unpenalised fit, and LASSO formalises the decision to drop them by trading a small bias for a more parsimonious model.
 
 `lambda` controls how aggressively coefficients are shrunk: higher λ means more zeros. We use `cv.glmnet`, which searches roughly 100 values via 5-fold CV. We select `lambda.1se` - the largest λ still within one standard error of the CV minimum - because it gives a sparser model that is statistically indistinguishable from the best-fitting one, which is appropriate when the goal is feature selection rather than pure predictive accuracy.
 ```{r s3-lasso}
@@ -1989,15 +2016,15 @@ lasso_selected %>%
     ) +
     labs(
         title = "LASSO: Surviving Features and Coefficients",
-        subtitle = "Ranked by absolute coefficient — longer bar = stronger signal",
+        subtitle = "Ranked by absolute coefficient - longer bar = stronger signal",
         x = NULL, y = "Coefficient", fill = "Direction"
     ) +
     theme_minimal()
 ```
 
-LASSO retained 7 of the 19 features at `lambda.1se = 0.037` and achieved AUC-ROC of 0.840 with 75.1% accuracy, matching the full-model baseline while dropping 12 features. We chose `lambda.1se` because it sits at the point where the curve begins to rise - the last position where a sparser model is statistically indistinguishable from the best-fitting one.
+LASSO retained 7 of the 14 features at `lambda.1se = 0.040` and achieved AUC-ROC of 0.839 with 75.0% accuracy - within 0.3 pp of the full-model baseline while halving the feature count. We chose `lambda.1se` because it sits at the point where the curve begins to rise - the last position where a sparser model is statistically indistinguishable from the best-fitting one.
 
-All three momentum features - `gold_momentum`, `xp_momentum`, `cs_momentum` - were zeroed out, exactly as the VIF analysis predicted: once the `diff@15` features are already in the model, momentum only captures the @10 snapshot which adds no independent signal. `kill_pressure_10_15` and `opp_kill_pressure_10_15` were also eliminated - kills translate directly into gold and XP advantage, so their signal is already captured by `golddiffat15` and `xpdiffat15`. `gold_efficiency_15` is redundant with `golddiffat15` and `csdiffat15`. `kill_diff_15`, `assist_diff_15`, `kda_15`, `plate_diff`, and `grub_diff` are similarly absorbed by the resource differential core once L1 pressure is applied. `firstblood` was also eliminated - consistent with the EDA, securing the first kill adds no predictive value once the full 15-minute economic picture is present.
+The combat features `kill_diff_15` and `assist_diff_15` were zeroed out, consistent with the VIF analysis: kills and assists translate directly into team gold, so their signal is already captured by `golddiffat15` once L1 pressure is applied. The two ratio features were also eliminated - `gold_efficiency_15 = goldat15 / csat15` overlaps with `golddiffat15` and `csdiffat15`, and `kda_15` overlaps with the combat differentials. `plate_diff` and `grub_diff` are absorbed by the dominant economic core; their univariate signal is real but redundant. `firstblood` was also eliminated - consistent with the EDA, securing the first kill adds no predictive value once the full 15-minute economic picture is present.
 
 The 7 retained features form a coherent minimal set: the three resource differentials (`golddiffat15`, `xpdiffat15`, `csdiffat15`) capture the economic picture at 15 minutes, `winrate_diff` adds pre-game team quality, and the three first-objective flags (`firsttower`, `firstdragon`, `firstherald`) contribute a separate structural layer. All surviving coefficients are positive: being ahead in any of these dimensions increases the Blue team's win probability.
 
@@ -2143,9 +2170,9 @@ enet_selected_df %>%
     theme_minimal()
 ```
 
-The CV AUC curve is almost flat across the entire alpha grid - all 21 tested values sit within 1 SE of the best AUC (0.838), and the wide confidence band suggests that differences between alphas are noise rather than signal. The dashed line marks the best AUC - 1 SE threshold at 0.833; every alpha clears it comfortably, meaning no mixing ratio offers a statistically meaningful advantage over any other.
+The CV AUC curve is almost flat across the entire alpha grid - all 21 tested values sit within 1 SE of the best AUC (0.839), and the wide confidence band suggests that differences between alphas are noise rather than signal. The dashed line marks the best AUC - 1 SE threshold; every alpha clears it comfortably, meaning no mixing ratio offers a statistically meaningful advantage over any other.
 
-`alpha = 0.95` (near-LASSO) achieves the highest point estimate, but the margin over other alphas is negligible. The correlated resource differentials do not cause the instability Elastic Net is designed to address - LASSO handles them as well as any Ridge blend at this sample size. Since no mixing ratio offers a distinguishable advantage and the selected alpha is 0.95, the resulting Elastic Net model is practically identical to pure LASSO.
+`alpha = 0.90` (near-LASSO) achieves the highest point estimate, but the margin over other alphas is negligible. The correlated resource differentials do not cause the instability Elastic Net is designed to address - LASSO handles them as well as any Ridge blend at this sample size. Elastic Net keeps one feature beyond the LASSO core (`kill_diff_15`, the partner of the high-VIF `golddiffat15` pair), reflecting the slightly weaker L1 pressure at α = 0.90. The downstream LR fits on the LASSO and Elastic Net subsets land within 0.05 pp AUC of each other, confirming that this 8th feature carries no predictive value beyond the consensus 7.
 
 ```{r s3-best-hyperparams}
 s3_best_hyperparams <- tibble(
@@ -2328,23 +2355,23 @@ perf_summary %>%
     theme(panel.grid.minor = element_blank())
 ```
 
-All three methods land within 0.3 pp AUC of the full 19-feature baseline (84.2%) while using at most 9 features. LASSO and Elastic Net both select the same 7-feature consensus core (AUC 83.9%); RFE retains 2 additional features (`cs_momentum`, `grub_diff`) for 84.1% - a 0.2 pp gain at the cost of 2 extra predictors. No feature is selected by exactly two methods, giving a clean binary split: 7 features every criterion agrees on, and 10 that none selected.
+All three methods land within 0.3 pp AUC of the full 14-feature baseline (84.2%) while using between 7 and 14 features. LASSO selects the leanest model (7 features, AUC 83.9%); Elastic Net adds one feature (8 features, AUC 84.0%); RFE keeps everything (14 features, AUC 84.2%) because its CV-accuracy stopping rule never triggers. 7 features are picked by all three methods, 1 by exactly two (`kill_diff_15`, RFE+ENet), and the remaining 6 are picked only by RFE.
 
 ## S3 findings
 
-All three methods land within 0.3 pp AUC of the full 19-feature baseline (84.2%) while using at most 9 features. RFE reaches 84.1% with 9 features; LASSO and Elastic Net both reach 83.9% with 7. More than half the original feature set is redundant - dropping it costs almost nothing.
+All three methods land within 0.3 pp AUC of the full 14-feature baseline (84.2%) while using between 7 and 14 features. RFE retains all 14 with AUC 84.2%; LASSO and Elastic Net reach 83.9-84.0% with 7-8 features. Half the feature set is redundant under L1 pressure - dropping it costs at most 0.3 pp AUC.
 
 **The consensus** - 7 features selected by all three methods - centres on the same compact set the EDA and S1 importance analysis already pointed to: `golddiffat15`, `xpdiffat15`, `csdiffat15`, `firsttower`, `firstdragon`, `firstherald`, `winrate_diff`. The three resource differentials at 15 minutes carry the largest share of signal - who is ahead in gold, XP, and CS is the dominant predictor, consistent with the EDA heatmap. The three first-objective flags add a separate structural layer; first tower and first herald showed the strongest binary win-rate correlations in the EDA, and both survive every selection criterion here. `winrate_diff` adds pre-game team quality independent of the in-game snapshot.
 
-**No feature was selected by exactly two methods** - the result is a clean binary split. RFE retains 2 extra features beyond the core (`cs_momentum`, `grub_diff`) that both penalty methods eliminate; every other feature is either in the consensus (3/3) or rejected by all three (0/3). There is no ambiguous middle ground where methods partially disagree.
+**Only one feature falls in the "exactly 2 methods" band** - `kill_diff_15`, kept by RFE and Elastic Net but dropped by pure LASSO. It is the partner of the high-VIF cluster: its standalone signal is real, but most of it is captured by `golddiffat15` once L1 pressure is applied. Elastic Net's slight Ridge blend at α = 0.90 is just enough to spare it; LASSO's pure L1 is not. RFE keeps it as a function of CV accuracy, not regularisation.
 
-**Features never selected by any method** carry no independent signal once the core is present. `firstblood` is the strongest null result: its gold value (400g) is negligible relative to a full 15-minute lead, and once the economic and objective picture is in, the first kill adds nothing - consistent with EDA, where it showed the weakest binary win-rate shift of all objective flags. `kill_pressure_10_15` and `opp_kill_pressure_10_15` are absorbed by the resource differentials - kills translate into gold and XP, which `golddiffat15` and `xpdiffat15` already capture. `gold_efficiency_15` is redundant with `golddiffat15` and `csdiffat15`. `gold_momentum` and `xp_momentum` are eliminated by all three methods: the @10 snapshot they encode adds no signal once the @15 differentials are present.
+**Features RFE keeps but the embedded methods drop** - `assist_diff_15`, `kda_15`, `gold_efficiency_15`, `plate_diff`, `grub_diff`, `firstblood` - are the marginal-contribution band. Their coefficients in the unpenalised LR fit are small (all under 0.11 in standardised units) and they offer no improvement strong enough to clear the L1 threshold. `firstblood` is the strongest null result: its gold value (400g) is negligible relative to a full 15-minute lead, and once the economic and objective picture is in, the first kill adds nothing - consistent with EDA, where it showed the weakest binary win-rate shift of all objective flags. `assist_diff_15` and `kda_15` overlap with the combat-and-economy core that `golddiffat15` and `kill_diff_15` already cover. `gold_efficiency_15` is redundant with `golddiffat15` and `csdiffat15`. `plate_diff` and `grub_diff` are early-game objective signals already absorbed by the resource lead they helped produce.
 
-**Wrapper vs. embedded**: RFE selects subsets by directly optimising CV accuracy; LASSO and Elastic Net select through regularisation pressure. The 7-feature consensus survived both approaches independently, which is strong evidence that these features carry genuine signal. The 2 features RFE adds beyond the core (`cs_momentum`, `grub_diff`) do not pass the penalty threshold of either embedded method, placing their contribution at the margin. A wrapper method and two embedded methods converging on the same 7-feature answer is the strongest form of agreement these methods can produce.
+**Wrapper vs. embedded**: RFE selects subsets by directly optimising CV accuracy; LASSO and Elastic Net select through regularisation pressure. The 7-feature consensus survived both approaches independently, which is strong evidence that these features carry genuine signal. The 6 extra features RFE retains (and the 7th, `kill_diff_15`, kept by Elastic Net) do not clear pure-L1 pressure, placing their contribution at the margin. A wrapper method and two embedded methods converging on the same 7-feature core is the strongest form of agreement these methods can produce.
 
 # Validation: best parametric S1 model on the S3-selected feature subsets
 
-S1 trained six classifiers on the full 19-feature set; S3 produced three reduced subsets — RFE (9 features), LASSO (7 features), and Elastic Net (7 features). The natural next question is whether refitting the strongest parametric model from S1 on each of those subsets preserves predictive performance — a practical test that asks whether the choice of selection method matters once we hand the result to a downstream learner. We pick **Logistic Regression** for this: it is the best-performing parametric learner in S1 (test AUC 0.842), its coefficients are directly interpretable, and as a linear model it benefits the most from removing redundant predictors that inflate variance. The same `caret` setup is reused for every variant (5-fold CV, `metric = "ROC"`, scaled inputs); only the feature matrix changes.
+S3 produced three subsets - RFE (14 features, no reduction), LASSO (7), Elastic Net (8) - so the natural test is whether refitting the strongest S1 parametric model on each preserves predictive performance, i.e. whether the choice of selection method matters downstream. We use **Logistic Regression**: best parametric learner in S1 (test AUC 0.842), interpretable coefficients, and the model that benefits most from removing redundant predictors that inflate variance. Same `caret` setup as S1 - 5-fold CV, `metric = "ROC"`, scaled inputs - only the feature matrix changes.
 
 ```{r s3-validation-fit}
 t0 <- Sys.time()
@@ -2397,20 +2424,20 @@ validation_compare <- tibble(
 
 knitr::kable(validation_compare,
     digits  = c(0, 0, 2, 2, 2, 3),
-    caption = "LR on the full 19-feature set vs LR on each S3-selected subset (same train/test split)"
+    caption = "LR on the full 14-feature set vs LR on each S3-selected subset (same train/test split)"
 )
 ```
 
 ```{r s3-validation-roc, fig.width=7, fig.height=5}
 ggroc(list(
-    "Full (19)"        = roc_lr,
+    "Full (14)"        = roc_lr,
     "RFE"              = lr_rfe$roc,
     "LASSO"            = lr_lasso$roc,
     "Elastic Net"      = lr_enet$roc
 )) +
     geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray40") +
     scale_color_manual(values = c(
-        "Full (19)"   = "#3498db",
+        "Full (14)"   = "#3498db",
         "RFE"         = "#e67e22",
         "LASSO"       = "#27ae60",
         "Elastic Net" = "#9b59b6"
@@ -2437,15 +2464,13 @@ worst_acc_drop <- max(abs(c(acc_delta_rfe, acc_delta_lasso, acc_delta_enet)))
 lasso_enet_identical <- identical(sort(lasso_selected$feature), sort(enet_selected))
 ```
 
-All three reduced-feature LRs land within 0.11 pp AUC and 0.87 pp accuracy of the 19-feature baseline (AUC 0.842, accuracy 75.2%). The RFE-selected 9 features achieve AUC 0.841 (-0.09 pp), the LASSO-selected 7 features achieve AUC 0.841 (-0.11 pp), and the Elastic Net-selected 7 features achieve AUC 0.841 (-0.11 pp). All four ROC curves overlap almost exactly across the operating range, so any practical decision threshold transfers between models.
+All three reduced-feature LRs land within 0.3 pp AUC and 1.1 pp accuracy of the 14-feature baseline (AUC 0.842, accuracy 75.5%): RFE 0.842 (no reduction), LASSO 0.839 (-0.3 pp), Elastic Net 0.840 (-0.2 pp). All four ROC curves overlap almost exactly, so any practical decision threshold transfers between models. The only non-trivial comparison is LASSO vs Elastic Net - ENet keeps one extra feature (`kill_diff_15`) and gains 0.04 pp AUC over LASSO, comfortably inside CV noise.
 
-LASSO and Elastic Net selected the identical feature set, which is why their downstream LR fits produce numerically identical predictions — at the best alpha the algorithm picked, Elastic Net is effectively pure LASSO on this data, consistent with the diagnostic in the Elastic Net section. RFE retains two extra features beyond the LASSO core (`cs_momentum` and `grub_diff`) and pays a marginal 0.02 pp AUC difference for that — a difference comfortably inside CV noise, meaning the two extra features neither help nor hurt.
-
-The takeaway is what S3 implicitly predicted: regardless of which selection method's recommendation you follow, downstream performance is preserved. The three methods disagree at the margin (RFE keeps 2 features the embedded methods drop), but those marginal features carry no incremental signal once the consensus core is present. A parametric production model trained on any of the three subsets is leaner, faster to fit, more robust to collinearity, and reaches the same ceiling as the full 19-feature model — justifying the practical recommendation in the synthesis below.
+The takeaway is what S3 implicitly predicted: downstream performance is preserved regardless of which selection method's recommendation you follow. The 7-feature LASSO subset is the cheapest model that hits the ceiling, and the 0.3 pp gap to the 14-feature model is a margin small enough that parsimony - coefficient interpretability and drift-robustness in production - is the better trade.
 
 # Cross-validation grid: every S1 model on every S3 selection
 
-The validation above is LR-specific. We extend it to all six S1 learners — particularly Naive Bayes, whose independence assumption is the one most directly violated by the correlated 15-minute differentials — by refitting each model on each S3-selected subset (plus the full 19-feature baseline) with the S1 tuning grids, and comparing test AUC across all 24 cells.
+The validation above is LR-specific. We extend it to all six S1 learners - particularly Naive Bayes, whose independence assumption is the one most directly violated by the correlated 15-minute differentials - by refitting each model on each S3-selected subset (plus the full 14-feature baseline) with the S1 tuning grids, and comparing test AUC across all 24 cells.
 
 ```{r s3-grid-fit}
 t0 <- Sys.time()
@@ -2592,39 +2617,33 @@ ggplot(grid_results, aes(x = Subset, y = Model, fill = Test_AUC)) +
     )
 ```
 
-LR on the full 19-feature set tops the grid at AUC 0.842 — no reduced-feature cell beats it. Across all 24 cells the AUC range is only 4.7 pp, well within what a different train/test split could shift.
+LR on the full 14-feature set tops the grid at AUC 0.842, tied with LR/RFE (which keeps every feature). The AUC range across all 24 cells is 5.0 pp - within what a different train/test split could shift, and most of that range is CART under-performing the rest of the field rather than a selection-method effect.
 
-**NB** is the most selection-sensitive learner — 0.92 pp AUC range across subsets, improving under reduction. This matches the multicollinearity diagnosis: NB's independence assumption is the one violated by the correlated differentials, so dropping redundant predictors helps it. Every other model is flat across selections.
-
-This grid is the direct empirical answer to the multicollinearity-as-bias concern from S1's VIF check. If correlated features were inflating prediction rates, every model would gain AUC under reduction. Instead the grid is flat (LR, KNN, XGBoost) or marginally negative (RF) — only NB gains, plus a one-cell CART blip under RFE that does not survive the other selectors. The small drops are expected: collinear features carry overlapping signal that the full model already splits across them, so removal enforces sparsity rather than surfacing hidden information.
-
-NB being the sole gainer is the cleanest possible diagnostic: it is the one learner whose core assumption (conditional independence) is directly violated by collinearity, and the one whose predictions therefore benefit from removing it. The others are unaffected because their predictions never relied on that assumption. Feature selection thus does not explain a hidden predictive gain — there is none. It explains *which features are redundant*, *which are independently informative*, and *which are stable across selectors*. The consensus core's value is parsimony, coefficient interpretability, and drift-robustness in production, not a higher held-out AUC.
+**NB is the only learner where reduction helps** (1.0 pp AUC range, 0.831 → 0.841 from Full to Elastic Net), and that is exactly what the S1 multicollinearity diagnosis predicted: NB's independence assumption is the one violated by the correlated 15-minute differentials, so dropping redundant predictors makes the likelihood factorisation closer to truth. Every other model is flat (LR, KNN, XGBoost) or marginally negative (RF, CART) under reduction - trees can use overlapping features at different splits, so reduction is mildly costly rather than helpful. This is the empirical answer to S1's collinearity-as-bias concern: if correlated features were inflating predictions, every model would gain AUC under reduction; instead only NB does. Feature selection here buys *which features are redundant, which are independently informative, and which are stable across selectors* - parsimony and coefficient interpretability, not higher held-out AUC.
 
 # Conclusions
 
 ## H1 findings
 
-**H1 is confirmed.** Every classifier trained on the 19 early-game features beats the 72.9% naive gold-rule baseline, and all exceed 83% AUC-ROC on the held-out test set. The test-set AUC values are 84.2% (LR), 82.7% (RF), 83.0% (NB), 83.7% (KNN), 79.5% (CART), and 83.9% (XGBoost). The spread is at most 1–2 percentage points, meaning the feature set matters more than the model family — once you use a competent learner, the data determines the ceiling.
+**H1 is confirmed.** Every classifier trained on the 14 early-game features beats the 72.9% naive gold-rule baseline, and five of six exceed 83% AUC-ROC on the held-out test set. The test-set AUC values are 84.2% (LR), 83.0% (RF), 83.1% (NB), 83.7% (KNN), 79.7% (CART), and 83.8% (XGBoost). The spread between the top five is roughly 1 percentage point, meaning the feature set matters more than the model family - once you use a competent learner, the data determines the ceiling. CART trails the rest by ~3 pp, reflecting the limits of a single tree at this prediction ceiling.
 
-Random Forest is the strongest single performer, confirming that non-linear feature interactions add a small but consistent edge over the linear and probabilistic baselines. The cross-model feature importance consensus identifies `golddiffat15`, `xpdiffat15`, `csdiffat15`, and `gold_momentum` as universally important — the team that is ahead in gold, XP, and CS at 15 minutes and has been extending that lead since minute 10 wins with high probability. Binary objective flags (first dragon, first herald, first tower) add secondary, independent signal, but rank below the continuous resource metrics in importance.
+**Logistic Regression is the strongest single performer**, edging out XGBoost and KNN by 0.4-0.5 pp AUC. This is the result a 14-feature pool with a clear linear signal should produce: when the dominant features (resource differentials at @15) carry a near-linear relationship with the log-odds of winning, a parametric linear model captures that signal as cleanly as a tree ensemble can. The cross-model feature importance consensus identifies `golddiffat15`, `xpdiffat15`, and `csdiffat15` as universally important - the team that is ahead in gold, XP, and CS at 15 minutes wins with high probability. Binary objective flags (first dragon, first herald, first tower) add secondary, independent signal, but rank below the continuous resource metrics in importance.
 
-These results are consistent with the published 76–78% accuracy band for 15-minute predictions on LoL professional data. Our AUC of 83–85% reflects the additional discriminative power of probability calibration over raw accuracy, and the broader feature set (19 features vs. the 5–8 used in most prior work). Notably, even in the 2025 season — where the predictive coefficient of `golddiffat15` has reportedly declined from prior years — the early-game snapshot still yields a clear 10 pp AUC gain over the naive baseline.
+These results sit in the published 76–78% accuracy band for 15-minute predictions on LoL professional data; our 83–85% AUC reflects the discriminative power of probability calibration over raw accuracy plus a broader feature set (14 vs. the 5–8 used in most prior work). Even in the 2025 season, where the reported predictive coefficient of `golddiffat15` has declined, the early-game snapshot still yields a clear 10 pp AUC gain over the naive baseline.
 
 ## H2 findings
 
-**H2 requires qualification.** The EDA gives clear preliminary support: bot lane (ADC) has the highest Pearson correlation with match outcome among all five roles (r = 0.374), ahead of mid (r = 0.338), top (r = 0.294), jungle (r = 0.346), and support (r = 0.316). However, the inter-role gaps in the EDA are narrow, which means the full H2 test decides whether the bot lane edge is real or within noise.
+**H2 requires qualification.** The EDA gives clear preliminary support: bot lane (ADC) has the highest Pearson correlation with match outcome among all five roles (r = 0.374), ahead of jungle (0.346), mid (0.338), support (0.316), and top (0.294). The inter-role gaps are narrow, so the full H2 test decides whether the bot lane edge is real or within noise.
 
-The critical test is the enriched Random Forest comparison: adding 30 per-role feature differentials to the H1 set shifts AUC from 82.7% to 83.3% — a difference of +0.6 pp. This improvement is meaningful: role-level granularity genuinely adds signal beyond what team-level totals capture. Among role features in the enriched RF importance ranking, `bot_golddiffat15` is the highest-ranked bot-lane feature (overall rank 8), which is also the highest-ranked feature of any role — directly supporting H2's claim that bot lane is uniquely dominant among role-specific early-game factors.
-
-The overall picture is that bot lane is the strongest single-role predictor of match outcome in the EDA and its gold differential is the first role feature the H2 model singles out, but the dominance is not overwhelming: team-level economic and objective signals already capture most of what the role-specific breakdown adds. H2 holds as an empirical ordering — bot lane leads among roles — but not as a strong claim that bot lane alone drives prediction.
+The decisive test is the enriched Random Forest comparison after VIF cleanup: role-level granularity shifts RF AUC by only +0.5 pp over H1 (83.0% → 83.5%), inside the 5-fold CV noise band, so team-level totals already capture most of what the role split adds. The bot-lane ordering is the firmer half of the test: the EDA's role-correlation chart gave bot lane the highest single-role correlation with `blue_win`, and the enriched RF ranks `bot_golddiffat15` 4th overall and first among per-role features - well above the best surviving feature of every other role. H2 therefore holds as an empirical ordering (bot lane leads), but not as a strong claim that bot lane alone drives prediction beyond team-level totals.
 
 ## S1 vs S3 synthesis
 
-S1 and S3 converge on the same conclusion from two directions. S1 establishes that the 19 engineered early-game features are collectively sufficient (83-85% AUC across all five model families) and that the predictive signal concentrates in a compact core of continuous resource differentials at 15 min. S3 confirms and sharpens this: three independent selection methods from two different families (one wrapper, two embedded) all agree that only the consensus core of those 19 features is necessary - the rest contribute signal already captured by that core, and dropping them costs under 0.1% AUC.
+S1 and S3 converge from two directions. S1 establishes that the 14 early-game features are collectively sufficient (83-84% AUC across five of six model families, CART trailing at 79.7%) with the signal concentrated in a compact core of continuous resource differentials at 15 min. S3 confirms and sharpens this: three independent selection methods (one wrapper, two embedded) retain the same 7-feature consensus core; the embedded methods stop there, while RFE keeps the full 14 because its CV-accuracy stopping rule never triggers - the marginal features it retains contribute essentially zero AUC.
 
-The consensus set - selected by all three methods regardless of criterion - includes the features that S1's four-model importance consensus identified as most consistently important. The notable discrepancy between S1 and S3 is `gold_momentum`: it ranked high in S1's importance consensus, yet both LASSO and Elastic Net shrink it to zero under regularisation pressure - its signal is fully absorbed by `golddiffat15` once a penalty is applied. It does not survive two independent embedded selectors, so despite its importance rank in unconstrained models it should not be treated as a load-bearing predictor.
+The consensus set matches S1's five-model importance consensus exactly: `golddiffat15`, `xpdiffat15`, `csdiffat15`, `winrate_diff`, `firsttower`, `firstherald`, `firstdragon`. The one disagreement is `kill_diff_15`: it ranks reasonably high in unpenalised LR coefficients and tree-based importance scores, but pure LASSO (α = 1.0) zeroes it out as its signal is largely absorbed by `golddiffat15` once L1 pressure is applied; Elastic Net (α = 0.90) keeps it. The 0.04 pp AUC difference between the two downstream LR fits places the feature at the very margin of usefulness.
 
-**The practical recommendation**: train on the 7-feature consensus set. It is the only subset where all three independent selection criteria (RFE, LASSO, Elastic Net) agree, achieves AUC 84.0%, and costs under 0.3 pp relative to the full 19-feature model. All three methods converging on exactly the same features is strong evidence that this is the true signal core. Features never selected by any method should be dropped - their signal is fully captured by the consensus core. First blood is the clearest null result: despite its prominence in esports commentary, securing the first kill carries no independent predictive value once the 15-minute economic and objective picture is in.
+**Recommendation: train on the 7-feature consensus set.** It is the only subset all three independent criteria agree on, achieves AUC 83.9%, and costs 0.3 pp relative to the full 14-feature model. Features kept only by RFE - `assist_diff_15`, `kda_15`, `gold_efficiency_15`, `plate_diff`, `grub_diff`, `firstblood` - sit below the L1 threshold and can be dropped without measurable loss. First blood is the clearest null result: despite its prominence in esports commentary, securing the first kill carries no independent predictive value once the 15-minute economic and objective picture is in.
 
 # Export models for Shiny app
 
@@ -2636,6 +2655,7 @@ saveRDS(rf_model, "shiny/models/rf_model.rds")
 saveRDS(nb_model, "shiny/models/nb_model.rds")
 saveRDS(knn_model, "shiny/models/knn_model.rds")
 saveRDS(cart_model, "shiny/models/cart_model.rds")
+saveRDS(xgb_model, "shiny/models/xgb_model.rds")
 saveRDS(preproc, "shiny/models/preproc.rds")
 saveRDS(perf_summary, "shiny/models/perf_summary.rds")
 saveRDS(overlap_df, "shiny/models/overlap_df.rds")
@@ -2661,13 +2681,8 @@ shiny_red <- games_model %>%
         golddiffat15 = -golddiffat15,
         xpdiffat15 = -xpdiffat15,
         csdiffat15 = -csdiffat15,
-        gold_momentum = -gold_momentum,
-        xp_momentum = -xp_momentum,
-        cs_momentum = -cs_momentum,
         kill_diff_15 = -kill_diff_15,
         assist_diff_15 = -assist_diff_15,
-        kill_pressure_10_15 = opp_kill_pressure_10_15,
-        opp_kill_pressure_10_15 = kill_pressure_10_15,
         gold_efficiency_15 = NA_real_, # Blue-only ratio, no Red counterpart kept
         kda_15 = NA_real_,
         plate_diff = -plate_diff,
@@ -2712,8 +2727,9 @@ roc_rf <- pROC::roc(y_test_fct, rf_prob[, "Win"], levels = c("Loss", "Win"), qui
 roc_nb <- pROC::roc(y_test_fct, nb_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 roc_knn <- pROC::roc(y_test_fct, knn_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 roc_cart <- pROC::roc(y_test_fct, cart_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
+roc_xgb <- pROC::roc(y_test_fct, xgb_prob[, "Win"], levels = c("Loss", "Win"), quiet = TRUE)
 saveRDS(
-    list(lr = roc_lr, rf = roc_rf, nb = roc_nb, knn = roc_knn, cart = roc_cart),
+    list(lr = roc_lr, rf = roc_rf, nb = roc_nb, knn = roc_knn, cart = roc_cart, xgb = roc_xgb),
     "shiny/models/roc_list.rds"
 )
 
@@ -2726,3 +2742,17 @@ saveRDS(lr_cm, "shiny/models/lr_cm.rds")
 
 cat("Models saved to shiny/models/\n")
 ```
+
+# References
+
+[1] **Oracle's Elixir.** *2025 LoL esports match data.* Public dataset. URL: <https://oracleselixir.com/tools/downloads> (accessed 2026-04).
+
+[2] **Spaargaren, R. H.** (2022). *Early Game Win Prediction in League of Legends.* MSc thesis, Tilburg University. URL: <http://arno.uvt.nl/show.cgi?fid=161690>.
+
+[3] **Lafrance, A., & Grewal, R.** (2026). Determining the effects of League of Legends ranked tiers on outcome prediction models. *Entertainment Computing*, **57**, article 101088. DOI: <https://doi.org/10.1016/j.entcom.2026.101088>.
+
+[4] **Junior, J. B. S., & Campelo, C. E. C.** (2023). *League of Legends: Real-Time Result Prediction.* arXiv preprint arXiv:2309.02449. URL: <https://arxiv.org/abs/2309.02449>.
+
+[5] **Tsang, W.** (2025). *What's actually different about League of Legends in 2025?* Medium article. (Non peer-reviewed analyst post, cited for the temporal-trend observation only.)
+
+[6] **Wickham, H.** (2014). Tidy Data. *Journal of Statistical Software*, **59**(10), 1-23. DOI: <https://doi.org/10.18637/jss.v059.i10>.

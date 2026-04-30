@@ -36,7 +36,9 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Knit output
+# Knit / render output
 analysis_files/
 *.html
+*_files/
+**/_build/
 .RDataTmp
