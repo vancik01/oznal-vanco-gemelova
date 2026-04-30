@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Project Summary - Predicting League of Legends Match Outcomes</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 20mm 18mm 20mm;
+
+    @top-left {
+      content: "OZNAL Capstone \00B7  STU FIIT  \00B7  2026";
+      font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+      font-size: 7.6pt;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #555;
+    }
+    @top-right {
+      content: "The Elements of Statistical Learning";
+      font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+      font-size: 7.6pt;
+      letter-spacing: 0.04em;
+      color: #555;
+    }
+    @bottom-left {
+      content: "Martin Vanco  \00B7  Adriana Gemeľová";
+      font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+      font-size: 7.6pt;
+      color: #555;
+    }
+    @bottom-right {
+      content: "Project summary  \00B7  one page";
+      font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+      font-size: 7.6pt;
+      color: #555;
+    }
+  }
+
+  :root {
+    --ink: #111;
+    --muted: #555;
+    --line: #c8c8c8;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    color: var(--ink);
+    background: #fff;
+    font-family: "Charter", "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif;
+    font-size: 9.6pt;
+    line-height: 1.42;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 620px;
+    margin: 18px auto;
+    padding: 18px 24px;
+  }
+
+  /* On-screen surrogate for the print page header */
+  .screen-header {
+    display: flex;
+    justify-content: space-between;
+    font-family: "Inter", -apple-system, sans-serif;
+    font-size: 7.6pt;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    margin-bottom: 14px;
+  }
+  .screen-header .left {
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  header.title {
+    text-align: center;
+    border-bottom: 1.2px solid var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-family: "Charter", "Iowan Old Style", Georgia, serif;
+    font-weight: 700;
+    font-size: 20pt;
+    line-height: 1.13;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .lede {
+    font-style: italic;
+    color: #222;
+    text-align: justify;
+    margin: 0 0 10px 0;
+  }
+
+  h2 {
+    font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+    font-weight: 700;
+    font-size: 8.2pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin: 9px 0 3px 0;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  p {
+    margin: 0 0 6px 0;
+    text-align: justify;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* On-screen surrogate for the print page footer */
+  .screen-footer {
+    margin-top: 14px;
+    padding-top: 6px;
+    border-top: 0.5px solid var(--line);
+    font-family: "Inter", -apple-system, sans-serif;
+    font-size: 7.6pt;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  @media print {
+    body { font-size: 9.4pt; line-height: 1.4; }
+    .page { margin: 0; padding: 0; max-width: none; }
+    .screen-header, .screen-footer { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="screen-header">
+    <span class="left">OZNAL Capstone &middot; STU FIIT &middot; 2026</span>
+    <span>The Elements of Statistical Learning</span>
+  </div>
+
+  <header class="title">
+    <h1>Predicting League of Legends Match Outcomes from the First 15 Minutes</h1>
+  </header>
+
+  <p class="lede">
+    Can a computer guess who is going to win a professional video-game match just by looking
+    at the first 15 minutes? That was the question we set out to answer &mdash; and the
+    short version is: usually yes, but the close games stay genuinely hard.
+  </p>
+
+  <h2>What we looked at</h2>
+  <p>
+    League of Legends is a team game where two squads of 5 players try to destroy each
+    other's base. A match usually lasts around half an hour. We wanted to know how much of
+    the eventual outcome is already visible from what happens in just the first 15 minutes
+    &mdash; the early gold collected, who took the first tower, who killed the first
+    monster, and so on. To do that, we used a public archive containing every professional
+    match played in 2025, which gave us roughly 10,000 games from 45 different leagues.
+    For each game we wrote down about 46 small facts about its early stage and asked the
+    computer to learn the connection between those facts and the final result.
+  </p>
+
+  <h2>How we tried to answer it</h2>
+  <p>
+    There is no single best way to teach a computer to make predictions, so we tried 5
+    different methods side by side. Some are simple and easy to explain, like a decision
+    tree that asks a chain of yes-or-no questions. Others are more elaborate, like a
+    "random forest" that combines hundreds of small trees and lets them vote on the answer.
+    Each method has its own strengths and blind spots, and comparing them on the exact same
+    data is the fairest way to see which kind of thinking actually works for this problem.
+  </p>
+  <p>
+    We also asked a second question: out of all those 46 clues we gave the computer, which
+    ones really matter? Some turned out to be repeating the same information in slightly
+    different forms, and others added almost nothing. 3 independent techniques were used to
+    trim the list down to the truly useful clues, and we kept only the ones that all 3
+    techniques agreed on.
+  </p>
+
+  <h2>What we found</h2>
+  <p>
+    The early game does forecast the late game, but it does not lock it in. Our best models
+    were correct about 3 out of every 4 times (around 75%). That sounds impressive, but a
+    much simpler rule &mdash; "whichever team has more gold at the 15-minute mark wins"
+    &mdash; is already correct nearly 73% of the time on its own. So the machine learning
+    we did adds a real but modest improvement on top of common sense.
+  </p>
+  <p>
+    A more interesting picture appears when we split the games by how lopsided they are.
+    When one team is already very far ahead at minute 15, almost any rule will guess the
+    winner correctly &mdash; the game is essentially over. When the two teams are roughly
+    even, even the best models hover near a coin flip. The real value of the prediction
+    work shows up in the middle band: the close games where the lead is small but real.
+    That is also, not coincidentally, where the games are most exciting to watch.
+  </p>
+  <p>
+    We also tested whether one role on the team matters more than the others. Players often
+    say that the bot lane &mdash; the position responsible for sustained damage in the late
+    game &mdash; is the most important. Our data agreed, but only slightly. Bot-lane leads
+    at 15 minutes were the most strongly connected to victory of any single role, yet the
+    gap between bot, jungle and mid was much smaller than the popular intuition would
+    suggest. It is a team game, and the data is firm on that.
+  </p>
+  <p>
+    The clues that survived our trimming were the obvious economic ones: which team had
+    more gold, more experience, and more minions killed at the 15-minute mark, plus which
+    team took the first tower. Things like first blood, while dramatic, were less
+    informative than they look &mdash; they usually translate into a small gold lead, and
+    once you already know about the gold lead, the kill itself adds little. We also
+    confirmed a long-running rumour about the game: playing on the blue side of the map is
+    genuinely a small advantage, with blue winning about 53% of professional matches.
+  </p>
+
+  <h2>What did not work</h2>
+  <p>
+    Plenty of things we tried did not pan out, and that is worth reporting too. Adding 20
+    extra detailed measurements about each individual player's kills and deaths sounded
+    promising on paper but barely moved the accuracy and was abandoned. Forcing more clues
+    into the simpler models often made them worse, not better, because several of the clues
+    were just rephrasings of each other. Published academic work on this same problem tops
+    out around 77&ndash;78% accuracy, so our 75&ndash;76% is within a couple of points of
+    what anyone has ever achieved. The remaining gap is not bad modelling &mdash; it is the
+    genuine drama of the game itself.
+  </p>
+
+  <h2>What we built</h2>
+  <p>
+    Alongside the written analysis, we built a small interactive web app where anyone can
+    explore the dataset, switch between the different prediction methods we tried, and
+    type in a hypothetical fifteen-minute snapshot of a game to see what the model would
+    predict. Everything is reproducible: the same data, run through the same steps,
+    produces the same results.
+  </p>
+
+  <h2>The takeaway in one line</h2>
+  <p>
+    A professional League of Legends match is not decided at minute 15, but it is heavily
+    foreshadowed. About 3 in 4 games can be called from the early minutes alone &mdash; and
+    the remaining quarter is where the actual sport lives.
+  </p>
+
+  <div class="screen-footer">
+    <span>Martin Vanco &middot; Adriana Gemeľová</span>
+    <span>Project summary &middot; one page</span>
+  </div>
+
+</div>
+</body>
+</html>
