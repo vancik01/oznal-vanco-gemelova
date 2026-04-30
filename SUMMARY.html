@@ -231,8 +231,8 @@
 
   <h2>The data we worked with</h2>
   <p>
-    The official, community-trusted source of professional match data is Oracle's
-    Elixir, which collects every game played in every major regional league. We used
+    The main public source of professional match data is Oracle's Elixir, which
+    collects every game played in every major regional league. We used
     the 2025 season export - 10,053 professional matches across 45 leagues (LPL, LCK,
     LEC, &hellip;). For each game it records detailed numbers for both teams and both
     map sides at the 10- and 15-minute marks: gold, experience, kills, farm and early
@@ -247,7 +247,7 @@
     We trained six classifiers on the same 14-feature set (Logistic Regression, Random
     Forest, XGBoost, Naive Bayes, KNN, Decision Tree), and used three feature-selection
     methods (Recursive Feature Elimination, LASSO, Elastic Net) to find which early-game
-    signals are stable enough to keep in a practical model.
+    variables still mattered after removing duplicated information.
   </p>
 
   <h2>What we found</h2>
@@ -310,28 +310,29 @@
     totals already captured most of the useful information.
   </p>
   <p>
-    Feature selection gave the clearest practical answer. A compact seven-feature
-    model kept almost the same predictive power as the full model: gold, experience
-    and farm differences at 15 minutes, prior team win-rate difference, first tower,
-    first herald and first dragon. Features such as first blood, plate difference
-    and grub difference looked useful on their own, but did not add much once the
-    main economic picture was already known.
+    The feature-selection step was useful because it reduced the model without losing
+    much accuracy. A compact seven-feature model kept almost the same predictive power
+    as the full model: gold, experience and farm differences at 15 minutes, prior
+    team win-rate difference, first tower, first herald and first dragon. Features
+    such as first blood, plate difference and grub difference looked useful on their
+    own, but did not add much once the main economic picture was already known.
   </p>
   <p>
-    To put our numbers in context, published studies on the same problem report 76-78%
-    accuracy at the 15-minute mark across model families and dataset types. Our 75.5%
-    sits right alongside them, less than a point off the published numbers, which
-    suggests the ceiling is the problem itself rather than our modelling choices.
+    Compared with published studies, our results are in the expected range. Earlier
+    work on the same problem reports 76-78% accuracy at the 15-minute mark across
+    model families and dataset types. Our 75.5% is close to those results, which
+    suggests that the remaining errors come mostly from the unpredictability of the
+    game after minute 15, not from a missing model.
   </p>
 
   <h2>Conclusion</h2>
   <p>
     Early-game numbers predict the winner fairly well, but not with certainty. LoL is
     a complex, fast-evolving team game in which many decisions after minute 15 still
-    matter. Machine learning extracts a small but real edge over the gold-leader
-    baseline, and our best solution is not the largest model, but the compact
-    seven-feature version: it is almost as accurate, easier to explain, and better
-    suited for a Shiny tool where users need to understand why the prediction changes.
+    matter. Machine learning improves the gold-leader rule, but only slightly. Our best
+    solution is not the largest model, but the compact seven-feature version: it is
+    almost as accurate, easier to explain, and better suited for a Shiny tool where
+    users need to understand why the prediction changes.
   </p>
 
   <div class="screen-footer">

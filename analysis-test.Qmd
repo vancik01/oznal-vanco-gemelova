@@ -97,8 +97,24 @@ library(pROC)
 library(gridExtra)
 library(doParallel)
 
-cl <- makePSOCKcluster(parallel::detectCores() - 1)
-registerDoParallel(cl)
+detected_cores <- parallel::detectCores(logical = TRUE)
+if (is.na(detected_cores) || detected_cores < 2) {
+    detected_cores <- 2
+}
+
+cl <- tryCatch(
+    parallel::makePSOCKcluster(max(1, detected_cores - 1)),
+    error = function(e) {
+        message("Parallel backend unavailable; continuing sequentially: ", conditionMessage(e))
+        NULL
+    }
+)
+
+if (!is.null(cl)) {
+    doParallel::registerDoParallel(cl)
+} else {
+    foreach::registerDoSEQ()
+}
 ```
 
 ## Load data
@@ -2741,6 +2757,13 @@ saveRDS(
 saveRDS(lr_cm, "shiny/models/lr_cm.rds")
 
 cat("Models saved to shiny/models/\n")
+```
+
+```{r parallel-cleanup, include=FALSE}
+if (exists("cl") && !is.null(cl)) {
+    parallel::stopCluster(cl)
+    foreach::registerDoSEQ()
+}
 ```
 
 # References
