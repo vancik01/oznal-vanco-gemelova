@@ -1714,7 +1714,7 @@ print(other_role_features)
 
 The two prints above plus the AUC delta from the enrichment table together provide the H2 evidence: bot lane is supported iff at least one bot-lane feature outranks the best feature of every other role, regardless of whether the AUC delta itself is meaningful.
 
-# Scenario 3: Feature Selection (Adriana)
+# Scenario 3: Feature Selection
 
 Scenario 3 reduces the 19 engineered early-game predictors to a more interpretable subset. The S1 VIF analysis flagged a tight collinear cluster around resource differentials and momentum - direct evidence of redundancy. Several features are redundant by construction: gold_momentum = golddiffat15 - golddiffat10, so once golddiffat15 is in the model, momentum captures only the @10 snapshot; gold_efficiency_15 = goldat15 / csat15 overlaps substantially with both golddiffat15 and csdiffat15. We compare one wrapper method (RFE) with two embedded regularisation methods (LASSO, Elastic Net) to identify which predictors are consistently retained and whether a compact subset can match the full model's predictive performance.
 
