@@ -1,344 +1,382 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<title>Project Summary - Predicting League of Legends Match Outcomes</title>
-<style>
-  @page {
-    size: A4;
-    margin: 16mm 20mm 16mm 20mm;
+  <meta charset="utf-8">
+  <title>Project Summary - Predicting League of Legends Match Outcomes</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 16mm 20mm 16mm 20mm;
 
-    @top-left {
-      content: "OZNAL Capstone \00B7  STU FIIT  \00B7  2026";
-      font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
-      font-size: 7.6pt;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: #555;
+      @top-left {
+        content: "OZNAL Capstone \00B7  STU FIIT  \00B7  2026";
+        font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+        font-size: 7.6pt;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #555;
+      }
+
+      @top-right {
+        content: "The Elements of Statistical Learning";
+        font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+        font-size: 7.6pt;
+        letter-spacing: 0.04em;
+        color: #555;
+      }
+
+      @bottom-left {
+        content: "Martin Vančo  \00B7  Adriana Gemeľová";
+        font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+        font-size: 7.6pt;
+        color: #555;
+      }
+
+      @bottom-right {
+        content: "Project summary  \00B7  one page";
+        font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+        font-size: 7.6pt;
+        color: #555;
+      }
     }
-    @top-right {
-      content: "The Elements of Statistical Learning";
-      font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
-      font-size: 7.6pt;
-      letter-spacing: 0.04em;
-      color: #555;
+
+    :root {
+      --ink: #111;
+      --muted: #555;
+      --line: #c8c8c8;
+      --accent: #1f4e79;
     }
-    @bottom-left {
-      content: "Martin Vančo  \00B7  Adriana Gemeľová";
-      font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
-      font-size: 7.6pt;
-      color: #555;
+
+    * {
+      box-sizing: border-box;
     }
-    @bottom-right {
-      content: "Project summary  \00B7  one page";
-      font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
-      font-size: 7.6pt;
-      color: #555;
-    }
-  }
 
-  :root {
-    --ink: #111;
-    --muted: #555;
-    --line: #c8c8c8;
-    --accent: #1f4e79;
-  }
-
-  * { box-sizing: border-box; }
-
-  html, body {
-    margin: 0;
-    padding: 0;
-    color: var(--ink);
-    background: #fff;
-    font-family: "Charter", "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif;
-    font-size: 9.5pt;
-    line-height: 1.38;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .page {
-    max-width: 620px;
-    margin: 18px auto;
-    padding: 18px 24px;
-  }
-
-  .screen-header {
-    display: flex;
-    justify-content: space-between;
-    font-family: "Inter", -apple-system, sans-serif;
-    font-size: 7.6pt;
-    color: var(--muted);
-    letter-spacing: 0.04em;
-    margin-bottom: 12px;
-  }
-  .screen-header .left {
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-  }
-
-  header.title {
-    text-align: center;
-    border-bottom: 1.2px solid var(--ink);
-    padding-bottom: 7px;
-    margin-bottom: 10px;
-  }
-
-  h1 {
-    font-family: "Charter", "Iowan Old Style", Georgia, serif;
-    font-weight: 700;
-    font-size: 18pt;
-    line-height: 1.12;
-    margin: 0;
-    letter-spacing: -0.01em;
-  }
-
-  .subtitle {
-    font-family: "Inter", -apple-system, sans-serif;
-    font-size: 8pt;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    margin-top: 4px;
-    text-transform: uppercase;
-  }
-
-  .lede {
-    font-style: italic;
-    color: #222;
-    text-align: justify;
-    margin: 0 0 8px 0;
-  }
-
-  h2 {
-    font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
-    font-weight: 700;
-    font-size: 8pt;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--ink);
-    margin: 8px 0 3px 0;
-    break-after: avoid;
-    page-break-after: avoid;
-  }
-
-  p {
-    margin: 0 0 5px 0;
-    text-align: justify;
-    hyphens: auto;
-    -webkit-hyphens: auto;
-    orphans: 3;
-    widows: 3;
-  }
-
-  /* Inline accuracy chart */
-  .chart {
-    margin: 6px 0 8px 0;
-    font-family: "Inter", -apple-system, sans-serif;
-    font-size: 7.8pt;
-    color: var(--ink);
-  }
-  .chart .row {
-    display: grid;
-    grid-template-columns: 110px 1fr 44px;
-    align-items: center;
-    margin: 1px 0;
-  }
-  .chart .label { color: #222; }
-  .chart .bar-wrap {
-    background: #eee;
-    height: 8px;
-    border-radius: 1px;
-    position: relative;
-    border: 0.4px solid #d4d4d4;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .chart .bar {
-    display: block;
-    background: var(--accent);
-    height: 100%;
-    border-radius: 1px;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .chart .bar.muted { background: #888; }
-  .chart .bar.lit { background: var(--accent); }
-  .chart .val {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    color: #222;
-  }
-  .chart .caption {
-    font-family: "Charter", Georgia, serif;
-    font-style: italic;
-    font-size: 8.4pt;
-    color: var(--muted);
-    margin-top: 3px;
-    text-align: center;
-  }
-
-  .screen-footer {
-    margin-top: 12px;
-    padding-top: 6px;
-    border-top: 0.5px solid var(--line);
-    font-family: "Inter", -apple-system, sans-serif;
-    font-size: 7.6pt;
-    color: var(--muted);
-    display: flex;
-    justify-content: space-between;
-  }
-
-  @media print {
-    body { font-size: 9.3pt; line-height: 1.36; }
-    .page { margin: 0; padding: 0; max-width: none; }
-    .screen-header, .screen-footer { display: none; }
-    .chart .bar-wrap, .chart .bar {
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      color: var(--ink);
+      background: #fff;
+      font-family: "Charter", "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif;
+      font-size: 9.5pt;
+      line-height: 1.38;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-  }
-</style>
+
+    .page {
+      max-width: 620px;
+      margin: 18px auto;
+      padding: 18px 24px;
+    }
+
+    .screen-header {
+      display: flex;
+      justify-content: space-between;
+      font-family: "Inter", -apple-system, sans-serif;
+      font-size: 7.6pt;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      margin-bottom: 12px;
+    }
+
+    .screen-header .left {
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    header.title {
+      text-align: center;
+      border-bottom: 1.2px solid var(--ink);
+      padding-bottom: 7px;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-family: "Charter", "Iowan Old Style", Georgia, serif;
+      font-weight: 700;
+      font-size: 18pt;
+      line-height: 1.12;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      font-family: "Inter", -apple-system, sans-serif;
+      font-size: 8pt;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    .lede {
+      font-style: italic;
+      color: #222;
+      text-align: justify;
+      margin: 0 0 8px 0;
+    }
+
+    h2 {
+      font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+      font-weight: 700;
+      font-size: 8pt;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink);
+      margin: 8px 0 3px 0;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin: 0 0 5px 0;
+      text-align: justify;
+      hyphens: auto;
+      -webkit-hyphens: auto;
+      orphans: 3;
+      widows: 3;
+    }
+
+    /* Inline accuracy chart */
+    .chart {
+      margin: 6px 0 8px 0;
+      font-family: "Inter", -apple-system, sans-serif;
+      font-size: 7.8pt;
+      color: var(--ink);
+    }
+
+    .chart .row {
+      display: grid;
+      grid-template-columns: 110px 1fr 44px;
+      align-items: center;
+      margin: 1px 0;
+    }
+
+    .chart .label {
+      color: #222;
+    }
+
+    .chart .bar-wrap {
+      background: #eee;
+      height: 8px;
+      border-radius: 1px;
+      position: relative;
+      border: 0.4px solid #d4d4d4;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .chart .bar {
+      display: block;
+      background: var(--accent);
+      height: 100%;
+      border-radius: 1px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .chart .bar.muted {
+      background: #888;
+    }
+
+    .chart .bar.lit {
+      background: var(--accent);
+    }
+
+    .chart .val {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #222;
+    }
+
+    .chart .caption {
+      font-family: "Charter", Georgia, serif;
+      font-style: italic;
+      font-size: 8.4pt;
+      color: var(--muted);
+      margin-top: 3px;
+      text-align: center;
+    }
+
+    .screen-footer {
+      margin-top: 12px;
+      padding-top: 6px;
+      border-top: 0.5px solid var(--line);
+      font-family: "Inter", -apple-system, sans-serif;
+      font-size: 7.6pt;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    @media print {
+      body {
+        font-size: 9.3pt;
+        line-height: 1.36;
+      }
+
+      .page {
+        margin: 0;
+        padding: 0;
+        max-width: none;
+      }
+
+      .screen-header,
+      .screen-footer {
+        display: none;
+      }
+
+      .chart .bar-wrap,
+      .chart .bar {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
 </head>
+
 <body>
-<div class="page">
+  <div class="page">
 
-  <div class="screen-header">
-    <span class="left">OZNAL Capstone &middot; STU FIIT &middot; 2026</span>
-    <span>The Elements of Statistical Learning</span>
+    <div class="screen-header">
+      <span class="left">OZNAL Capstone &middot; STU FIIT &middot; 2026</span>
+      <span>The Elements of Statistical Learning</span>
+    </div>
+
+    <header class="title">
+      <h1>Predicting League of Legends Match Outcomes from the First 15 Minutes</h1>
+    </header>
+
+    <h2>Introduction</h2>
+    <p>
+      For this year's project we decided to work with a League of Legends dataset.
+      League of Legends is the most-played and most-watched esport in the world - a 5v5
+      team game in which two teams (Blue and Red) try to destroy each other's base, with
+      professional matches lasting roughly 30 minutes. By the 15-minute mark, well before
+      half of a typical game has elapsed, gold, experience and objective leads have
+      already started to compound, and pro viewers often develop a strong feel for when
+      a game is &ldquo;already over&rdquo;. Our project was to take real professional
+      match data and find out how reliably this 15-minute snapshot forecasts the
+      eventual winner, and whether machine learning can do better than the simple
+      intuition the community already relies on.
+    </p>
+
+    <h2>The data we worked with</h2>
+    <p>
+      The main public source of professional match data is Oracle's Elixir, which
+      collects every game played in every major regional league. We used
+      the 2025 season export - 10,053 professional matches across 45 leagues (LPL, LCK,
+      LEC, &hellip;). For each game it records detailed numbers for both teams and both
+      map sides at the 10- and 15-minute marks: gold, experience, kills, farm and early
+      objectives like first tower, first dragon and first blood. We reshaped the raw
+      team rows into one row per match, removed mirrored columns and kept a focused
+      set of 14 early-game features for the main models. We later tested 30 extra
+      role-level features to check whether lane-specific information changed the result.
+    </p>
+
+    <h2>Models we trained</h2>
+    <p>
+      We trained six classifiers on the same 14-feature set (Logistic Regression, Random
+      Forest, XGBoost, Naive Bayes, KNN, Decision Tree), and used three feature-selection
+      methods (Forward Stepwise by AIC, LASSO, Elastic Net) to find which early-game
+      variables still mattered after removing duplicated information.
+    </p>
+
+    <h2>What we found</h2>
+    <p>
+      Machine learning helps, but only by a few percentage points. The naive rule
+      &ldquo;the team with more gold at minute 15 wins&rdquo; already predicts 72.9% of
+      matches on its own. Our best model (Logistic Regression) reaches 75.5%. A real
+      improvement, but a modest one.
+    </p>
+
+    <div class="chart">
+      <div class="row">
+        <span class="label">Always-Blue</span>
+        <span class="bar-wrap"><span class="bar muted" style="width: 53.3%"></span></span>
+        <span class="val">53.3%</span>
+      </div>
+      <div class="row">
+        <span class="label">Gold-leader rule</span>
+        <span class="bar-wrap"><span class="bar muted" style="width: 72.9%"></span></span>
+        <span class="val">72.9%</span>
+      </div>
+      <div class="row">
+        <span class="label">CART</span>
+        <span class="bar-wrap"><span class="bar lit" style="width: 72.9%"></span></span>
+        <span class="val">72.9%</span>
+      </div>
+      <div class="row">
+        <span class="label">Random Forest</span>
+        <span class="bar-wrap"><span class="bar lit" style="width: 74.1%"></span></span>
+        <span class="val">74.1%</span>
+      </div>
+      <div class="row">
+        <span class="label">Naive Bayes</span>
+        <span class="bar-wrap"><span class="bar lit" style="width: 74.9%"></span></span>
+        <span class="val">74.9%</span>
+      </div>
+      <div class="row">
+        <span class="label">KNN</span>
+        <span class="bar-wrap"><span class="bar lit" style="width: 75.2%"></span></span>
+        <span class="val">75.2%</span>
+      </div>
+      <div class="row">
+        <span class="label">XGBoost</span>
+        <span class="bar-wrap"><span class="bar lit" style="width: 75.2%"></span></span>
+        <span class="val">75.2%</span>
+      </div>
+      <div class="row">
+        <span class="label">Logistic Reg.</span>
+        <span class="bar-wrap"><span class="bar lit" style="width: 75.5%"></span></span>
+        <span class="val">75.5%</span>
+      </div>
+      <div class="caption">Test-set accuracy: baselines (grey) vs. trained models (blue).</div>
+    </div>
+
+    <p>
+      We also tried pushing accuracy higher by adding per-role data: separate gold,
+      experience and farm differentials for each lane (top, jungle, mid, bot, support)
+      on top of the team totals. Bot lane was the strongest role-specific signal, but
+      the improvement from adding all role features was small. In practice, the team-level
+      totals already captured most of the useful information.
+    </p>
+    <p>
+      The feature-selection step was useful because it reduced the model without losing
+      much accuracy. A compact seven-feature model kept almost the same predictive power
+      as the full model: gold, experience and farm differences at 15 minutes, prior
+      team win-rate difference, first tower, first herald and first dragon. Features
+      such as first blood, plate difference and grub difference looked useful on their
+      own, but did not add much once the main economic picture was already known.
+    </p>
+    <p>
+      Compared with published studies, our results are in the expected range. Earlier
+      work on the same problem reports 76-78% accuracy at the 15-minute mark across
+      model families and dataset types. Our 75.5% is close to those results, which
+      suggests that the remaining errors come mostly from the unpredictability of the
+      game after minute 15, not from a missing model.
+    </p>
+
+    <h2>Conclusion</h2>
+    <p>
+      Early-game numbers predict the winner fairly well, but not with certainty. LoL is
+      a complex, fast-evolving team game in which many decisions after minute 15 still
+      matter. Machine learning improves the gold-leader rule, but only slightly. Our best
+      solution is not the largest model, but the compact seven-feature version: it is
+      almost as accurate, easier to explain, and better suited for a Shiny tool where
+      users need to understand why the prediction changes.
+    </p>
+
+    <div class="screen-footer">
+      <span>Martin Vančo &middot; Adriana Gemeľová</span>
+      <span>Project summary &middot; one page</span>
+    </div>
+
   </div>
-
-  <header class="title">
-    <h1>Predicting League of Legends Match Outcomes from the First 15 Minutes</h1>
-  </header>
-
-  <h2>Introduction</h2>
-  <p>
-    For this year's project we decided to work with a League of Legends dataset.
-    League of Legends is the most-played and most-watched esport in the world - a 5v5
-    team game in which two teams (Blue and Red) try to destroy each other's base, with
-    professional matches lasting roughly 30 minutes. By the 15-minute mark, well before
-    half of a typical game has elapsed, gold, experience and objective leads have
-    already started to compound, and pro viewers often develop a strong feel for when
-    a game is &ldquo;already over&rdquo;. Our project was to take real professional
-    match data and find out how reliably this 15-minute snapshot forecasts the
-    eventual winner, and whether machine learning can do better than the simple
-    intuition the community already relies on.
-  </p>
-
-  <h2>The data we worked with</h2>
-  <p>
-    The main public source of professional match data is Oracle's Elixir, which
-    collects every game played in every major regional league. We used
-    the 2025 season export - 10,053 professional matches across 45 leagues (LPL, LCK,
-    LEC, &hellip;). For each game it records detailed numbers for both teams and both
-    map sides at the 10- and 15-minute marks: gold, experience, kills, farm and early
-    objectives like first tower, first dragon and first blood. We reshaped the raw
-    team rows into one row per match, removed mirrored columns and kept a focused
-    set of 14 early-game features for the main models. We later tested 30 extra
-    role-level features to check whether lane-specific information changed the result.
-  </p>
-
-  <h2>Models we trained</h2>
-  <p>
-    We trained six classifiers on the same 14-feature set (Logistic Regression, Random
-    Forest, XGBoost, Naive Bayes, KNN, Decision Tree), and used three feature-selection
-    methods (Recursive Feature Elimination, LASSO, Elastic Net) to find which early-game
-    variables still mattered after removing duplicated information.
-  </p>
-
-  <h2>What we found</h2>
-  <p>
-    Machine learning helps, but only by a few percentage points. The naive rule
-    &ldquo;the team with more gold at minute 15 wins&rdquo; already predicts 72.9% of
-    matches on its own. Our best model (Logistic Regression) reaches 75.5%. A real
-    improvement, but a modest one.
-  </p>
-
-  <div class="chart">
-    <div class="row">
-      <span class="label">Always-Blue</span>
-      <span class="bar-wrap"><span class="bar muted" style="width: 53.3%"></span></span>
-      <span class="val">53.3%</span>
-    </div>
-    <div class="row">
-      <span class="label">Gold-leader rule</span>
-      <span class="bar-wrap"><span class="bar muted" style="width: 72.9%"></span></span>
-      <span class="val">72.9%</span>
-    </div>
-    <div class="row">
-      <span class="label">CART</span>
-      <span class="bar-wrap"><span class="bar lit" style="width: 72.9%"></span></span>
-      <span class="val">72.9%</span>
-    </div>
-    <div class="row">
-      <span class="label">Random Forest</span>
-      <span class="bar-wrap"><span class="bar lit" style="width: 74.1%"></span></span>
-      <span class="val">74.1%</span>
-    </div>
-    <div class="row">
-      <span class="label">Naive Bayes</span>
-      <span class="bar-wrap"><span class="bar lit" style="width: 74.9%"></span></span>
-      <span class="val">74.9%</span>
-    </div>
-    <div class="row">
-      <span class="label">KNN</span>
-      <span class="bar-wrap"><span class="bar lit" style="width: 75.2%"></span></span>
-      <span class="val">75.2%</span>
-    </div>
-    <div class="row">
-      <span class="label">XGBoost</span>
-      <span class="bar-wrap"><span class="bar lit" style="width: 75.2%"></span></span>
-      <span class="val">75.2%</span>
-    </div>
-    <div class="row">
-      <span class="label">Logistic Reg.</span>
-      <span class="bar-wrap"><span class="bar lit" style="width: 75.5%"></span></span>
-      <span class="val">75.5%</span>
-    </div>
-    <div class="caption">Test-set accuracy: baselines (grey) vs. trained models (blue).</div>
-  </div>
-
-  <p>
-    We also tried pushing accuracy higher by adding per-role data: separate gold,
-    experience and farm differentials for each lane (top, jungle, mid, bot, support)
-    on top of the team totals. Bot lane was the strongest role-specific signal, but
-    the improvement from adding all role features was small. In practice, the team-level
-    totals already captured most of the useful information.
-  </p>
-  <p>
-    The feature-selection step was useful because it reduced the model without losing
-    much accuracy. A compact seven-feature model kept almost the same predictive power
-    as the full model: gold, experience and farm differences at 15 minutes, prior
-    team win-rate difference, first tower, first herald and first dragon. Features
-    such as first blood, plate difference and grub difference looked useful on their
-    own, but did not add much once the main economic picture was already known.
-  </p>
-  <p>
-    Compared with published studies, our results are in the expected range. Earlier
-    work on the same problem reports 76-78% accuracy at the 15-minute mark across
-    model families and dataset types. Our 75.5% is close to those results, which
-    suggests that the remaining errors come mostly from the unpredictability of the
-    game after minute 15, not from a missing model.
-  </p>
-
-  <h2>Conclusion</h2>
-  <p>
-    Early-game numbers predict the winner fairly well, but not with certainty. LoL is
-    a complex, fast-evolving team game in which many decisions after minute 15 still
-    matter. Machine learning improves the gold-leader rule, but only slightly. Our best
-    solution is not the largest model, but the compact seven-feature version: it is
-    almost as accurate, easier to explain, and better suited for a Shiny tool where
-    users need to understand why the prediction changes.
-  </p>
-
-  <div class="screen-footer">
-    <span>Martin Vančo &middot; Adriana Gemeľová</span>
-    <span>Project summary &middot; one page</span>
-  </div>
-
-</div>
 </body>
+
 </html>

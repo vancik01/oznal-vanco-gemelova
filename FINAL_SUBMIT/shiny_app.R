@@ -21,16 +21,14 @@ library(glmnet)
 library(DT)
 
 # Use as many cores as available. The live RF retrain parallelizes over
-# (fold × tree-chunk), so the useful ceiling is fold_count × chunks_per_fold.
+# (fold x tree-chunk), so the useful ceiling is fold_count x chunks_per_fold.
 detected_cores <- parallel::detectCores(logical = TRUE)
 if (is.na(detected_cores) || detected_cores < 2) detected_cores <- 2
 n_cores <- max(1, detected_cores - 1)
 cl <- parallel::makeCluster(n_cores)
 doParallel::registerDoParallel(cl)
-# Don't register on.exit here — Shiny's runApp() sources this file inside a
-# function frame, so on.exit would fire and kill the cluster before the first
-# user click. The cluster dies naturally when the R process exits.
-message(sprintf("Live-retrain parallel backend: %d workers", n_cores))
+# Don't register on.exit - runApp() sources this in a function frame, so the
+# cluster would die before the first user click. It dies with the R process.
 
 # 5-fold CV; split each fold's 500 trees into chunks so all workers stay busy.
 N_FOLDS         <- 5
@@ -107,7 +105,7 @@ recompute_rf_parallel <- function(x, y, mtry_val) {
 }
 
 # Generic 5-fold CV trainer for non-RF models. Uses caret with the registered
-# parallel backend (parallelizes across folds → up to 5 cores useful). Saves
+# parallel backend (parallelizes across folds -> up to 5 cores useful). Saves
 # OOF predictions so we can render the diagnostic plots.
 recompute_caret <- function(method, x, y, tuneGrid, ...) {
     caret::train(
@@ -148,27 +146,20 @@ X_train     <- readRDS(file.path(models_dir, "X_train.rds"))
 game_lookup <- readRDS(file.path(models_dir, "game_lookup.rds"))
 games_model <- readRDS(file.path(models_dir, "games_model.rds"))
 
-# ── Raw Oracle's Elixir CSV (Data Explorer tab) ──────────────────────────────
-# Try the app folder first (where the assignment asks users to drop the file),
-# then the project's data/ folder. Loaded once at startup so re-renders are
-# cheap; the upload path overrides this per-session.
+# Raw Oracle's Elixir CSV - loaded lazily from the Data Explorer tab
+# (80MB; upload path overrides per-session).
 RAW_CSV_NAME <- "2025_LoL_esports_match_data_from_OraclesElixir.csv"
 .raw_csv_candidates <- c(
     file.path(".", RAW_CSV_NAME)
 )
 default_raw_path <- .raw_csv_candidates[file.exists(.raw_csv_candidates)][1]
-default_raw_data <- if (!is.na(default_raw_path)) {
-    message("Data Explorer · loading raw CSV from ", default_raw_path)
-    read.csv(default_raw_path, stringsAsFactors = FALSE,
+
+load_default_raw_csv <- function(path) {
+    read.csv(path, stringsAsFactors = FALSE,
              check.names = FALSE, na.strings = c("", "NA"))
-} else {
-    message("Data Explorer · raw CSV not found in ", paste(.raw_csv_candidates, collapse = " · "))
-    NULL
 }
 
-# Reconstruct the original 80/20 holdout (analysis-test.Qmd uses set.seed(42) and
-# sample(games_model$gameid, size = floor(0.8 * N))). This recovers the exact
-# 1,848-row test set so diagnostics evaluate models on held-out data.
+# Reconstruct the 80/20 holdout to evaluate on the same 1,848-row test set.
 set.seed(42)
 .train_ids <- sample(games_model$gameid, size = floor(0.8 * nrow(games_model)))
 .test_data <- games_model[!games_model$gameid %in% .train_ids, ]
@@ -190,17 +181,9 @@ test_preds <- list(
     CART = predict_test_set(cart_model, scaled = FALSE),
     XGB  = predict_test_set(xgb_model,  scaled = FALSE)
 )
-message(sprintf("Test set: %d held-out predictions ready", nrow(test_preds[[1]])))
 
-# ── Feature-selection precomputes (Scenario 3) ───────────────────────────────
-# Mirrors analysis-test.Qmd exactly: one algorithmic + two embedded methods.
-#   • Forward stepwise (MASS::stepAIC, AIC criterion)
-#   • LASSO       (glmnet α = 1, cv.glmnet AUC, λ.1se)
-#   • Elastic Net (α grid seq(0,1,0.05) with fixed foldids; pick best CV-AUC α)
-#
-# All three share the same scaled design matrix as the saved logistic
-# regression, so coefficients are directly comparable. Test-set evaluation
-# runs on the same 1,848-row holdout used by the rest of the app.
+# Feature-selection precomputes (Scenario 3): forward stepwise, LASSO,
+# Elastic Net. All three share the saved-LR scaled design matrix.
 .train_data    <- games_model[games_model$gameid %in% .train_ids, ]
 X_train_full   <- .train_data[, !names(.train_data) %in% c("gameid", "blue_win"),
                               drop = FALSE]
@@ -211,8 +194,6 @@ y_train_bin    <- as.integer(y_train_factor) - 1L  # Loss=0, Win=1
 
 xs_train_mat <- as.matrix(X_train_scaled)
 xs_test_mat  <- as.matrix(X_test_scaled)
-
-message("Fitting FS comparators (forward + glmnet lasso/elnet α-grid)…")
 
 # Forward stepwise on logistic regression, AIC-driven, on scaled inputs.
 .fs_train_df <- data.frame(blue_win = y_train_bin, X_train_scaled,
@@ -229,7 +210,7 @@ fwd_model <- suppressWarnings(MASS::stepAIC(
 ))
 fwd_features <- setdiff(names(coef(fwd_model)), "(Intercept)")
 
-# LASSO: full λ path + cv.glmnet (AUC, 1se rule) — same as analysis-test.Qmd.
+# LASSO: full λ path + cv.glmnet (AUC, 1se rule).
 lasso_fit  <- glmnet::glmnet(xs_train_mat, y_train_bin,
                              family = "binomial", alpha = 1.0)
 set.seed(42)
@@ -296,7 +277,7 @@ predict_fwd_test <- function() {
     data.frame(prob_win = as.numeric(p), actual = y_test_factor)
 }
 
-# Full LR baseline for the FS comparison panel — same lr_model, no penalty.
+# Full LR baseline for the FS comparison panel - same lr_model, no penalty.
 fs_full_preds <- test_preds$LR
 
 retained_at <- function(fit, lambda) {
@@ -307,10 +288,6 @@ retained_at <- function(fit, lambda) {
                beta    = co[nz, 1],
                row.names = NULL)
 }
-
-message(sprintf("FS fits ready · forward kept %d features · EN best %s (CV-AUC %.4f)",
-                length(fwd_features), enet_alpha_label,
-                max(.enet_grid_df$cv_auc)))
 
 feature_names <- names(X_train)
 train_means   <- colMeans(X_train)
@@ -328,7 +305,6 @@ fill_feature_nas <- function(row) {
 
 build_input_row <- function(input) {
     row <- as.data.frame(as.list(train_means))
-    row$side          <- as.numeric(input$side)
     row$golddiffat15  <- input$golddiffat15
     row$xpdiffat15    <- input$xpdiffat15
     row$csdiffat15    <- input$csdiffat15
@@ -350,11 +326,10 @@ predict_prob <- function(model, newdata) {
     if ("Win" %in% colnames(p)) p[["Win"]] else p[, ncol(p)]
 }
 
-fmt_pct <- function(x) if (is.na(x)) "—" else sprintf("%.1f%%", x * 100)
+fmt_pct <- function(x) if (is.na(x)) "-" else sprintf("%.1f%%", x * 100)
 snap_to <- function(val, tested) tested[which.min(abs(tested - val))]
 
-# ── Diagnostic plots (universal binary-classification charts) ─────────────────
-
+# Diagnostic plots (universal binary-classification charts)
 filter_pred <- function(pred_df, params) {
     f <- pred_df
     for (k in names(params)) {
@@ -368,7 +343,7 @@ filter_pred <- function(pred_df, params) {
 
 plot_roc <- function(df) {
     if (is.null(df) || nrow(df) == 0) return(ggplot() + theme_void() +
-        labs(title = "ROC curve · no data"))
+        labs(title = "ROC curve  -  no data"))
     roc_obj <- pROC::roc(df$actual, df$prob_win,
         levels = c("Loss", "Win"), direction = "<", quiet = TRUE)
     auc_val <- as.numeric(pROC::auc(roc_obj))
@@ -381,7 +356,7 @@ plot_roc <- function(df) {
         geom_line(linewidth = 1.1, color = "#2c3e50") +
         scale_x_continuous(limits = c(0, 1)) +
         scale_y_continuous(limits = c(0, 1)) +
-        labs(title = sprintf("ROC curve · AUC = %.3f", auc_val),
+        labs(title = sprintf("ROC curve  -  AUC = %.3f", auc_val),
              x = "False Positive Rate", y = "True Positive Rate") +
         coord_equal() +
         theme_grey(base_size = 12)
@@ -419,8 +394,7 @@ compute_all_metrics <- function(df, threshold = 0.5) {
     )
 }
 
-# ── Model-specific signature plots ────────────────────────────────────────────
-
+# Model-specific signature plots
 plot_lr_or <- function(model) {
     co <- summary(model$finalModel)$coefficients
     co <- co[rownames(co) != "(Intercept)", , drop = FALSE]
@@ -453,7 +427,7 @@ plot_varimp <- function(model, title) {
     vi$feature <- factor(vi$feature, levels = rev(vi$feature))
     ggplot(vi, aes(score, feature)) +
         geom_col(fill = "#2c3e50") +
-        labs(title = title, x = "Importance (scaled 0–100)", y = NULL) +
+        labs(title = title, x = "Importance (scaled 0-100)", y = NULL) +
         theme_grey(base_size = 12)
 }
 
@@ -468,7 +442,7 @@ plot_cart_tree <- function(model) {
 
 plot_calibration <- function(df, n_bins = 10) {
     if (is.null(df) || nrow(df) == 0) return(ggplot() + theme_void() +
-        labs(title = "Calibration · no data"))
+        labs(title = "Calibration  -  no data"))
     breaks <- seq(0, 1, length.out = n_bins + 1)
     df2 <- df %>%
         mutate(bin = cut(prob_win, breaks = breaks, include.lowest = TRUE)) %>%
@@ -495,8 +469,7 @@ plot_calibration <- function(df, n_bins = 10) {
         theme(legend.position = "right")
 }
 
-# ── Cross-model comparison helpers ────────────────────────────────────────────
-
+# Cross-model comparison helpers
 MODEL_FAMILY <- c(
     LR   = "Statistical / Parametric",
     NB   = "Statistical / Parametric",
@@ -526,7 +499,7 @@ MODEL_COLOR <- c(
 
 plot_roc_overlay <- function(named_dfs) {
     if (length(named_dfs) == 0) return(ggplot() + theme_void() +
-        labs(title = "ROC overlay · pick at least one model"))
+        labs(title = "ROC overlay  -  pick at least one model"))
     rows <- list()
     auc_lab <- c()
     for (nm in names(named_dfs)) {
@@ -540,12 +513,12 @@ plot_roc_overlay <- function(named_dfs) {
             tpr = roc_obj$sensitivities,
             model = nm
         )
-        auc_lab[nm] <- sprintf("%s · AUC %.3f",
+        auc_lab[nm] <- sprintf("%s  -  AUC %.3f",
             ifelse(nm %in% names(MODEL_LABEL), MODEL_LABEL[[nm]], nm),
             auc_v)
     }
     if (length(rows) == 0) return(ggplot() + theme_void() +
-        labs(title = "ROC overlay · no predictions"))
+        labs(title = "ROC overlay  -  no predictions"))
     big <- do.call(rbind, rows)
     big$model <- factor(big$model, levels = names(auc_lab),
                         labels = unname(auc_lab))
@@ -558,7 +531,7 @@ plot_roc_overlay <- function(named_dfs) {
         coord_equal() +
         scale_x_continuous(limits = c(0, 1)) +
         scale_y_continuous(limits = c(0, 1)) +
-        labs(title = "ROC overlay · 1,848-row held-out test set",
+        labs(title = "ROC overlay  -  1,848-row held-out test set",
              x = "False Positive Rate", y = "True Positive Rate",
              color = NULL) +
         theme_grey(base_size = 12) +
@@ -601,7 +574,7 @@ metrics_matrix <- function(named_dfs, threshold = 0.5) {
 # Per-model top-N feature importance, normalised to 0-100 within each model.
 plot_topfeats_panel <- function(model_keys, top_n = 5) {
     if (length(model_keys) == 0) return(ggplot() + theme_void() +
-        labs(title = "Top features · pick at least one model"))
+        labs(title = "Top features  -  pick at least one model"))
     rows <- list()
     for (k in model_keys) {
         m <- switch(k,
@@ -620,7 +593,7 @@ plot_topfeats_panel <- function(model_keys, top_n = 5) {
         rows[[k]] <- d
     }
     if (length(rows) == 0) return(ggplot() + theme_void() +
-        labs(title = "Top features · no varImp available"))
+        labs(title = "Top features  -  no varImp available"))
     big <- do.call(rbind, rows)
     big$feature <- factor(big$feature)
     ggplot(big, aes(x = score, y = reorder(feature, score), fill = model)) +
@@ -628,14 +601,13 @@ plot_topfeats_panel <- function(model_keys, top_n = 5) {
         facet_wrap(~ model, scales = "free_y", ncol = 3) +
         scale_fill_manual(values = unname(MODEL_COLOR[
             match(unique(big$model), MODEL_LABEL)])) +
-        labs(title = sprintf("Top %d features per model (caret::varImp, scaled 0–100)", top_n),
+        labs(title = sprintf("Top %d features per model (caret::varImp, scaled 0-100)", top_n),
              x = "Importance", y = NULL) +
         theme_grey(base_size = 11) +
         theme(strip.text = element_text(face = "bold"))
 }
 
-# ── Feature-selection plots ───────────────────────────────────────────────────
-
+# Feature-selection plots
 plot_glmnet_path <- function(fit, current_lambda, title) {
     co_mat <- as.matrix(fit$beta)
     lambdas <- fit$lambda
@@ -663,7 +635,7 @@ plot_glmnet_path <- function(fit, current_lambda, title) {
 
 plot_retained_bar <- function(retained_df, total_features, title) {
     if (nrow(retained_df) == 0) return(ggplot() + theme_void() +
-        labs(title = paste(title, "· all features dropped at this λ")))
+        labs(title = paste(title, "- all features dropped at this λ")))
     df <- retained_df
     df <- df[order(abs(df$beta), decreasing = TRUE), ]
     df$feature <- factor(df$feature, levels = rev(df$feature))
@@ -673,7 +645,7 @@ plot_retained_bar <- function(retained_df, total_features, title) {
         geom_vline(xintercept = 0, color = "grey50") +
         scale_fill_manual(values = c("Raises P(Win)" = "#27ae60",
                                      "Lowers P(Win)" = "#c0392b")) +
-        labs(title = sprintf("%s · %d / %d features retained",
+        labs(title = sprintf("%s  -  %d / %d features retained",
                              title, nrow(retained_df), total_features),
              x = "Coefficient (scaled β)", y = NULL, fill = NULL) +
         theme_grey(base_size = 12) +
@@ -705,8 +677,7 @@ plot_knn_elbow <- function(model, live_df = NULL, current_k = NULL) {
     p
 }
 
-# ── EDA helpers (mirrors analysis-test.Qmd) ───────────────────────────────────
-
+# EDA helpers
 EDA_GAME_COLS <- c(
     "result",
     "goldat10", "xpat10", "csat10",
@@ -895,13 +866,11 @@ eda_role_correlations <- function(games, players) {
         mutate(position = toupper(position))
 }
 
-# ────────────────────────────────────────────────────────────────────────────────
 # UI
-# ────────────────────────────────────────────────────────────────────────────────
 ui <- navbarPage(
     title = "LoL Early-Game Win Predictor",
 
-    # ── Tab: Data Explorer ──────────────────────────────────────────────────────
+    # Tab: Data Explorer
     tabPanel("Data Explorer",
         sidebarLayout(
             sidebarPanel(
@@ -914,13 +883,16 @@ ui <- navbarPage(
                     condition = "input.data_source == 'upload'",
                     fileInput("data_file", "Upload Oracle's Elixir CSV",
                               accept = c(".csv", "text/csv"),
-                              buttonLabel = "Browse…",
+                              buttonLabel = "Browse...",
                               placeholder = "no file selected"),
                     helpText("Expects the same column layout as the 2025 Oracle's Elixir match-data CSV.")
                 ),
                 conditionalPanel(
                     condition = "input.data_source == 'default'",
-                    uiOutput("data_default_path_note")
+                    uiOutput("data_default_path_note"),
+                    actionButton("load_default_csv", "Load CSV from current location",
+                                 icon = icon("download"), class = "btn-primary"),
+                    helpText("The 80MB CSV is loaded only on demand to keep startup fast.")
                 ),
                 hr(),
                 h4("Dataset summary"),
@@ -936,7 +908,7 @@ ui <- navbarPage(
                 p("Source (credit): ",
                   tags$a(href = "https://oracleselixir.com/tools/downloads",
                          "Oracle's Elixir", target = "_blank"),
-                  " — maintained by Tim Sevenhuysen. Public dataset, free for academic use."),
+                  " - maintained by Tim Sevenhuysen. Public dataset, free for academic use."),
                 DT::dataTableOutput("data_table"),
                 hr(),
                 h4("Column overview"),
@@ -946,7 +918,7 @@ ui <- navbarPage(
         )
     ),
 
-    # ── Tab: EDA ────────────────────────────────────────────────────────────────
+    # Tab: EDA
     tabPanel("EDA",
         fluidPage(
             h2("Exploratory Data Analysis"),
@@ -998,7 +970,7 @@ ui <- navbarPage(
         )
     ),
 
-    # ── Tab: Match Predictor ────────────────────────────────────────────────────
+    # Tab: Match Predictor
     tabPanel("Match Predictor",
         sidebarLayout(
             sidebarPanel(
@@ -1009,9 +981,7 @@ ui <- navbarPage(
                 hr(),
 
                 h4("Match conditions"),
-                radioButtons("side", "Map side",
-                    choices = c("Blue" = 1, "Red" = 0),
-                    selected = 1, inline = TRUE),
+                helpText("All inputs are from the Blue team's perspective. The game-picker pre-fills the correct signed differentials for the chosen side."),
 
                 strong("Objectives"),
                 checkboxInput("firstblood",  "First blood",  TRUE),
@@ -1044,7 +1014,7 @@ ui <- navbarPage(
         )
     ),
 
-    # ── Tab: Hyperparameter Tuning ──────────────────────────────────────────────
+    # Tab: Hyperparameter Tuning
     tabPanel("Hyperparameter Tuning",
         sidebarLayout(
             sidebarPanel(
@@ -1081,15 +1051,15 @@ ui <- navbarPage(
         )
     ),
 
-    # ── Tab: Model Comparison ───────────────────────────────────────────────────
+    # Tab: Model Comparison
     tabPanel("Model Comparison",
         fluidPage(
-            h2("Model comparison · Scenarios 1 + 3 on the same held-out test set"),
+            h2("Model comparison  -  Scenarios 1 + 3 on the same held-out test set"),
             helpText(sprintf("All metrics below come from the saved %d-row holdout (set.seed(42)). Compare like with like.",
                              nrow(test_preds[[1]]))),
             hr(),
 
-            # ─── Section 1: Method comparison (Scenario 1) ──────────────────────
+            # Section 1: Method comparison (Scenario 1)
             h3("1. Statistical / Parametric vs Partitioning / Non-parametric"),
             p("Scenario 1: three statistical or ML methods compared against two feature-space partitioning approaches. Pick which to overlay on the right."),
             fluidRow(
@@ -1110,7 +1080,7 @@ ui <- navbarPage(
                         ),
                         choiceValues = c("LR", "NB", "RF", "CART", "KNN", "XGB"),
                         selected     = c("LR", "NB", "RF", "CART", "KNN")),
-                    helpText("Top-features panel uses caret::varImp — values are scaled 0–100 within each model.")
+                    helpText("Top-features panel uses caret::varImp - values are scaled 0-100 within each model.")
                 ),
                 column(9,
                     plotOutput("cmp_roc_overlay", height = "380px"),
@@ -1122,9 +1092,9 @@ ui <- navbarPage(
             ),
             hr(),
 
-            # ─── Section 2: Feature selection (Scenario 3) ──────────────────────
-            h3("2. Feature selection · full LR vs algorithmic vs embedded"),
-            p(sprintf("Scenario 3: one algorithmic (forward stepwise, AIC) and two embedded (LASSO, Elastic Net at %s — best from α-grid seq(0,1,0.05)) regularised logistic regressions. The full LR is shown as the no-FS baseline. Slide λ to see how many features survive and how AUC moves.",
+            # Section 2: Feature selection (Scenario 3)
+            h3("2. Feature selection  -  full LR vs algorithmic vs embedded"),
+            p(sprintf("Scenario 3: one algorithmic (forward stepwise, AIC) and two embedded (LASSO, Elastic Net at %s - best from α-grid seq(0,1,0.05)) regularised logistic regressions. The full LR is shown as the no-FS baseline. Slide λ to see how many features survive and how AUC moves.",
                       enet_alpha_label)),
             fluidRow(
                 column(3,
@@ -1141,7 +1111,7 @@ ui <- navbarPage(
                         condition = "input.fs_method == 'lasso' ||
                                      input.fs_method == 'elnet'",
                         sliderInput("fs_log_lambda",
-                            "log10(λ) — slide left for less penalty",
+                            "log10(λ) - slide left for less penalty",
                             min = -6, max = 1, value = -2.5, step = 0.05,
                             width = "100%"),
                         actionButton("fs_use_default", "Reset to cv.glmnet 1-SE λ"),
@@ -1172,31 +1142,29 @@ ui <- navbarPage(
     )
 )
 
-# ────────────────────────────────────────────────────────────────────────────────
 # Server
-# ────────────────────────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
 
     rv <- reactiveValues(actual_result = NULL, game_label = NULL)
 
-    # ── Game picker ─────────────────────────────────────────────────────────────
+    # Game picker
     observe({
         updateSelectInput(session, "game_league",
-            choices  = c("— pick a league —" = "", sort(unique(games_2025$league))))
+            choices  = c("- pick a league -" = "", sort(unique(games_2025$league))))
     })
 
     observeEvent(input$game_league, {
         if (!nzchar(input$game_league)) {
-            updateSelectInput(session, "game_pick", choices = c("— pick a game —" = ""))
+            updateSelectInput(session, "game_pick", choices = c("- pick a game -" = ""))
             return()
         }
         gs <- games_2025 %>% filter(league == input$game_league)
-        labels <- sprintf("%s — %s vs %s",
+        labels <- sprintf("%s - %s vs %s",
                           format(as.Date(gs$date), "%Y-%m-%d"),
                           gs$teamname, gs$opp_teamname)
         ids <- as.character(seq_len(nrow(gs)))
         updateSelectInput(session, "game_pick",
-            choices = c("— pick a game —" = "", setNames(ids, labels)))
+            choices = c("- pick a game -" = "", setNames(ids, labels)))
     })
 
     observeEvent(input$game_pick, {
@@ -1210,7 +1178,6 @@ server <- function(input, output, session) {
         if (idx < 1 || idx > nrow(gs)) return()
         g <- gs[idx, ]
 
-        updateRadioButtons(session,  "side",         selected = as.character(g$side_encoded))
         updateSliderInput(session,   "golddiffat15", value = round(g$golddiffat15))
         updateSliderInput(session,   "xpdiffat15",   value = round(g$xpdiffat15))
         updateSliderInput(session,   "csdiffat15",   value = round(g$csdiffat15))
@@ -1222,7 +1189,7 @@ server <- function(input, output, session) {
         updateSliderInput(session,   "wr_diff",      value = round(g$winrate_diff * 100, 1))
 
         rv$actual_result <- as.character(g$result_label)
-        rv$game_label    <- sprintf("%s vs %s · %s · %s · %s side",
+        rv$game_label    <- sprintf("%s vs %s  -  %s  -  %s  -  %s side",
                                     g$teamname, g$opp_teamname,
                                     format(as.Date(g$date), "%Y-%m-%d"),
                                     g$league, g$side_label)
@@ -1234,20 +1201,22 @@ server <- function(input, output, session) {
             tags$b(rv$game_label),
             br(),
             tags$span("Actual result: "),
-            tags$b(rv$actual_result %||% "—")
+            tags$b(rv$actual_result %||% "-")
         )
     })
 
-    # ── Match Predictor probabilities ───────────────────────────────────────────
+    # Match Predictor probabilities
+    # LR/KNN need the scaled design matrix (preproc); RF/NB/CART/XGB consume raw.
     probs <- reactive({
         row <- build_input_row(input)
         row_scaled <- predict(preproc, row)
         list(
             LR   = predict_prob(lr_model,   row_scaled),
-            RF   = predict_prob(rf_model,   row_scaled),
-            NB   = predict_prob(nb_model,   row_scaled),
+            RF   = predict_prob(rf_model,   row),
+            NB   = predict_prob(nb_model,   row),
             KNN  = predict_prob(knn_model,  row_scaled),
-            CART = predict_prob(cart_model, row_scaled)
+            CART = predict_prob(cart_model, row),
+            XGB  = predict_prob(xgb_model,  row)
         )
     })
 
@@ -1255,10 +1224,10 @@ server <- function(input, output, session) {
         p <- probs()
         data.frame(
             Model = c("Logistic Regression", "Random Forest", "Naive Bayes",
-                      "K-Nearest Neighbors", "Decision Tree (CART)", "Average"),
+                      "K-Nearest Neighbors", "Decision Tree (CART)", "XGBoost", "Average"),
             `Win probability` = c(
                 fmt_pct(p$LR), fmt_pct(p$RF), fmt_pct(p$NB),
-                fmt_pct(p$KNN), fmt_pct(p$CART),
+                fmt_pct(p$KNN), fmt_pct(p$CART), fmt_pct(p$XGB),
                 fmt_pct(mean(unlist(p), na.rm = TRUE))
             ),
             check.names = FALSE
@@ -1307,8 +1276,8 @@ server <- function(input, output, session) {
     output$prob_plot <- renderPlot({
         p <- probs()
         df <- data.frame(
-            model = c("LR", "RF", "NB", "KNN", "CART"),
-            prob  = c(p$LR, p$RF, p$NB, p$KNN, p$CART)
+            model = c("LR", "RF", "NB", "KNN", "CART", "XGB"),
+            prob  = c(p$LR, p$RF, p$NB, p$KNN, p$CART, p$XGB)
         )
         df <- df[order(df$prob), ]
         df$model <- factor(df$model, levels = df$model)
@@ -1323,7 +1292,7 @@ server <- function(input, output, session) {
             theme_grey(base_size = 13)
     }, res = 96)
 
-    # ── Hyperparameter Tuning ───────────────────────────────────────────────────
+    # Hyperparameter Tuning
     observeEvent(input$tune_reset, {
         m <- input$tune_model
         if (m == "RF")   updateSliderInput(session,  "rf_mtry",  value = rf_model$bestTune$mtry)
@@ -1343,11 +1312,11 @@ server <- function(input, output, session) {
 
     output$tune_description <- renderUI({
         descs <- list(
-            LR   = "Standard GLM — no hyperparameter search. All features used, trained on standardized inputs. Coefficients are interpretable as log-odds weights.",
+            LR   = "Standard GLM - no hyperparameter search. All features used, trained on standardized inputs. Coefficients are interpretable as log-odds weights.",
             RF   = "Ensemble of 500 decision trees. mtry controls how many features are randomly considered at each split.",
             NB   = "Probabilistic classifier. Tunes density estimation (Gaussian vs. kernel) and bandwidth multiplier (adjust).",
             KNN  = "Classifies by majority vote among the k nearest neighbors in scaled feature space.",
-            CART = "Recursive binary splitting tree. cp penalizes tree growth — small cp allows deep trees, large cp forces early stopping.",
+            CART = "Recursive binary splitting tree. cp penalizes tree growth - small cp allows deep trees, large cp forces early stopping.",
             XGB  = "Gradient boosting. Tunes the number of boosting rounds (nrounds), tree depth (max_depth), and learning rate (eta)."
         )
         p(descs[[input$tune_model]])
@@ -1355,7 +1324,7 @@ server <- function(input, output, session) {
 
     output$tune_best <- renderUI({
         m <- input$tune_model
-        if (m == "LR") return(p(em("Standard GLM — no hyperparameter search performed.")))
+        if (m == "LR") return(p(em("Standard GLM - no hyperparameter search performed.")))
         if (m == "RF")   return(p(strong("mtry: "),  rf_model$bestTune$mtry))
         if (m == "KNN")  return(p(strong("k: "),     knn_model$bestTune$k))
         if (m == "CART") return(p(strong("cp: "),    formatC(cart_model$bestTune$cp, format = "g")))
@@ -1376,16 +1345,16 @@ server <- function(input, output, session) {
         reset_btn <- actionButton("tune_reset", "Reset to best")
 
         if (m == "LR") {
-            return(p(em("Standard GLM — no hyperparameter to tune. The plot below shows odds ratios for the top features.")))
+            return(p(em("Standard GLM - no hyperparameter to tune. The plot below shows odds ratios for the top features.")))
         }
         if (m == "RF") {
             tested <- rf_model$results$mtry
             return(tagList(
-                sliderInput("rf_mtry", "mtry — features per split",
+                sliderInput("rf_mtry", "mtry - features per split",
                     min = 1, max = ncol(rf_model$trainingData) - 1,
                     value = rf_model$bestTune$mtry, step = 1, width = "100%"),
                 helpText(paste("Pre-tested grid:", paste(tested, collapse = ", "),
-                               "— slider can pick any value 1 to",
+                               "- slider can pick any value 1 to",
                                ncol(rf_model$trainingData) - 1)),
                 div(style = "display:flex; gap:8px; margin-top:6px;",
                     reset_btn,
@@ -1399,11 +1368,11 @@ server <- function(input, output, session) {
             tested <- knn_model$results$k
             knn_max <- max(100L, max(tested) * 2L)
             return(tagList(
-                sliderInput("knn_k", "k — number of neighbors",
+                sliderInput("knn_k", "k - number of neighbors",
                     min = 1, max = knn_max,
                     value = knn_model$bestTune$k, step = 1, width = "100%"),
                 helpText(paste("Pre-tested grid:", paste(tested, collapse = ", "),
-                               "— slider can pick any value 1 to", knn_max)),
+                               "- slider can pick any value 1 to", knn_max)),
                 div(style = "display:flex; gap:8px; margin-top:6px;",
                     reset_btn,
                     actionButton("knn_recompute", "Recompute live (5-fold CV)",
@@ -1415,12 +1384,12 @@ server <- function(input, output, session) {
         if (m == "CART") {
             tested <- cart_model$results$cp
             return(tagList(
-                textInput("cart_cp", "cp — complexity parameter",
+                textInput("cart_cp", "cp - complexity parameter",
                     value = format(cart_model$bestTune$cp, scientific = FALSE),
                     width = "100%"),
                 helpText(paste0("Pre-tested grid: ",
                                 paste(format(tested, scientific = FALSE), collapse = ", "),
-                                " · any positive value is allowed (smaller = deeper tree). Scientific notation like 1e-4 also works.")),
+                                "  -  any positive value is allowed (smaller = deeper tree). Scientific notation like 1e-4 also works.")),
                 div(style = "display:flex; gap:8px; margin-top:6px;",
                     reset_btn,
                     actionButton("cart_recompute", "Recompute live (5-fold CV)",
@@ -1441,7 +1410,7 @@ server <- function(input, output, session) {
                     min = 0.1, max = 5, step = 0.1, width = "100%"),
                 helpText(paste0("Pre-tested grid: ",
                                 paste(tested_adj, collapse = ", "),
-                                " · any value in [0.1, 5] is allowed")),
+                                "  -  any value in [0.1, 5] is allowed")),
                 div(style = "display:flex; gap:8px; margin-top:6px;",
                     reset_btn,
                     actionButton("nb_recompute", "Recompute live (5-fold CV)",
@@ -1455,19 +1424,19 @@ server <- function(input, output, session) {
             tested_d   <- sort(unique(xgb_model$results$max_depth))
             tested_eta <- sort(unique(xgb_model$results$eta))
             return(tagList(
-                numericInput("xgb_nrounds", "nrounds — boosting iterations",
+                numericInput("xgb_nrounds", "nrounds - boosting iterations",
                     value = xgb_model$bestTune$nrounds,
                     min = 1, max = 5000, step = 1, width = "100%"),
                 helpText(paste("Pre-tested:", paste(tested_n, collapse = ", "))),
-                numericInput("xgb_max_depth", "max_depth — tree depth",
+                numericInput("xgb_max_depth", "max_depth - tree depth",
                     value = xgb_model$bestTune$max_depth,
                     min = 1, max = 30, step = 1, width = "100%"),
                 helpText(paste("Pre-tested:", paste(tested_d, collapse = ", "))),
-                numericInput("xgb_eta", "eta — learning rate",
+                numericInput("xgb_eta", "eta - learning rate",
                     value = xgb_model$bestTune$eta,
                     min = 0.001, max = 1, step = 0.01, width = "100%"),
                 helpText(paste("Pre-tested:", paste(tested_eta, collapse = ", "),
-                               "· lower eta = slower but smoother learning")),
+                               "- lower eta = slower but smoother learning")),
                 div(style = "display:flex; gap:8px; margin-top:6px;",
                     reset_btn,
                     actionButton("xgb_recompute", "Recompute live (5-fold CV)",
@@ -1478,7 +1447,7 @@ server <- function(input, output, session) {
         }
     })
 
-    # ── RF live retraining ──────────────────────────────────────────────────────
+    # RF live retraining
     rf_live <- reactiveVal(tibble::tibble(
         mtry = integer(), ROC = double(), Sens = double(),
         Spec = double(), elapsed = double(), predictions = list()
@@ -1502,8 +1471,8 @@ server <- function(input, output, session) {
         y  <- td$.outcome
 
         withProgress(
-            message = sprintf("Live RF · mtry = %d · 5-fold CV", val),
-            detail  = sprintf("training on %d workers (%d folds × %d tree-chunks)…",
+            message = sprintf("Live RF  -  mtry = %d  -  5-fold CV", val),
+            detail  = sprintf("training on %d workers (%d folds x %d tree-chunks)...",
                               n_cores, N_FOLDS, chunks_per_fold),
             value   = 0.1, {
                 t0 <- Sys.time()
@@ -1534,18 +1503,18 @@ server <- function(input, output, session) {
         live <- rf_live()
         if (nrow(live) == 0) {
             return(helpText(sprintf(
-                "No live retrain yet. Click \"Recompute\" to run a fresh 5-fold CV (parallel on %d workers · %d folds × %d tree-chunks).",
+                "No live retrain yet. Click \"Recompute\" to run a fresh 5-fold CV (parallel on %d workers  -  %d folds x %d tree-chunks).",
                 n_cores, N_FOLDS, chunks_per_fold)))
         }
         last <- live[nrow(live), ]
         tagList(
             helpText(sprintf(
-                "Live points: %d  ·  Last: mtry=%d, AUC=%.2f%%, %.1fs (%d workers)",
+                "Live points: %d   -   Last: mtry=%d, AUC=%.2f%%, %.1fs (%d workers)",
                 nrow(live), last$mtry, last$ROC * 100, last$elapsed, n_cores))
         )
     })
 
-    # ── KNN live retrain ────────────────────────────────────────────────────────
+    # KNN live retrain
     knn_live <- reactiveVal(tibble::tibble(
         k = integer(), ROC = double(), Sens = double(),
         Spec = double(), elapsed = double(), predictions = list()
@@ -1570,8 +1539,8 @@ server <- function(input, output, session) {
         }
         xy <- get_xy(knn_model)
         withProgress(
-            message = sprintf("Live KNN · k = %d · 5-fold CV", val),
-            detail  = sprintf("training on %d workers…", min(n_cores, N_FOLDS)),
+            message = sprintf("Live KNN  -  k = %d  -  5-fold CV", val),
+            detail  = sprintf("training on %d workers...", min(n_cores, N_FOLDS)),
             value   = 0.1, {
                 t0 <- Sys.time()
                 m <- tryCatch(recompute_caret("knn", xy$x, xy$y, data.frame(k = val)),
@@ -1600,11 +1569,11 @@ server <- function(input, output, session) {
                 min(n_cores, N_FOLDS))))
         }
         last <- live[nrow(live), ]
-        helpText(sprintf("Live points: %d  ·  Last: k=%d, AUC=%.2f%%, %.1fs",
+        helpText(sprintf("Live points: %d   -   Last: k=%d, AUC=%.2f%%, %.1fs",
                          nrow(live), last$k, last$ROC * 100, last$elapsed))
     })
 
-    # ── CART live retrain ───────────────────────────────────────────────────────
+    # CART live retrain
     cart_live <- reactiveVal(tibble::tibble(
         cp = double(), ROC = double(), Sens = double(),
         Spec = double(), elapsed = double(), predictions = list()
@@ -1622,9 +1591,9 @@ server <- function(input, output, session) {
         }
         xy <- get_xy(cart_model)
         withProgress(
-            message = sprintf("Live CART · cp = %s · 5-fold CV",
+            message = sprintf("Live CART  -  cp = %s  -  5-fold CV",
                               formatC(val, format = "g")),
-            detail  = sprintf("training on %d workers…", min(n_cores, N_FOLDS)),
+            detail  = sprintf("training on %d workers...", min(n_cores, N_FOLDS)),
             value   = 0.1, {
                 t0 <- Sys.time()
                 m <- tryCatch(recompute_caret("rpart", xy$x, xy$y,
@@ -1654,12 +1623,12 @@ server <- function(input, output, session) {
                 min(n_cores, N_FOLDS))))
         }
         last <- live[nrow(live), ]
-        helpText(sprintf("Live points: %d  ·  Last: cp=%s, AUC=%.2f%%, %.1fs",
+        helpText(sprintf("Live points: %d   -   Last: cp=%s, AUC=%.2f%%, %.1fs",
                          nrow(live), formatC(last$cp, format = "g"),
                          last$ROC * 100, last$elapsed))
     })
 
-    # ── NB live retrain ─────────────────────────────────────────────────────────
+    # NB live retrain
     nb_live <- reactiveVal(tibble::tibble(
         usekernel = logical(), adjust = double(), ROC = double(),
         Sens = double(), Spec = double(), elapsed = double(), predictions = list()
@@ -1680,9 +1649,9 @@ server <- function(input, output, session) {
         }
         xy <- get_xy(nb_model)
         withProgress(
-            message = sprintf("Live NB · %s, adjust=%g · 5-fold CV",
+            message = sprintf("Live NB  -  %s, adjust=%g  -  5-fold CV",
                               if (uk) "Kernel" else "Gaussian", adj),
-            detail  = sprintf("training on %d workers…", min(n_cores, N_FOLDS)),
+            detail  = sprintf("training on %d workers...", min(n_cores, N_FOLDS)),
             value   = 0.1, {
                 t0 <- Sys.time()
                 m <- tryCatch(recompute_caret(
@@ -1714,12 +1683,12 @@ server <- function(input, output, session) {
                 min(n_cores, N_FOLDS))))
         }
         last <- live[nrow(live), ]
-        helpText(sprintf("Live points: %d  ·  Last: %s, adjust=%g, AUC=%.2f%%, %.1fs",
+        helpText(sprintf("Live points: %d   -   Last: %s, adjust=%g, AUC=%.2f%%, %.1fs",
                          nrow(live), if (last$usekernel) "Kernel" else "Gaussian",
                          last$adjust, last$ROC * 100, last$elapsed))
     })
 
-    # ── XGB live retrain ────────────────────────────────────────────────────────
+    # XGB live retrain
     xgb_live <- reactiveVal(tibble::tibble(
         nrounds = integer(), max_depth = integer(), eta = double(),
         ROC = double(), Sens = double(), Spec = double(),
@@ -1741,9 +1710,9 @@ server <- function(input, output, session) {
         }
         xy <- get_xy(xgb_model)
         withProgress(
-            message = sprintf("Live XGB · nrounds=%d, depth=%d, eta=%g · 5-fold CV",
+            message = sprintf("Live XGB  -  nrounds=%d, depth=%d, eta=%g  -  5-fold CV",
                               nr, md, et),
-            detail  = sprintf("training on %d workers…", min(n_cores, N_FOLDS)),
+            detail  = sprintf("training on %d workers...", min(n_cores, N_FOLDS)),
             value   = 0.1, {
                 t0 <- Sys.time()
                 m <- tryCatch(recompute_caret(
@@ -1778,7 +1747,7 @@ server <- function(input, output, session) {
         }
         last <- live[nrow(live), ]
         helpText(sprintf(
-            "Live points: %d  ·  Last: nrounds=%d, depth=%d, eta=%g, AUC=%.2f%%, %.1fs",
+            "Live points: %d   -   Last: nrounds=%d, depth=%d, eta=%g, AUC=%.2f%%, %.1fs",
             nrow(live), last$nrounds, last$max_depth, last$eta,
             last$ROC * 100, last$elapsed))
     })
@@ -1850,9 +1819,8 @@ server <- function(input, output, session) {
         }
     })
 
-    # ── Predictions for the selected (model, config) — drives all diagnostics ──
-    # Priority: live retrain > saved test-set predictions (when at bestTune)
-    #          > saved OOF CV (for off-best configs)
+    # Predictions for the selected (model, config) - drives all diagnostics.
+    # Priority: live retrain > saved test-set predictions (when at bestTune) > saved OOF CV (for off-best configs).
     selected_predictions <- reactive({
         m <- input$tune_model
 
@@ -1929,7 +1897,7 @@ server <- function(input, output, session) {
         )
         if (is_best) return(list(df = test_preds[[m]], source = "test"))
 
-        # 3) Off-best pre-tested config — fall back to saved OOF CV predictions.
+        # 3) Off-best pre-tested config - fall back to saved OOF CV predictions.
         params <- switch(m,
             RF   = list(mtry = rf_val),
             KNN  = list(k    = knn_val),
@@ -1949,14 +1917,14 @@ server <- function(input, output, session) {
         sp <- selected_predictions()
         if (is.null(sp$df) || nrow(sp$df) == 0) {
             return(helpText(em(paste0(
-                "No predictions available for this configuration yet — ",
+                "No predictions available for this configuration yet - ",
                 "click \"Recompute live\" to retrain and generate predictions."))))
         }
         n <- nrow(sp$df)
         msg <- switch(sp$source,
-            test = sprintf("Test-set evaluation · %d held-out predictions (saved bestTune model on the 20%% holdout)", n),
-            live = sprintf("Live 5-fold CV recompute · %d out-of-fold predictions on the training set", n),
-            oof  = sprintf("Saved 5-fold OOF CV · %d training-row predictions (each row was held out once during CV)", n),
+            test = sprintf("Test-set evaluation  -  %d held-out predictions (saved bestTune model on the 20%% holdout)", n),
+            live = sprintf("Live 5-fold CV recompute  -  %d out-of-fold predictions on the training set", n),
+            oof  = sprintf("Saved 5-fold OOF CV  -  %d training-row predictions (each row was held out once during CV)", n),
             ""
         )
         helpText(msg)
@@ -2155,7 +2123,7 @@ server <- function(input, output, session) {
         NULL
     }, striped = TRUE, hover = TRUE, width = "100%")
 
-    # ── Model Comparison · Section 1 (method comparison) ────────────────────────
+    # Model Comparison  -  Section 1 (method comparison)
     cmp_named_dfs <- reactive({
         keys <- input$cmp_models
         if (is.null(keys) || length(keys) == 0) return(list())
@@ -2185,7 +2153,7 @@ server <- function(input, output, session) {
         plot_topfeats_panel(input$cmp_models, top_n = 5)
     }, res = 96)
 
-    # ── Model Comparison · Section 2 (feature selection) ────────────────────────
+    # Model Comparison  -  Section 2 (feature selection)
     fs_lambda <- reactive({
         if (is.null(input$fs_log_lambda)) return(lasso_default_lambda)
         10 ^ input$fs_log_lambda
@@ -2244,10 +2212,10 @@ server <- function(input, output, session) {
     output$fs_retained <- renderPlot({
         m <- input$fs_method
         title <- switch(m,
-            none    = "Full LR · all features kept",
-            forward = "Forward stepwise · selected features",
-            lasso   = "LASSO · retained features",
-            elnet   = sprintf("Elastic Net (%s) · retained features", enet_alpha_label))
+            none    = "Full LR  -  all features kept",
+            forward = "Forward stepwise  -  selected features",
+            lasso   = "LASSO  -  retained features",
+            elnet   = sprintf("Elastic Net (%s)  -  retained features", enet_alpha_label))
         plot_retained_bar(fs_retained(),
                           total_features = ncol(xs_train_mat),
                           title = title)
@@ -2269,11 +2237,31 @@ server <- function(input, output, session) {
         default_lam <- switch(m,
             lasso = lasso_default_lambda,
             elnet = elnet_default_lambda)
-        helpText(sprintf("λ = %.5f · 1-SE default for this method = %.5f",
+        helpText(sprintf("λ = %.5f  -  1-SE default for this method = %.5f",
                          fs_lambda(), default_lam))
     })
 
-    # ── Data Explorer ───────────────────────────────────────────────────────────
+    # Data Explorer
+    default_raw_rv <- reactiveVal(NULL)
+
+    observeEvent(input$load_default_csv, {
+        if (is.na(default_raw_path)) {
+            showNotification("CSV not found at the default location.",
+                             duration = 6, type = "error")
+            return()
+        }
+        if (!is.null(default_raw_rv())) return()
+        withProgress(message = "Loading CSV...", value = 0.5, {
+            df <- tryCatch(load_default_raw_csv(default_raw_path),
+                           error = function(e) {
+                               showNotification(paste("CSV read failed:", e$message),
+                                                duration = 8, type = "error")
+                               NULL
+                           })
+            default_raw_rv(df)
+        })
+    })
+
     raw_data <- reactive({
         if (input$data_source == "upload") {
             req(input$data_file)
@@ -2290,7 +2278,7 @@ server <- function(input, output, session) {
             )
             return(df)
         }
-        default_raw_data
+        default_raw_rv()
     })
 
     eda_data <- reactive({
@@ -2302,7 +2290,7 @@ server <- function(input, output, session) {
         if (!is.null(eda$error)) {
             return(tags$p(tags$b(eda$error), style = "color:#c0392b"))
         }
-        helpText("EDA is computed from complete Oracle's Elixir rows, pivoted to one row per game as in analysis-test.Qmd.")
+        helpText("EDA is computed from complete Oracle's Elixir rows, pivoted to one row per game as in analysis.Qmd.")
     })
 
     output$eda_basic_metrics <- renderUI({
@@ -2330,7 +2318,7 @@ server <- function(input, output, session) {
 
     output$eda_target_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Target distribution · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Target distribution  -  no data"))
         games <- eda$games %>%
             mutate(blue_win = factor(blue_win, levels = c(0, 1),
                                      labels = c("Red won", "Blue won")))
@@ -2368,9 +2356,9 @@ server <- function(input, output, session) {
 
     output$eda_correlation_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Feature correlations · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Feature correlations  -  no data"))
         result_cors <- eda_result_correlations(eda$games)
-        if (nrow(result_cors) == 0) return(empty_plot("Feature correlations · no complete rows"))
+        if (nrow(result_cors) == 0) return(empty_plot("Feature correlations  -  no complete rows"))
         ggplot(result_cors, aes(
             x = reorder(feature, abs(correlation)),
             y = correlation,
@@ -2388,7 +2376,7 @@ server <- function(input, output, session) {
 
     output$eda_outcome_means_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Per-outcome means · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Per-outcome means  -  no data"))
         tbl <- eda_outcome_means(eda$games) %>% slice_head(n = 18)
         ggplot(tbl, aes(x = diff, y = reorder(feature, abs(diff)), fill = diff > 0)) +
             geom_col() +
@@ -2412,7 +2400,7 @@ server <- function(input, output, session) {
 
     output$eda_gold_density_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Gold differential · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Gold differential  -  no data"))
         eda$games %>%
             filter(!is.na(blue_golddiffat15)) %>%
             mutate(blue_win = factor(blue_win, levels = c(0, 1),
@@ -2428,7 +2416,7 @@ server <- function(input, output, session) {
 
     output$eda_gold_scatter_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Gold diff @10 vs @15 · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Gold diff @10 vs @15  -  no data"))
         eda$games %>%
             filter(!is.na(blue_golddiffat10), !is.na(blue_golddiffat15)) %>%
             mutate(blue_win = factor(blue_win, levels = c(0, 1),
@@ -2445,7 +2433,7 @@ server <- function(input, output, session) {
 
     output$eda_distribution_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Feature distributions · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Feature distributions  -  no data"))
         scale_check <- eda$games %>%
             select(
                 blue_goldat15, blue_xpat15, blue_csat15, blue_killsat15,
@@ -2464,7 +2452,7 @@ server <- function(input, output, session) {
 
     output$eda_objectives_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("First objective win rates · no data"))
+        if (!is.null(eda$error)) return(empty_plot("First objective win rates  -  no data"))
         obj_winrates <- eda_objective_winrates(eda$games)
         ggplot(obj_winrates,
             aes(x = reorder(objective, win_rate_blue),
@@ -2486,7 +2474,7 @@ server <- function(input, output, session) {
 
     output$eda_grubs_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Void grubs · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Void grubs  -  no data"))
         eda$games %>%
             filter(!is.na(blue_void_grubs)) %>%
             group_by(blue_void_grubs) %>%
@@ -2506,7 +2494,7 @@ server <- function(input, output, session) {
 
     output$eda_side_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Blue-side advantage · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Blue-side advantage  -  no data"))
         games <- eda$games
         n_games <- nrow(games)
         n_blue <- sum(games$blue_win)
@@ -2522,7 +2510,7 @@ server <- function(input, output, session) {
             geom_errorbar(aes(ymin = ci_low, ymax = ci_high),
                           width = 0.15, color = "gray20") +
             geom_text(aes(label = sprintf(
-                "%.2f%%  [%.2f, %.2f]\nn=%d  ·  chi^2=%.1f, p=%.2g",
+                "%.2f%%  [%.2f, %.2f]\nn=%d   -   chi^2=%.1f, p=%.2g",
                 win_rate, ci_low, ci_high, n_games,
                 side_pt$statistic, side_pt$p.value
             )), vjust = -0.6, size = 3.5) +
@@ -2536,7 +2524,7 @@ server <- function(input, output, session) {
 
     output$eda_roles_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Role correlations · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Role correlations  -  no data"))
         role_cors <- eda_role_correlations(eda$games, eda$players)
         ggplot(role_cors, aes(
             x = reorder(position, correlation),
@@ -2556,7 +2544,7 @@ server <- function(input, output, session) {
 
     output$eda_roles_boxplot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Role gold diff boxplot · no data"))
+        if (!is.null(eda$error)) return(empty_plot("Role gold diff boxplot  -  no data"))
         role_diffs_blue <- eda$players %>%
             filter(position %in% c("top", "jng", "mid", "bot", "sup"),
                    side == "Blue", !is.na(golddiffat15)) %>%
@@ -2578,18 +2566,25 @@ server <- function(input, output, session) {
     }, res = 96)
 
     output$data_default_path_note <- renderUI({
-        if (is.null(default_raw_data)) {
-            tagList(
+        if (is.na(default_raw_path)) {
+            return(tagList(
                 tags$p(tags$b("No CSV found at the default location."), style = "color:#c0392b"),
                 helpText("Drop ", tags$code(RAW_CSV_NAME),
-                         " next to plain_app.R, or switch to upload mode and pick the file.")
+                         " next to shiny_app.R, or switch to upload mode and pick the file.")
+            ))
+        }
+        df <- default_raw_rv()
+        if (is.null(df)) {
+            tagList(
+                helpText("Found at: ", tags$code(default_raw_path)),
+                helpText(tags$em("Click the button below to load it."))
             )
         } else {
             tagList(
                 helpText("Loaded from: ", tags$code(default_raw_path)),
-                helpText(sprintf("%s rows · %s columns",
-                                 format(nrow(default_raw_data), big.mark = ","),
-                                 format(ncol(default_raw_data), big.mark = ",")))
+                helpText(sprintf("%s rows  -  %s columns",
+                                 format(nrow(df), big.mark = ","),
+                                 format(ncol(df), big.mark = ",")))
             )
         }
     })
@@ -2614,10 +2609,10 @@ server <- function(input, output, session) {
         miss_pct <- mean(is.na(df)) * 100
         date_range <- if ("date" %in% names(df)) {
             d <- suppressWarnings(as.Date(df$date))
-            if (any(!is.na(d))) sprintf("%s — %s",
+            if (any(!is.na(d))) sprintf("%s - %s",
                 format(min(d, na.rm = TRUE), "%Y-%m-%d"),
-                format(max(d, na.rm = TRUE), "%Y-%m-%d")) else "—"
-        } else "—"
+                format(max(d, na.rm = TRUE), "%Y-%m-%d")) else "-"
+        } else "-"
         tags$ul(
             tags$li(tags$b("Rows: "),    format(n_rows, big.mark = ",")),
             tags$li(tags$b("Columns: "), format(n_cols, big.mark = ",")),
@@ -2661,7 +2656,7 @@ server <- function(input, output, session) {
                 round(mean(is.na(x)) * 100, 2), numeric(1)),
             Example    = vapply(df, function(x) {
                 v <- x[!is.na(x)]
-                if (length(v) == 0) return("—")
+                if (length(v) == 0) return("-")
                 as.character(v[1])
             }, character(1)),
             check.names = FALSE,
