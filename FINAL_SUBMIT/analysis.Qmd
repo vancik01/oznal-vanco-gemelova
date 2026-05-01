@@ -345,7 +345,7 @@ cat(sprintf(
 ))
 ```
 
-Differentials (`blue_golddiffat15`, `blue_xpdiffat15`, `blue_csdiffat15`) dominate — what matters is the *gap*, not the absolute totals. Among objectives, `blue_firsttower` and `blue_firstherald` stand out, while `blue_firstblood` and `blue_firstdragon` are weaker. The matrix also shows two multicollinearity patterns: a raw stat against its own differential (`blue_goldat15` vs `blue_golddiffat15`), and Blue/Red shared-pool pairs - `blue_void_grubs` and `red_void_grubs` are negatively correlated because the 6-grub pit is shared between the two teams. Both patterns **motivate the LASSO and Elastic Net regularization used in Scenario 3**.
+Differentials (`blue_golddiffat15`, `blue_xpdiffat15`, `blue_csdiffat15`) dominate - what matters is the *gap*, not the absolute totals. Among objectives, `blue_firsttower` and `blue_firstherald` stand out, while `blue_firstblood` and `blue_firstdragon` are weaker. The matrix also shows two multicollinearity patterns: a raw stat against its own differential (`blue_goldat15` vs `blue_golddiffat15`), and Blue/Red shared-pool pairs - `blue_void_grubs` and `red_void_grubs` are negatively correlated because the 6-grub pit is shared between the two teams. Both patterns **motivate the LASSO and Elastic Net regularization used in Scenario 3**.
 
 ## Per-outcome means
 
@@ -862,7 +862,7 @@ cat(sprintf(
 
 ## Multicollinearity check (VIF)
 
-VIF (Variance Inflation Factor) tells us how much each feature overlaps with the rest of the matrix. A high VIF means the feature can be largely reproduced from the others; values above 10 are conventionally treated as a sign of severe collinearity. We compute it on the training set only — VIF is a fit-time diagnostic and must not be informed by held-out data.
+VIF (Variance Inflation Factor) tells us how much each feature overlaps with the rest of the matrix. A high VIF means the feature can be largely reproduced from the others; values above 10 are conventionally treated as a sign of severe collinearity. We compute it on the training set only - VIF is a fit-time diagnostic and must not be informed by held-out data.
 
 ```{r s1-vif}
 vif_df <- tibble(
@@ -876,14 +876,14 @@ knitr::kable(vif_df,
 )
 ```
 
-Two features exceed the threshold: `golddiffat15` (≈ 23) and `kill_diff_15` (≈ 13). Gold and kills are tightly coupled in League — every kill pays out gold and pushes the lane further ahead — so most of what `kill_diff_15` carries is already in `golddiffat15`. `xpdiffat15`, `csdiffat15`, and `assist_diff_15` sit in the 4–5 range, reflecting the same lane-economy signal at a weaker level. The binary objective flags, `winrate_diff`, and the two ratio features (`gold_efficiency_15`, `kda_15`) all stay below VIF 4 and are effectively independent.
+Two features exceed the threshold: `golddiffat15` (≈ 23) and `kill_diff_15` (≈ 13). Gold and kills are tightly coupled in League - every kill pays out gold and pushes the lane further ahead - so most of what `kill_diff_15` carries is already in `golddiffat15`. `xpdiffat15`, `csdiffat15`, and `assist_diff_15` sit in the 4–5 range, reflecting the same lane-economy signal at a weaker level. The binary objective flags, `winrate_diff`, and the two ratio features (`gold_efficiency_15`, `kda_15`) all stay below VIF 4 and are effectively independent.
 
 Three of our six models are affected by this. Logistic Regression coefficients become unstable when predictors overlap, Naive Bayes assumes feature independence outright, and KNN distances double-count correlated dimensions. Random Forest, CART, and XGBoost split one feature at a time and are unaffected.
 
 ::: {.callout-important}
 ## Why we do not drop high-VIF features here
 
-The standard rule of thumb is to drop features with VIF > 10. The two features above the threshold here are `golddiffat15` — the strongest single predictor in the problem — and `kill_diff_15`, its closest economic partner. Their VIF is high because the other features overlap with them, not because they themselves carry no signal: VIF measures redundancy, not predictive value. We keep every surviving feature in S1, treat VIF as a diagnostic only, and let the regularised methods in S3 (LASSO and Elastic Net) handle the residual redundancy.
+The standard rule of thumb is to drop features with VIF > 10. The two features above the threshold here are `golddiffat15` - the strongest single predictor in the problem - and `kill_diff_15`, its closest economic partner. Their VIF is high because the other features overlap with them, not because they themselves carry no signal: VIF measures redundancy, not predictive value. We keep every surviving feature in S1, treat VIF as a diagnostic only, and let the regularised methods in S3 (LASSO and Elastic Net) handle the residual redundancy.
 :::
 
 ## CV setup
@@ -1557,7 +1557,7 @@ knitr::kable(final_vif_e,
 )
 ```
 
-The iterative pass drops `golddiffat15`, `csdiffat15`, `xpdiffat15`, and three of the five per-role gold columns; only `bot_golddiffat15` survives among the gold-diff family, which is exactly the H2 question — does the bot-lane carry signal that the team-level totals do not? The trimmed matrix is the cleanest setting in which to ask it.
+The iterative pass drops `golddiffat15`, `csdiffat15`, `xpdiffat15`, and three of the five per-role gold columns; only `bot_golddiffat15` survives among the gold-diff family, which is exactly the H2 question - does the bot-lane carry signal that the team-level totals do not? The trimmed matrix is the cleanest setting in which to ask it.
 
 ```{r s1-enrich-train}
 lr_e <- train(
@@ -1709,15 +1709,15 @@ rf_mtry_h1 <- rf_model$bestTune$mtry
 rf_mtry_e <- rf_e$bestTune$mtry
 ```
 
-**With multicollinearity removed, the trimmed enriched matrix matches the H1 baseline.** Mean AUC `r sprintf("%+.2f", mean_auc)` pp, mean accuracy `r sprintf("%+.2f", mean_acc)` pp, `r n_better` of `r n_models` models improve. The trim is what makes the comparison fair — on the raw 44-feature enrichment every model paid a penalty for the redundant gold/XP/CS aliases, with NB hit hardest by the `top + jng + mid + bot + sup ≡ team` identities.
+**With multicollinearity removed, the trimmed enriched matrix matches the H1 baseline.** Mean AUC `r sprintf("%+.2f", mean_auc)` pp, mean accuracy `r sprintf("%+.2f", mean_acc)` pp, `r n_better` of `r n_models` models improve. The trim is what makes the comparison fair - on the raw 44-feature enrichment every model paid a penalty for the redundant gold/XP/CS aliases, with NB hit hardest by the `top + jng + mid + bot + sup ≡ team` identities.
 
-- **LR**: `r sprintf("%+.2f", lr_auc_d)` AUC — coefficients no longer split across the aliased gold/XP duplicates; surviving per-role columns add only marginal signal.
-- **RF**: `r sprintf("%+.2f", rf_auc_d)` AUC — tuned `mtry` rises from `r rf_mtry_h1` to `r rf_mtry_e`, but the ceiling is unchanged.
-- **NB**: `r sprintf("%+.2f", nb_auc_d)` AUC — independence assumption is now satisfied (VIF ≤ 10); the residual loss is the per-role columns adding noise rather than signal.
-- **KNN**: `r sprintf("%+.2f", knn_auc_d)` AUC — `r length(surviving_features_e)` standardised dimensions stay Euclidean-comparable; `k =` `r knn_k_enriched` smooths over local noise.
-- **CART**: `r sprintf("%+.2f", cart_auc_d)` AUC, `r sprintf("%+.2f", cart_acc_d)` pp accuracy — single-tree variance is sensitive to the wider input regardless of VIF cleanup.
+- **LR**: `r sprintf("%+.2f", lr_auc_d)` AUC - coefficients no longer split across the aliased gold/XP duplicates; surviving per-role columns add only marginal signal.
+- **RF**: `r sprintf("%+.2f", rf_auc_d)` AUC - tuned `mtry` rises from `r rf_mtry_h1` to `r rf_mtry_e`, but the ceiling is unchanged.
+- **NB**: `r sprintf("%+.2f", nb_auc_d)` AUC - independence assumption is now satisfied (VIF ≤ 10); the residual loss is the per-role columns adding noise rather than signal.
+- **KNN**: `r sprintf("%+.2f", knn_auc_d)` AUC - `r length(surviving_features_e)` standardised dimensions stay Euclidean-comparable; `k =` `r knn_k_enriched` smooths over local noise.
+- **CART**: `r sprintf("%+.2f", cart_auc_d)` AUC, `r sprintf("%+.2f", cart_acc_d)` pp accuracy - single-tree variance is sensitive to the wider input regardless of VIF cleanup.
 
-**Bottom line:** team-level totals already saturate the @15 signal, so **H1 stays as the S1 reference set** (S3 selection, Shiny export). H2 below asks the sharper question — does **bot lane specifically** carry signal beyond the team aggregates? Of the five per-role gold-diff columns, only `bot_golddiffat15` survives the VIF filter, so a non-trivial bot-lane importance is not an alias artefact.
+**Bottom line:** team-level totals already saturate the @15 signal, so **H1 stays as the S1 reference set** (S3 selection, Shiny export). H2 below asks the sharper question - does **bot lane specifically** carry signal beyond the team aggregates? Of the five per-role gold-diff columns, only `bot_golddiffat15` survives the VIF filter, so a non-trivial bot-lane importance is not an alias artefact.
 
 ### Role-feature importance (H2 test)
 
@@ -1774,7 +1774,7 @@ cat("\nBest rank per role:\n")
 print(other_role_features)
 ```
 
-The two prints above, read together with the enriched-vs-H1 AUC deltas earlier in this section, give the H2 evidence: bot lane is supported if and only if at least one `bot_*` feature outranks the best surviving feature of every other role. The VIF trim makes this an honest comparison — `bot_golddiffat15` is the only per-role gold-diff column to clear the threshold, so a bot-lane top rank cannot be driven by an aliased team-level total.
+The two prints above, read together with the enriched-vs-H1 AUC deltas earlier in this section, give the H2 evidence: bot lane is supported if and only if at least one `bot_*` feature outranks the best surviving feature of every other role. The VIF trim makes this an honest comparison - `bot_golddiffat15` is the only per-role gold-diff column to clear the threshold, so a bot-lane top rank cannot be driven by an aliased team-level total.
 
 # Scenario 3: Feature Selection
 
@@ -1842,7 +1842,6 @@ cat(paste(fwd_eliminated, collapse = ", "), "\n")
 ```
 
 ```{r s3-forward-plot}
-# AIC trajectory across the addition path
 fwd_aic_df <- data.frame(
     step = seq_along(fwd_anova$AIC) - 1L,
     AIC = fwd_anova$AIC,
@@ -1863,7 +1862,6 @@ ggplot(fwd_aic_df, aes(x = step, y = AIC)) +
     ) +
     theme_minimal()
 
-# Coefficient bar chart for the retained features
 fwd_coef_raw <- coef(fwd_model)
 fwd_coef_raw <- fwd_coef_raw[names(fwd_coef_raw) != "(Intercept)"]
 fwd_coef_df <- data.frame(
@@ -1948,14 +1946,12 @@ fwd_signif_path <- map_dfr(seq_along(fwd_addition_order), function(k) {
     )
 })
 
-# Pivot to a "feature x step" p-value matrix (rows = addition order, cols = subset size)
 fwd_pvalue_table <- fwd_signif_path %>%
     select(step, feature, p_value) %>%
     pivot_wider(names_from = step, values_from = p_value, names_prefix = "k=") %>%
     mutate(feature = factor(feature, levels = fwd_addition_order)) %>%
     arrange(feature)
 
-# Format p-values for display: 3 decimals, blank where the feature has not entered yet
 fwd_pvalue_display <- fwd_pvalue_table %>%
     mutate(across(
         starts_with("k="),
@@ -1975,8 +1971,6 @@ knitr::kable(
 ```
 
 ```{r s3-forward-significance-summary}
-# Summary stats per feature: when first admitted, peak p-value, final p-value,
-# whether it ever crossed 0.05 after admission.
 fwd_signif_summary <- fwd_signif_path %>%
     group_by(feature) %>%
     summarise(
@@ -2069,7 +2063,6 @@ lasso_coef_df <- data.frame(
 lasso_selected <- lasso_coef_df %>% filter(coefficient != 0)
 lasso_eliminated <- lasso_coef_df %>% filter(coefficient == 0)
 
-# test set evaluation
 lasso_pred_prob <- predict(lasso_cv,
     newx = as.matrix(X_test_scaled),
     s = "lambda.1se", type = "response"
@@ -2101,7 +2094,6 @@ cat(paste(lasso_eliminated$feature, collapse = ", "), "\n")
 ```
 
 ```{r s3-lasso-plot}
-# Plot 1: CV deviance vs log(lambda) shows why lambda.1se is the right choice
 cv_df <- data.frame(
     log_lambda = log(lasso_cv$lambda),
     cvm        = lasso_cv$cvm,
@@ -2136,7 +2128,6 @@ ggplot(cv_df, aes(x = log_lambda, y = cvm)) +
     ) +
     theme_minimal()
 
-# Plot 2: surviving features ranked by coefficient magnitude
 lasso_selected %>%
     mutate(feature = reorder(feature, abs(coefficient))) %>%
     ggplot(aes(x = feature, y = coefficient, fill = coefficient > 0)) +
@@ -2351,7 +2342,6 @@ selection_results <- list(
 
 all_features <- colnames(X_train_scaled)
 
-# For each feature, record which methods selected it
 overlap_df <- map_dfr(all_features, function(f) {
     sel <- map_lgl(selection_results, ~ f %in% .x)
     tibble(
@@ -2395,7 +2385,6 @@ if (nrow(never_sel) > 0) {
     cat("None - every feature was selected by at least one method\n")
 }
 
-# Performance comparison table
 perf_summary <- tibble(
     Method = c("Forward", "LASSO", "ElasticNet", "LR_all"),
     n_features = c(
@@ -2423,7 +2412,6 @@ print(perf_summary %>% arrange(desc(AUC_ROC)), n = Inf)
 ```
 
 ```{r s3-comparison-plots, fig.height=8}
-# Heatmap: which method selected which feature
 overlap_long <- overlap_df %>%
     filter(n_methods > 0) %>%
     pivot_longer(
