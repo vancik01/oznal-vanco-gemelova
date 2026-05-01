@@ -28,6 +28,10 @@ renv.lock
 rsconnect/
 shiny/models/
 
+# FINAL_SUBMIT (large artefacts not in git)
+FINAL_SUBMIT/models/
+FINAL_SUBMIT/*.csv
+
 # OS
 .DS_Store
 Thumbs.db
@@ -42,3 +46,6 @@ analysis_files/
 *_files/
 **/_build/
 .RDataTmp
+
+# Keep the rendered submission analysis
+!FINAL_SUBMIT/analysis.html

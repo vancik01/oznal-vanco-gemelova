@@ -1,3 +1,14 @@
+.required_pkgs <- c(
+    "shiny", "tidyverse", "caret", "doParallel", "foreach", "pROC",
+    "randomForest", "rpart", "rpart.plot", "glmnet", "DT",
+    "naivebayes", "xgboost", "MASS", "corrplot", "gridExtra"
+)
+.missing_pkgs <- setdiff(.required_pkgs, rownames(installed.packages()))
+if (length(.missing_pkgs)) {
+    message("Installing missing packages: ", paste(.missing_pkgs, collapse = ", "))
+    install.packages(.missing_pkgs, repos = "https://cloud.r-project.org")
+}
+
 library(shiny)
 library(tidyverse)
 library(caret)
@@ -125,7 +136,7 @@ get_xy <- function(model) {
     )
 }
 
-models_dir <- "../shiny/models"
+models_dir <- "./models"
 lr_model    <- readRDS(file.path(models_dir, "lr_model.rds"))
 rf_model    <- readRDS(file.path(models_dir, "rf_model.rds"))
 nb_model    <- readRDS(file.path(models_dir, "nb_model.rds"))
@@ -143,9 +154,7 @@ games_model <- readRDS(file.path(models_dir, "games_model.rds"))
 # cheap; the upload path overrides this per-session.
 RAW_CSV_NAME <- "2025_LoL_esports_match_data_from_OraclesElixir.csv"
 .raw_csv_candidates <- c(
-    file.path(".",       RAW_CSV_NAME),
-    file.path("..",      RAW_CSV_NAME),
-    file.path("../data", RAW_CSV_NAME)
+    file.path(".", RAW_CSV_NAME)
 )
 default_raw_path <- .raw_csv_candidates[file.exists(.raw_csv_candidates)][1]
 default_raw_data <- if (!is.na(default_raw_path)) {
