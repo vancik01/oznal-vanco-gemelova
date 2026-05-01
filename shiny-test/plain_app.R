@@ -184,15 +184,14 @@ test_preds <- list(
 message(sprintf("Test set: %d held-out predictions ready", nrow(test_preds[[1]])))
 
 # ── Feature-selection precomputes (Scenario 3) ───────────────────────────────
-# Reconstruct the same training x/y used by lr_model, then fit:
+# Mirrors analysis-test.Qmd exactly: one algorithmic + two embedded methods.
 #   • Forward stepwise (MASS::stepAIC, AIC criterion)
-#   • Ridge       (glmnet α = 0,    full λ path)
-#   • LASSO       (glmnet α = 1,    full λ path)
-#   • Elastic Net (glmnet α = 0.5,  full λ path)
+#   • LASSO       (glmnet α = 1, cv.glmnet AUC, λ.1se)
+#   • Elastic Net (α grid seq(0,1,0.05) with fixed foldids; pick best CV-AUC α)
 #
-# All four use the same scaled design matrix as the saved logistic regression
-# so coefficients are directly comparable. Test-set evaluation runs on the
-# same 1,848-row holdout used by the rest of the app.
+# All three share the same scaled design matrix as the saved logistic
+# regression, so coefficients are directly comparable. Test-set evaluation
+# runs on the same 1,848-row holdout used by the rest of the app.
 .train_data    <- games_model[games_model$gameid %in% .train_ids, ]
 X_train_full   <- .train_data[, !names(.train_data) %in% c("gameid", "blue_win"),
                               drop = FALSE]
@@ -204,7 +203,7 @@ y_train_bin    <- as.integer(y_train_factor) - 1L  # Loss=0, Win=1
 xs_train_mat <- as.matrix(X_train_scaled)
 xs_test_mat  <- as.matrix(X_test_scaled)
 
-message("Fitting FS comparators (forward + glmnet ridge/lasso/elnet)…")
+message("Fitting FS comparators (forward + glmnet lasso/elnet α-grid)…")
 
 # Forward stepwise on logistic regression, AIC-driven, on scaled inputs.
 .fs_train_df <- data.frame(blue_win = y_train_bin, X_train_scaled,
@@ -221,26 +220,59 @@ fwd_model <- suppressWarnings(MASS::stepAIC(
 ))
 fwd_features <- setdiff(names(coef(fwd_model)), "(Intercept)")
 
-set.seed(42)
-ridge_fit  <- glmnet::glmnet(xs_train_mat, y_train_bin,
-                             family = "binomial", alpha = 0.0)
-set.seed(42)
+# LASSO: full λ path + cv.glmnet (AUC, 1se rule) — same as analysis-test.Qmd.
 lasso_fit  <- glmnet::glmnet(xs_train_mat, y_train_bin,
                              family = "binomial", alpha = 1.0)
 set.seed(42)
-elnet_fit  <- glmnet::glmnet(xs_train_mat, y_train_bin,
-                             family = "binomial", alpha = 0.5)
+lasso_cv <- glmnet::cv.glmnet(xs_train_mat, y_train_bin,
+    family       = "binomial",
+    alpha        = 1.0,
+    nfolds       = 5,
+    type.measure = "auc"
+)
+lasso_default_lambda <- lasso_cv$lambda.1se
 
-# Pre-pick a sensible default λ for each glmnet via cv.glmnet (1se rule).
+# Elastic Net: α-grid seq(0,1,0.05) with fixed foldids so cv_auc is comparable
+# across alphas. Pick the α whose lambda.1se model maximises 5-fold CV AUC,
+# then refit glmnet at that α to get the full λ path for the UI.
 set.seed(42)
-ridge_default_lambda <- glmnet::cv.glmnet(xs_train_mat, y_train_bin,
-    family = "binomial", alpha = 0.0)$lambda.1se
-set.seed(42)
-lasso_default_lambda <- glmnet::cv.glmnet(xs_train_mat, y_train_bin,
-    family = "binomial", alpha = 1.0)$lambda.1se
-set.seed(42)
-elnet_default_lambda <- glmnet::cv.glmnet(xs_train_mat, y_train_bin,
-    family = "binomial", alpha = 0.5)$lambda.1se
+.enet_foldid <- sample(rep(seq(5), length.out = length(y_train_bin)))
+.enet_alpha_grid <- seq(0, 1, by = 0.05)
+
+.enet_grid_results <- lapply(.enet_alpha_grid, function(a) {
+    cv_fit <- glmnet::cv.glmnet(
+        x            = xs_train_mat,
+        y            = y_train_bin,
+        family       = "binomial",
+        alpha        = a,
+        foldid       = .enet_foldid,
+        type.measure = "auc"
+    )
+    idx_1se <- cv_fit$index["1se", 1]
+    list(
+        alpha     = a,
+        lambda_1se = cv_fit$lambda.1se,
+        cv_auc    = cv_fit$cvm[idx_1se]
+    )
+})
+.enet_grid_df <- do.call(rbind, lapply(.enet_grid_results, function(r)
+    data.frame(alpha = r$alpha, lambda_1se = r$lambda_1se, cv_auc = r$cv_auc)))
+enet_best_alpha <- .enet_grid_df$alpha[which.max(.enet_grid_df$cv_auc)]
+
+elnet_fit  <- glmnet::glmnet(xs_train_mat, y_train_bin,
+                             family = "binomial", alpha = enet_best_alpha)
+elnet_cv_final <- glmnet::cv.glmnet(
+    x            = xs_train_mat,
+    y            = y_train_bin,
+    family       = "binomial",
+    alpha        = enet_best_alpha,
+    foldid       = .enet_foldid,
+    type.measure = "auc"
+)
+elnet_default_lambda <- elnet_cv_final$lambda.1se
+
+# Pre-formatted α string for UI labels.
+enet_alpha_label <- sprintf("α = %.2f", enet_best_alpha)
 
 predict_glmnet_test <- function(fit, lambda) {
     p <- as.numeric(predict(fit, newx = xs_test_mat, s = lambda,
@@ -267,7 +299,9 @@ retained_at <- function(fit, lambda) {
                row.names = NULL)
 }
 
-message("FS fits ready · forward kept ", length(fwd_features), " features.")
+message(sprintf("FS fits ready · forward kept %d features · EN best %s (CV-AUC %.4f)",
+                length(fwd_features), enet_alpha_label,
+                max(.enet_grid_df$cv_auc)))
 
 feature_names <- names(X_train)
 train_means   <- colMeans(X_train)
@@ -1078,20 +1112,21 @@ ui <- navbarPage(
 
             # ─── Section 2: Feature selection (Scenario 3) ──────────────────────
             h3("2. Feature selection · full LR vs algorithmic vs embedded"),
-            p("Scenario 3: one algorithmic (forward stepwise, AIC) and three embedded (Ridge, LASSO, Elastic Net at α = 0.5) regularised logistic regressions. The full LR is shown as the no-FS baseline. Slide λ to see how many features survive and how AUC moves."),
+            p(sprintf("Scenario 3: one algorithmic (forward stepwise, AIC) and two embedded (LASSO, Elastic Net at %s — best from α-grid seq(0,1,0.05)) regularised logistic regressions. The full LR is shown as the no-FS baseline. Slide λ to see how many features survive and how AUC moves.",
+                      enet_alpha_label)),
             fluidRow(
                 column(3,
                     h4("FS configuration"),
                     radioButtons("fs_method", "Feature-selection method",
-                        choices = c("None (full LR)"          = "none",
-                                    "Forward stepwise (AIC)"  = "forward",
-                                    "Ridge (glmnet, α = 0)"   = "ridge",
-                                    "LASSO (glmnet, α = 1)"   = "lasso",
-                                    "Elastic Net (α = 0.5)"   = "elnet"),
+                        choiceNames = c(
+                            "None (full LR)",
+                            "Forward stepwise (AIC)",
+                            "LASSO (glmnet, α = 1)",
+                            sprintf("Elastic Net (%s)", enet_alpha_label)),
+                        choiceValues = c("none", "forward", "lasso", "elnet"),
                         selected = "lasso"),
                     conditionalPanel(
-                        condition = "input.fs_method == 'ridge' ||
-                                     input.fs_method == 'lasso' ||
+                        condition = "input.fs_method == 'lasso' ||
                                      input.fs_method == 'elnet'",
                         sliderInput("fs_log_lambda",
                             "log10(λ) — slide left for less penalty",
@@ -1113,8 +1148,7 @@ ui <- navbarPage(
                         column(6, plotOutput("fs_retained", height = "360px"))
                     ),
                     conditionalPanel(
-                        condition = "input.fs_method == 'ridge' ||
-                                     input.fs_method == 'lasso' ||
+                        condition = "input.fs_method == 'lasso' ||
                                      input.fs_method == 'elnet'",
                         plotOutput("fs_path", height = "320px")
                     ),
@@ -2148,7 +2182,6 @@ server <- function(input, output, session) {
     observeEvent(input$fs_use_default, {
         m <- input$fs_method
         lam <- switch(m,
-            ridge = ridge_default_lambda,
             lasso = lasso_default_lambda,
             elnet = elnet_default_lambda,
             NULL)
@@ -2161,7 +2194,7 @@ server <- function(input, output, session) {
         m <- input$fs_method
         if (m == "none")    return(fs_full_preds)
         if (m == "forward") return(predict_fwd_test())
-        fit <- switch(m, ridge = ridge_fit, lasso = lasso_fit, elnet = elnet_fit)
+        fit <- switch(m, lasso = lasso_fit, elnet = elnet_fit)
         predict_glmnet_test(fit, fs_lambda())
     })
 
@@ -2177,7 +2210,7 @@ server <- function(input, output, session) {
             co <- co[names(co) != "(Intercept)"]
             return(data.frame(feature = names(co), beta = unname(co)))
         }
-        fit <- switch(m, ridge = ridge_fit, lasso = lasso_fit, elnet = elnet_fit)
+        fit <- switch(m, lasso = lasso_fit, elnet = elnet_fit)
         retained_at(fit, fs_lambda())
     })
 
@@ -2188,9 +2221,8 @@ server <- function(input, output, session) {
         } else {
             label <- switch(m,
                 forward = "Forward stepwise",
-                ridge   = "Ridge",
                 lasso   = "LASSO",
-                elnet   = "Elastic Net (α=0.5)")
+                elnet   = sprintf("Elastic Net (%s)", enet_alpha_label))
             overlay <- list(fs_full_preds, fs_predictions())
             names(overlay) <- c("Full LR (no FS)", label)
             plot_roc_overlay(overlay)
@@ -2202,9 +2234,8 @@ server <- function(input, output, session) {
         title <- switch(m,
             none    = "Full LR · all features kept",
             forward = "Forward stepwise · selected features",
-            ridge   = "Ridge · all features shrunk",
             lasso   = "LASSO · retained features",
-            elnet   = "Elastic Net (α=0.5) · retained features")
+            elnet   = sprintf("Elastic Net (%s) · retained features", enet_alpha_label))
         plot_retained_bar(fs_retained(),
                           total_features = ncol(xs_train_mat),
                           title = title)
@@ -2212,21 +2243,18 @@ server <- function(input, output, session) {
 
     output$fs_path <- renderPlot({
         m <- input$fs_method
-        fit <- switch(m,
-            ridge = ridge_fit, lasso = lasso_fit, elnet = elnet_fit, NULL)
+        fit <- switch(m, lasso = lasso_fit, elnet = elnet_fit, NULL)
         if (is.null(fit)) return(NULL)
         title <- switch(m,
-            ridge = "Ridge coefficient path (α = 0)",
             lasso = "LASSO coefficient path (α = 1)",
-            elnet = "Elastic Net coefficient path (α = 0.5)")
+            elnet = sprintf("Elastic Net coefficient path (%s)", enet_alpha_label))
         plot_glmnet_path(fit, fs_lambda(), title)
     }, res = 96)
 
     output$fs_lambda_summary <- renderUI({
         m <- input$fs_method
-        if (!m %in% c("ridge", "lasso", "elnet")) return(NULL)
+        if (!m %in% c("lasso", "elnet")) return(NULL)
         default_lam <- switch(m,
-            ridge = ridge_default_lambda,
             lasso = lasso_default_lambda,
             elnet = elnet_default_lambda)
         helpText(sprintf("λ = %.5f · 1-SE default for this method = %.5f",
@@ -2637,9 +2665,8 @@ server <- function(input, output, session) {
         method_lbl <- switch(input$fs_method,
             none    = "Full LR (no FS)",
             forward = "Forward stepwise",
-            ridge   = "Ridge",
             lasso   = "LASSO",
-            elnet   = "Elastic Net (α=0.5)")
+            elnet   = sprintf("Elastic Net (%s)", enet_alpha_label))
         ret <- fs_retained()
         full_n <- ncol(xs_train_mat)
         full_metrics <- metrics_matrix(list("Full LR" = fs_full_preds))
