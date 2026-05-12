@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Martin Vančo, Adriana Gemeľová">
-<meta name="dcterms.date" content="2026-05-01">
+<meta name="dcterms.date" content="2026-05-12">
 
 <title>OZNAL Capstone - LoL Esports Early-Game Prediction</title>
 <style>
@@ -2307,7 +2307,7 @@ vertical-align: -.125em;
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">May 1, 2026</p>
+      <p class="date">May 12, 2026</p>
     </div>
   </div>
   
@@ -3718,7 +3718,7 @@ H2 - Train: 7388 rows, Test: 1848 rows</code></pre>
 <span id="cb43-23"><a href="#cb43-23" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>
-Logistic Regression Results (trained in 1.7s):
+Logistic Regression Results (trained in 1.5s):
 Accuracy: 75.5%
 Sensitivity (Win recall): 79.1%
 Specificity (Loss recall): 71.2%
@@ -3794,7 +3794,7 @@ CV AUC-ROC: 0.843</code></pre>
 <span id="cb46-25"><a href="#cb46-25" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>
-Random Forest Results (trained in 13.8s):
+Random Forest Results (trained in 13.0s):
 Accuracy: 74.1%
 Sensitivity: 78.0%
 Specificity: 69.3%
@@ -5339,7 +5339,7 @@ Best rank per role:</code></pre>
 <span id="cb92-48"><a href="#cb92-48" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>
-Forward Stepwise Results (1.0s):
+Forward Stepwise Results (0.9s):
 Features selected: 10 / 14
 Final AIC: 7158.8
 Accuracy:              75.6%
@@ -6115,7 +6115,7 @@ Alpha grid diagnostic: 21 of 21 alphas sit within 1 SE of the best CV AUC (0.839
 <span id="cb128-41"><a href="#cb128-41" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>
-Elastic Net Results (17.2s):
+Elastic Net Results (17.1s):
 Best alpha: 0.90 (0=Ridge, 1=LASSO)
 Lambda (1se): 0.044874
 Features kept: 8 / 14 (eliminated 6)
@@ -6512,7 +6512,7 @@ Performance comparison (sorted by AUC-ROC):</code></pre>
 <span id="cb169-31"><a href="#cb169-31" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>
-Fitted three reduced-feature LR variants in 0.4s.</code></pre>
+Fitted three reduced-feature LR variants in 0.3s.</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -6752,7 +6752,7 @@ Fitted three reduced-feature LR variants in 0.4s.</code></pre>
 <span id="cb174-111"><a href="#cb174-111" aria-hidden="true" tabindex="-1"></a>    <span class="fu">nrow</span>(grid_results), <span class="fu">as.numeric</span>(<span class="fu">Sys.time</span>() <span class="sc">-</span> t0, <span class="at">units =</span> <span class="st">&quot;secs&quot;</span>)</span>
 <span id="cb174-112"><a href="#cb174-112" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>Grid (24 cells) trained in 65.4s.</code></pre>
+<pre><code>Grid (24 cells) trained in 58.0s.</code></pre>
 </div>
 </div>
 <div class="cell">

@@ -49,3 +49,8 @@ analysis_files/
 
 # Keep the rendered submission analysis
 !FINAL_SUBMIT/analysis.html
+
+# Keep deployment artefacts
+!FINAL_SUBMIT/models/
+!FINAL_SUBMIT/models/**
+!FINAL_SUBMIT/*.csv

@@ -54,6 +54,7 @@ So instead of "Blue wins", the model says "Blue wins with 73% probability". We n
 **`summaryFunction = twoClassSummary`** → "Score each fold using AUC, recall, specificity."
 Without this, caret only reports accuracy. We want AUC, so we ask for the scoring function that produces it.
     - elternatives: prSummary (precision, recall, F1) - don't need, we have balanced dataset
+
 **`savePredictions = "final"`** → "Remember what each model predicted for every game."
 Useful later if we want to look at predictions without retraining. `"final"` = save only for the best hyperparameter setting (saves memory).
 
@@ -72,3 +73,19 @@ We do not apply it because:
 
 If we had imbalance or asymmetric costs, Youden's J (or a cost-weighted threshold) would be the right move.
 
+## Keywords to check
+**pivot_wider** - merge together 2 columns with data
+**chi^2** - Chi-squared sums up "how far is each cell from what we'd expect under the null hypothesis, relative to the expected count" and then checks whether that total is too large to be explained by random chance.
+**Pearson Correlation** - 
+**VIF**
+**AOC-RFC** - Area under curve of all evaulated tresholds - each trashold is plotted on diagram - x -> FPR (specificity) y -> TPR (Sensitivity). Each one 
+**Sensivity** - True Positive rate (how many correctly classified)
+**Specificity** - False positive rate (how many incorrectly classified)
+**Bias**: theoretical ceiling of what the model can learn, no matter how much data you give it.  Logistic Regression can only learn linear boundaries. Give it a million rows - it will still draw a straight line. If the truth is curved, LR will never get it right. That's its bias.
+
+**parametric (statustical models)**: strict formula - you know shape before training (sigmoid in LR). No mater how much rows - we have always same amount of params (num of features in this case)
+
+**non-parametric (partitioning models)**: no strict fromula - params are determined from trainig data (decision trees, knn, XGBoost)
+
+**unimodal**: Single bump in distribution
+**bootstraping** Each sample has the same size (6), but some games appear twice, some are missing. On average, each bootstrap sample contains about 63% of unique original rows. The other 37% are left out (Random forest)

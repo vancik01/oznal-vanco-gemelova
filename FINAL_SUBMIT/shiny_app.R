@@ -210,6 +210,23 @@ fwd_model <- suppressWarnings(MASS::stepAIC(
 ))
 fwd_features <- setdiff(names(coef(fwd_model)), "(Intercept)")
 
+fwd_aic_path <- local({
+    available <- names(coef(.full_glm))[-1]
+    selected  <- character(0)
+    rows      <- list(data.frame(step = 0L, feature = "intercept only",
+                                 AIC = AIC(.null_glm), stringsAsFactors = FALSE))
+    current   <- .null_glm
+    for (s in seq_along(fwd_features)) {
+        feat <- fwd_features[s]
+        selected <- c(selected, feat)
+        fml <- as.formula(paste("blue_win ~", paste(selected, collapse = " + ")))
+        current <- suppressWarnings(glm(fml, data = .fs_train_df, family = binomial()))
+        rows[[s + 1]] <- data.frame(step = s, feature = feat,
+                                    AIC = AIC(current), stringsAsFactors = FALSE)
+    }
+    do.call(rbind, rows)
+})
+
 # LASSO: full λ path + cv.glmnet (AUC, 1se rule).
 lasso_fit  <- glmnet::glmnet(xs_train_mat, y_train_bin,
                              family = "binomial", alpha = 1.0)
@@ -275,6 +292,21 @@ predict_fwd_test <- function() {
                  newdata = data.frame(X_test_scaled, check.names = FALSE),
                  type    = "response")
     data.frame(prob_win = as.numeric(p), actual = y_test_factor)
+}
+
+plot_fwd_aic_path <- function(path_df) {
+    path_df$label <- ifelse(path_df$step == 0, "",
+                            gsub("_", " ", path_df$feature))
+    ggplot(path_df, aes(step, AIC)) +
+        geom_line(color = "#2c3e50", linewidth = 1) +
+        geom_point(color = "#2c3e50", size = 3) +
+        geom_text(aes(label = label), hjust = -0.15, vjust = -0.8,
+                  size = 3.2, color = "#555555") +
+        scale_x_continuous(breaks = path_df$step,
+                           expand = expansion(mult = c(0.05, 0.15))) +
+        labs(title = "Forward stepwise - AIC at each addition step",
+             x = "Step (feature added)", y = "AIC") +
+        theme_grey(base_size = 12)
 }
 
 # Full LR baseline for the FS comparison panel - same lr_model, no penalty.
@@ -379,17 +411,13 @@ compute_all_metrics <- function(df, threshold = 0.5) {
                    "Sensitivity (Recall)",
                    "Specificity",
                    "Precision (PPV)",
-                   "F1 score",
-                   "Balanced Accuracy",
-                   "Cohen's Kappa"),
+                   "F1 score"),
         Value = c(num(auc_val),
                   pct(unname(cm$overall["Accuracy"])),
                   pct(unname(cm$byClass["Sensitivity"])),
                   pct(unname(cm$byClass["Specificity"])),
                   pct(unname(cm$byClass["Pos Pred Value"])),
-                  num(unname(cm$byClass["F1"])),
-                  pct(unname(cm$byClass["Balanced Accuracy"])),
-                  num(unname(cm$overall["Kappa"]))),
+                  num(unname(cm$byClass["F1"]))),
         stringsAsFactors = FALSE
     )
 }
@@ -418,8 +446,28 @@ plot_lr_or <- function(model) {
         theme_grey(base_size = 12)
 }
 
+plot_varimp_lr <- function(model) {
+    co <- coef(model$finalModel)
+    co <- co[names(co) != "(Intercept)"]
+    abs_co <- abs(co)
+    abs_co <- abs_co / max(abs_co) * 100
+    df <- data.frame(feature = names(abs_co), score = unname(abs_co))
+    df$feature <- factor(df$feature, levels = df$feature[order(df$score)])
+    ggplot(df, aes(score, feature)) +
+        geom_col(fill = "#2c3e50") +
+        labs(title = "Feature importance (LR, standardized |coefficient|, scaled 0-100)",
+             x = "Importance", y = NULL) +
+        theme_grey(base_size = 12)
+}
+
 plot_varimp <- function(model, title) {
-    vi <- caret::varImp(model)$importance
+    vi_obj <- tryCatch(caret::varImp(model), error = function(e) NULL)
+    if (is.null(vi_obj)) return(ggplot() + theme_void() +
+        labs(title = paste(title, " -  varImp unavailable")))
+    vi <- if (is.data.frame(vi_obj$importance)) vi_obj$importance
+          else if (is.data.frame(vi_obj)) vi_obj
+          else return(ggplot() + theme_void() +
+              labs(title = paste(title, " -  varImp unavailable")))
     vi$feature <- rownames(vi)
     score_col <- if ("Overall" %in% names(vi)) "Overall" else names(vi)[1]
     vi$score <- vi[[score_col]]
@@ -473,10 +521,10 @@ plot_calibration <- function(df, n_bins = 10) {
 MODEL_FAMILY <- c(
     LR   = "Statistical / Parametric",
     NB   = "Statistical / Parametric",
-    RF   = "Partitioning / Non-parametric",
+    RF   = "Ensemble / Non-parametric",
     CART = "Partitioning / Non-parametric",
     KNN  = "Partitioning / Non-parametric",
-    XGB  = "Partitioning / Non-parametric"
+    XGB  = "Ensemble / Non-parametric"
 )
 
 MODEL_LABEL <- c(
@@ -545,7 +593,7 @@ metrics_matrix <- function(named_dfs, threshold = 0.5) {
         return(data.frame(Model = character(), AUC = character(),
                           Acc = character(), Sens = character(),
                           Spec = character(), Prec = character(),
-                          F1 = character(), Kappa = character()))
+                          F1 = character()))
     }
     rows <- lapply(names(named_dfs), function(nm) {
         df <- named_dfs[[nm]]
@@ -564,7 +612,6 @@ metrics_matrix <- function(named_dfs, threshold = 0.5) {
             Spec  = sprintf("%.1f%%", cm$byClass["Specificity"] * 100),
             Prec  = sprintf("%.1f%%", cm$byClass["Pos Pred Value"] * 100),
             F1    = sprintf("%.3f",   cm$byClass["F1"]),
-            Kappa = sprintf("%.3f",   cm$overall["Kappa"]),
             stringsAsFactors = FALSE
         )
     })
@@ -580,13 +627,21 @@ plot_topfeats_panel <- function(model_keys, top_n = 5) {
         m <- switch(k,
             LR = lr_model, RF = rf_model, NB = nb_model,
             KNN = knn_model, CART = cart_model, XGB = xgb_model)
-        vi <- tryCatch(caret::varImp(m)$importance, error = function(e) NULL)
-        if (is.null(vi) || nrow(vi) == 0) next
-        score_col <- if ("Overall" %in% names(vi)) "Overall"
-                     else if ("Win" %in% names(vi)) "Win"
-                     else names(vi)[1]
-        d <- data.frame(feature = rownames(vi),
-                        score   = vi[[score_col]])
+        if (k == "LR") {
+            co <- coef(m$finalModel)
+            co <- co[names(co) != "(Intercept)"]
+            abs_co <- abs(co)
+            abs_co <- abs_co / max(abs_co) * 100
+            d <- data.frame(feature = names(abs_co), score = unname(abs_co))
+        } else {
+            vi <- tryCatch(caret::varImp(m)$importance, error = function(e) NULL)
+            if (is.null(vi) || nrow(vi) == 0) next
+            score_col <- if ("Overall" %in% names(vi)) "Overall"
+                         else if ("Win" %in% names(vi)) "Win"
+                         else names(vi)[1]
+            d <- data.frame(feature = rownames(vi),
+                            score   = vi[[score_col]])
+        }
         d <- d[order(-d$score), ][seq_len(min(top_n, nrow(d))), ]
         d$model <- if (k %in% names(MODEL_LABEL)) MODEL_LABEL[[k]] else k
         d$rank  <- seq_len(nrow(d))
@@ -932,7 +987,7 @@ ui <- navbarPage(
             hr(),
             h3("Feature summaries"),
             fluidRow(
-                column(6, plotOutput("eda_correlation_plot", height = "520px")),
+                column(6, plotOutput("eda_correlation_plot", height = "620px")),
                 column(6, plotOutput("eda_outcome_means_plot", height = "520px"))
             ),
             fluidRow(
@@ -1020,8 +1075,13 @@ ui <- navbarPage(
             sidebarPanel(
                 h4("Select model"),
                 radioButtons("tune_model", NULL, selected = "RF",
-                    choiceNames  = list("Logistic Regression", "Random Forest", "Naive Bayes",
-                                        "K-Nearest Neighbors", "Decision Tree (CART)", "XGBoost"),
+                    choiceNames  = list(
+                        "Logistic Regression (parametric)",
+                        "Random Forest (ensemble)",
+                        "Naive Bayes (probabilistic)",
+                        "K-Nearest Neighbors (partitioning)",
+                        "Decision Tree / CART (partitioning)",
+                        "XGBoost (ensemble)"),
                     choiceValues = c("LR", "RF", "NB", "KNN", "CART", "XGB")),
                 hr(),
                 uiOutput("tune_description"),
@@ -1060,23 +1120,19 @@ ui <- navbarPage(
             hr(),
 
             # Section 1: Method comparison (Scenario 1)
-            h3("1. Statistical / Parametric vs Partitioning / Non-parametric"),
-            p("Scenario 1: three statistical or ML methods compared against two feature-space partitioning approaches. Pick which to overlay on the right."),
+            h3("1. Model Comparison"),
+            p("Scenario 1: six classifiers across three families - Statistical, Ensemble, and Partitioning. Pick which to overlay on the right."),
             fluidRow(
                 column(3,
                     h4("Choose models"),
-                    radioButtons("cmp_group", "Group label by",
-                        choices = c("Parametric vs Non-parametric" = "param",
-                                    "Statistical vs Partitioning"  = "method"),
-                        selected = "param"),
                     checkboxGroupInput("cmp_models", NULL,
                         choiceNames  = list(
-                            "Logistic Regression  (parametric)",
-                            "Naive Bayes  (parametric)",
-                            "Random Forest  (partitioning)",
-                            "Decision Tree (CART)  (partitioning)",
-                            "K-Nearest Neighbors  (partitioning)",
-                            "XGBoost  (partitioning)"
+                            "Logistic Regression",
+                            "Naive Bayes",
+                            "Random Forest",
+                            "Decision Tree (CART)",
+                            "K-Nearest Neighbors",
+                            "XGBoost"
                         ),
                         choiceValues = c("LR", "NB", "RF", "CART", "KNN", "XGB"),
                         selected     = c("LR", "NB", "RF", "CART", "KNN")),
@@ -1122,7 +1178,7 @@ ui <- navbarPage(
                         condition = "input.fs_method == 'forward'",
                         helpText(sprintf("Forward stepwise selected %d features by AIC (precomputed at startup).",
                                           length(fwd_features)))
-                    )
+                    ),
                 ),
                 column(9,
                     fluidRow(
@@ -1133,6 +1189,10 @@ ui <- navbarPage(
                         condition = "input.fs_method == 'lasso' ||
                                      input.fs_method == 'elnet'",
                         plotOutput("fs_path", height = "320px")
+                    ),
+                    conditionalPanel(
+                        condition = "input.fs_method == 'forward'",
+                        plotOutput("fs_aic_path", height = "320px")
                     ),
                     h4("FS vs no-FS summary"),
                     tableOutput("fs_summary_table")
@@ -1940,12 +2000,12 @@ server <- function(input, output, session) {
     output$diag_specific <- renderPlot({
         m  <- input$tune_model
         df <- selected_predictions()$df
-        if (m == "LR")   return(plot_lr_or(lr_model))
+        if (m == "LR")   return(plot_varimp_lr(lr_model))
         if (m == "RF")   return(plot_varimp(rf_model,  "Feature importance (RF, scaled)"))
         if (m == "XGB")  return(plot_varimp(xgb_model, "Feature importance (XGB gain, scaled)"))
-        if (m == "CART") return(plot_cart_tree(cart_model))
+        if (m == "CART") return(plot_varimp(cart_model, "Feature importance (CART, scaled)"))
         if (m == "KNN")  return(plot_knn_elbow(knn_model, knn_live(), input$knn_k))
-        if (m == "NB")   return(plot_calibration(df))
+        if (m == "NB")   return(plot_varimp(nb_model, "Feature importance (NB, scaled)"))
         ggplot() + theme_void()
     }, res = 96)
 
@@ -2139,13 +2199,8 @@ server <- function(input, output, session) {
     output$cmp_metrics_table <- renderTable({
         tbl <- metrics_matrix(cmp_named_dfs())
         if (nrow(tbl) == 0) return(NULL)
-        if (input$cmp_group == "param") {
-            tbl$Family <- ifelse(grepl("Parametric", tbl$Family),
-                                 "Parametric", "Non-parametric")
-        } else {
-            tbl$Family <- ifelse(grepl("Statistical", tbl$Family),
-                                 "Statistical", "Partitioning")
-        }
+        tbl$Family <- ifelse(grepl("Statistical", tbl$Family), "Statistical",
+                     ifelse(grepl("Ensemble", tbl$Family), "Ensemble", "Partitioning"))
         tbl[order(tbl$Family, tbl$Model), ]
     }, striped = TRUE, hover = TRUE, width = "100%")
 
@@ -2229,6 +2284,10 @@ server <- function(input, output, session) {
             lasso = "LASSO coefficient path (α = 1)",
             elnet = sprintf("Elastic Net coefficient path (%s)", enet_alpha_label))
         plot_glmnet_path(fit, fs_lambda(), title)
+    }, res = 96)
+
+    output$fs_aic_path <- renderPlot({
+        plot_fwd_aic_path(fwd_aic_path)
     }, res = 96)
 
     output$fs_lambda_summary <- renderUI({
@@ -2356,36 +2415,36 @@ server <- function(input, output, session) {
 
     output$eda_correlation_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Feature correlations  -  no data"))
-        result_cors <- eda_result_correlations(eda$games)
-        if (nrow(result_cors) == 0) return(empty_plot("Feature correlations  -  no complete rows"))
-        ggplot(result_cors, aes(
-            x = reorder(feature, abs(correlation)),
-            y = correlation,
-            fill = correlation > 0
-        )) +
-            geom_col() +
-            coord_flip(ylim = c(-1, 1)) +
-            scale_y_continuous(breaks = seq(-1, 1, 0.25)) +
-            scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
-                              labels = c("Negative", "Positive")) +
-            labs(title = "Feature Correlation with blue_win",
-                 x = NULL, y = "Pearson Correlation", fill = "Direction") +
-            theme_minimal()
+        if (!is.null(eda$error)) return(empty_plot("Correlation matrix  -  no data"))
+        cor_data <- eda$games %>% select(all_of(EDA_EARLY_COLS)) %>% drop_na()
+        if (nrow(cor_data) < 3) return(empty_plot("Correlation matrix  -  not enough rows"))
+        cor_mat <- cor(cor_data, use = "pairwise.complete.obs")
+        corrplot::corrplot(cor_mat, method = "color", type = "upper",
+                           tl.cex = 0.65, tl.col = "black", tl.srt = 45,
+                           addCoef.col = "black", number.cex = 0.45,
+                           col = colorRampPalette(c("#e74c3c", "white", "#2ecc71"))(200),
+                           title = "Feature Correlation Matrix",
+                           mar = c(0, 0, 2, 0))
     }, res = 96)
 
     output$eda_outcome_means_plot <- renderPlot({
         eda <- eda_data()
-        if (!is.null(eda$error)) return(empty_plot("Per-outcome means  -  no data"))
-        tbl <- eda_outcome_means(eda$games) %>% slice_head(n = 18)
-        ggplot(tbl, aes(x = diff, y = reorder(feature, abs(diff)), fill = diff > 0)) +
+        if (!is.null(eda$error)) return(empty_plot("Correlation with target  -  no data"))
+        result_cors <- eda_result_correlations(eda$games)
+        if (nrow(result_cors) == 0) return(empty_plot("Correlation with target  -  no complete rows"))
+        ggplot(result_cors, aes(
+            x = correlation,
+            y = reorder(feature, abs(correlation)),
+            fill = correlation > 0
+        )) +
             geom_col() +
             geom_vline(xintercept = 0, color = "gray45") +
-            scale_fill_manual(values = c("TRUE" = "#3498db", "FALSE" = "#e74c3c")) +
-            labs(title = "Largest mean gaps: Blue wins minus Red wins",
-                 x = "Mean difference", y = NULL) +
-            theme_minimal() +
-            theme(legend.position = "none")
+            scale_x_continuous(limits = c(-1, 1), breaks = seq(-1, 1, 0.25)) +
+            scale_fill_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
+                              guide = "none") +
+            labs(title = "Feature correlation with blue_win",
+                 x = "Pearson correlation", y = NULL) +
+            theme_minimal()
     }, res = 96)
 
     output$eda_outcome_means_table <- DT::renderDataTable({
